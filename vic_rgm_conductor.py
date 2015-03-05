@@ -105,6 +105,9 @@ if __name__ == '__main__':
 	# Open and read RGM-VIC pixel-cell mapping file
 	rgm_pixel_map = get_rgm_to_grid_cell_mapping()
 
+	# Open and read Bed Digital Elevation Map (BDEM) file into 2D bdem_grid
+	bdem_grid = get_bdem(bed_dem_file)
+
 	start_year = global_parms['STARTYEAR']
 	end_year = global_parms['ENDYEAR']
 	global_file = vic_global_file
@@ -123,7 +126,7 @@ if __name__ == '__main__':
 		# 2) save VIC state at the end of the year
 		subprocess.check_call([vic_full_path, "-g", global_file], shell=False, stderr=subprocess.STDOUT)
 
-		# 3. Open GMB file and use and get most recent GMB polynomial for each grid cell being modeled
+		# 3. Open GMB file and get the most recent GMB polynomial for each grid cell being modeled
 		gmb_polys = get_gmb_polynomials(gmb_file, year, cell_ids)
 			
 		# 4. Translate mass balances using grid cell GMB polynomials and current veg_parm_file into a 2D RGM mass balance grid (MBG)
@@ -134,9 +137,15 @@ if __name__ == '__main__':
 		# 5. Run RGM for one year, passing MBG, BDEM, SDEM
 		subprocess.check_call([rgm_full_path, "-p", rgm_params_file, "-b", bed_dem_file, "-d", sdem_file, "-m" mass_balance_file, "-s", 0, "-e", 0 ], shell=False, stderr=subprocess.STDOUT)
 	
-		# Read in new Surface DEM file from RGM output
-		temp_sdem = 
+		# 6. Read in new Surface DEM file from RGM output
+		sdem_file = get_temp_sdem_filename()
+		temp_sdem = read_sdem_file()
 
-		# Write / Update temp_gpf
+		# 7. Update glacier mask
+		glacier_mask_grid = update_glacier_mask(temp_sdem, bdem_grid)
+		
+		# 8.1 Update HRUs in VIC state file 
 
-		# Write / Update temp_vpf
+		# 8.2 Write / Update temp_vpf
+
+		# 9. Write / Update temp_gpf
