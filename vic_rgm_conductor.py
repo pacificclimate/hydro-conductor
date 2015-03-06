@@ -6,6 +6,7 @@ import sys
 import argparse
 import subprocess
 import numpy as np
+import h5py
 
 
 vic_full_path = '/home/mfischer/code/vic/vicNl'
@@ -126,8 +127,10 @@ if __name__ == '__main__':
 		# 2) save VIC state at the end of the year
 		subprocess.check_call([vic_full_path, "-g", global_file], shell=False, stderr=subprocess.STDOUT)
 
-		# 3. Open GMB file and get the most recent GMB polynomial for each grid cell being modeled
-		gmb_polys = get_gmb_polynomials(gmb_file, year, cell_ids)
+		# 3. Open VIC state file and get the most recent GMB polynomial for each grid cell being modeled
+		state_filename = global_parms['STATENAME'] + "_" + year + global_parms['STATEMONTH'] + global_parms['STATEDAY']
+		state = h5py.open(state_filename)
+		gmb_polys = state['GLAC_MASS_BALANCE_EQUATION']
 			
 		# 4. Translate mass balances using grid cell GMB polynomials and current veg_parm_file into a 2D RGM mass balance grid (MBG)
 		mass_balance_grid = mass_balances_to_rgm_pixels(gmb_polys, veg_parm_file, rgm_pixel_map)
