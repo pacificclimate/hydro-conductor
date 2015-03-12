@@ -7,15 +7,14 @@ import argparse
 import subprocess
 import numpy as np
 import h5py
-from collections import defaultdict
+import csv
 
 
 vic_full_path = '/home/mfischer/code/vic/vicNl'
 #initial_vic_global_file = '/home/mfischer/vic_dev/input/place/glb_base_PLACE_19601995_VIC4.1.2_outNETCDF_initial.txt' 
 #vic_global_file = '/home/mfischer/vic_dev/input/place/glb_base_PLACE_19601995_VIC4.1.2_outNETCDF.txt' 
 #vpf_full_path = '/home/mfischer/vic_dev/input/place/vpf_place_100m.txt' 
-# path to Glacier Mass Balance files
-gmb_path = '/home/mfischer/vic_dev/out/testing/gmb_files/'
+rgm_output_path = '/home/mfischer/vic_dev/out/testing/rgm_output/'
 
 class MyParser(argparse.ArgumentParser):
     def error(self, message):
@@ -99,6 +98,41 @@ def get_rgm_pixel_mapping(pixel_map_file):
 			#print 'columns: {}'.format(columns)
 	return pixel_grid, num_rows_rpg, num_cols_rpg
 
+def read_dem_file(dem_file):
+	""" Opens a DEM file, parses RGM grid extents parameters, and reads in the DEM """
+	dem_grid = []
+	with open(dem_file, 'r') as f:
+		num_cols_bdem = 0
+		num_rows_bdem = 0
+		for line in iter(f):
+			split_line = line.split()
+			if split_line[0] == 'NCOLS':
+				num_cols_dem = int(split_line[1])
+				# we assume here that get_rgm_pixel_mapping() has already been called
+				if num_cols_dem != num_cols_rpg:
+					print 'NCOLS ({}) stated in RGM-VIC mapping file disagrees with NCOLS ({}) stated in DEM file {}. Exiting.\n'.format(num_cols_rpg, num_cols_dem, dem_file)
+					sys.exit(0)
+			elif split_line[0] == 'NROWS':
+				num_rows_bdem = int(split_line[1])
+				# we assume here that get_rgm_pixel_mapping() has already been called
+				if num_rows_bdem != num_rows_rpg:
+					print 'NROWS ({}) stated in RGM-VIC mapping file disagrees with NROWS ({}) stated in DEM file {}. Exiting.\n'.format(num_rows_rpg, num_rows_dem, dem_file)
+					sys.exit(0)
+			elif split_line[0] == 'XLLCORNER':
+				xmin = float(split_line[1])
+			elif split_line[0] == 'YLLCORNER':
+				ymin = float(split_line[1])
+			elif split_line[0] == 'CELLSIZE':
+				dem_pixel_size = int(split_line[1])
+				if xmin and ymin and dem_pixel_size:
+					xmax = num_cols_bdem * dem_pixel_size + xmin
+					ymax = num_rows_bdem * dem_pixel_size + ymin
+			elif split_line[0] == 'NODATA_value': # should we do anything with this?
+				dem_no_data_value = int(split_line[1])
+			else: # read the next row of DEM data in
+				dem_grid.append(split_line)
+	return dem_grid, xmin, xmax, ymin, ymax
+
 def get_mass_balance_polynomials(state):
 	""" Extracts the Glacier Mass Balance polynomial for each grid cell from an open VIC state file """
 	gmb_info = state['GLAC_MASS_BALANCE_INFO']
@@ -122,7 +156,7 @@ def mass_balances_to_rgm_grid(gmb_polys, rgm_pixel_grid):
 		for col in range(0, num_cols_rpg):
 			pixel = rgm_pixel_grid[row][col]
 			band = pixel[0]
-			median_elev = pixel[1]
+			median_elev = float(pixel[1])
 			cell_id = pixel[2]
 			# only grabbing pixels that fall within a VIC cell
 			if cell_id != 'NA':
@@ -134,9 +168,16 @@ def mass_balances_to_rgm_grid(gmb_polys, rgm_pixel_grid):
 	return mass_balance_grid			
 		
 
-def write_mbg_to_file(mass_balance_grid):
-	""" Writes the 2D Mass Balance Grid to ASCII file in the input format expected by the RGM, and returns a filename """
-		pass
+def write_grid_to_file(grid, outfilename):
+	""" Writes a 2D grid to ASCII file in the input format expected by the RGM for DEM and mass balance grids """
+	header_rows = [['DSAA'], [num_cols_rpg, num_rows_rpg], [rgm_xmin, rgm_xmax], [rgm_ymin, rgm_ymax], [0, 0]]
+	with open(outfilename, 'w') as csvfile:
+		writer = csv.writer(csvfile, delimiter=' ')
+		for header in range(0, len(header_rows)):
+			writer.writerow(header_rows[header])
+		for row in range(0, num_rows_rpg):
+			writer.writerow(grid[row])
+	
 
 if __name__ == '__main__':
 	
@@ -161,18 +202,24 @@ if __name__ == '__main__':
 	global_parms = get_global_parameters(vic_global_file)
 
 	# Get all grid cell ID numbers for this simulation from the initial Vegetation Parameter File (iVPF)
-	cell_ids = get_grid_cell_ids(global_parms['VEGPARAM'])
+	cell_ids = get_grid_cell_ids(global_parms['VEGPARAM'][0])
 
 	# Open and read VIC-grid-to-RGM-pixel mapping file
 	# rgm_pixel_grid is a list of lists of dimensions num_rows_rpg x num_cols_rpg, each element containing:
 	# [<elevation_band>, <median elevation>, <VIC_grid_cell_num>]
 	rgm_pixel_grid, num_rows_rpg, num_cols_rpg = get_rgm_pixel_mapping(pixel_map_file)
 
-	# Open and read Bed Digital Elevation Map (BDEM) file into 2D bdem_grid
-	bdem_grid = get_bdem(bed_dem_file)
+	# Open and read the provided Bed Digital Elevation Map (BDEM) file into a 2D bdem_grid
+	bed_dem_grid, rgm_xmin, rgm_xmax, rgm_ymin, rgm_ymax = read_dem_file(bed_dem_file)
+	# NOTE: the following might not be the permanent source for BDEM and SDEM input:
+	# write out Bed DEM to a format readable by RGM (and we'll use this as the initial SDEM input as well)
+	bed_dem_file = 'peyto_bed_dem.grd'
+	write_grid_to_file(bed_dem_grid, bed_dem_file)
+	initial_surf_dem_file = bed_dem_file
 
-	start_year = global_parms['STARTYEAR']
-	end_year = global_parms['ENDYEAR']
+
+	start_year = global_parms['STARTYEAR'][0]
+	end_year = global_parms['ENDYEAR'][0]
 	global_file = vic_global_file
 	veg_file = initial_veg_parm_file
 	sdem_file = initial_surf_dem_file
@@ -196,18 +243,19 @@ if __name__ == '__main__':
 			
 		# 4. Translate mass balances using grid cell GMB polynomials and current veg_parm_file into a 2D RGM mass balance grid (MBG)
 		mass_balance_grid = mass_balances_to_rgm_grid(gmb_polys, rgm_pixel_grid)
-		# write MBG to ASCII file to direct the RGM to use as input
-		mass_balance_file = write_mbg_to_file(mass_balance_grid)
+		# write Mass Balance Grid to ASCII file to direct the RGM to use as input
+		mbg_filename = 'mass_balance_grid_' + str(year) + '.grd'
+		write_grid_to_file(mass_balance_grid, mbg_filename)
 
 		# 5. Run RGM for one year, passing MBG, BDEM, SDEM
-		subprocess.check_call([rgm_full_path, "-p", rgm_params_file, "-b", bed_dem_file, "-d", sdem_file, "-m" mass_balance_file, "-s", 0, "-e", 0 ], shell=False, stderr=subprocess.STDOUT)
+		subprocess.check_call([rgm_full_path, "-p", rgm_params_file, "-b", bed_dem_file, "-d", sdem_file, "-m", mass_balance_file, "-o", rgm_output_path, "-s", 0, "-e", 0 ], shell=False, stderr=subprocess.STDOUT)
 	
 		# 6. Read in new Surface DEM file from RGM output
 		sdem_file = get_temp_sdem_filename()
 		temp_sdem = read_sdem_file()
 
 		# 7. Update glacier mask
-		glacier_mask_grid = update_glacier_mask(temp_sdem, bdem_grid)
+		glacier_mask_grid = update_glacier_mask(temp_sdem, bed_dem_grid)
 		
 		# 8.1 Update HRUs in VIC state file 
 
