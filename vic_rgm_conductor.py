@@ -100,6 +100,7 @@ def get_rgm_pixel_mapping(pixel_map_file):
 
 def read_dem_file(dem_file):
 	""" Opens a DEM file, parses RGM grid extents parameters, and reads in the DEM """
+	# NOTE: this may have to change to conform to ARC/ASCII grid format instead
 	dem_grid = []
 	with open(dem_file, 'r') as f:
 		num_cols_bdem = 0
@@ -135,18 +136,18 @@ def read_dem_file(dem_file):
 
 def get_mass_balance_polynomials(state):
 	""" Extracts the Glacier Mass Balance polynomial for each grid cell from an open VIC state file """
-	gmb_info = state['GLAC_MASS_BALANCE_INFO']
-	cell_count = len(gmb_info[0])
+	gmb_info = state['GLAC_MASS_BALANCE_INFO'][0]
+	cell_count = len(gmb_info)
 	if cell_count != len(cell_ids):
 		print 'get_mass_balance_polynomials: The number of VIC cells read from the state file {} and the vegetation parameter file ({}) disagree. Exiting.\n'.format(cell_count, len(cell_ids))
 		sys.exit(0)
 	gmb_polys = {}
 	for i in range(0, cell_count):
-		cell_id = str(int(gmb_info[0][i][0]))
+		cell_id = str(int(gmb_info[i][0]))
 		if cell_id not in cell_ids:
 			print 'get_mass_balance_polynomials: Cell ID {} was not found in the list of VIC cell IDs read from the vegetation parameters file. Exiting.\n'.format(cell_id)
 			#sys.exit(0)
-		gmb_polys[cell_id] = [gmb_info[0][i][1], gmb_info[0][i][2], gmb_info[0][i][3]]
+		gmb_polys[cell_id] = [gmb_info[i][1], gmb_info[i][2], gmb_info[i][3]]
 	return gmb_polys
 
 def mass_balances_to_rgm_grid(gmb_polys, rgm_pixel_grid):
@@ -167,7 +168,6 @@ def mass_balances_to_rgm_grid(gmb_polys, rgm_pixel_grid):
 				mass_balance_grid[row][col] = gmb_polys[cell_id][0] + median_elev * (gmb_polys[cell_id][1] + median_elev * gmb_polys[cell_id][2])
 	return mass_balance_grid			
 		
-
 def write_grid_to_file(grid, outfilename):
 	""" Writes a 2D grid to ASCII file in the input format expected by the RGM for DEM and mass balance grids """
 	header_rows = [['DSAA'], [num_cols_rpg, num_rows_rpg], [rgm_xmin, rgm_xmax], [rgm_ymin, rgm_ymax], [0, 0]]
@@ -180,7 +180,7 @@ def write_grid_to_file(grid, outfilename):
 	
 
 if __name__ == '__main__':
-	
+	# 1. Get all global parameters and perform initializations of constants
 	parser = MyParser()
 	parser.add_argument('--g', action="store", dest="vic_global_file", type=str, help = 'file name and path of the VIC global parameters file')
 #	parser.add_argument('--vpf', action="store", dest="veg_parm_file", type=str, help = 'file name and path of the initial Vegetation Parameter File (VPF)')
@@ -211,9 +211,11 @@ if __name__ == '__main__':
 
 	# Open and read the provided Bed Digital Elevation Map (BDEM) file into a 2D bdem_grid
 	bed_dem_grid, rgm_xmin, rgm_xmax, rgm_ymin, rgm_ymax = read_dem_file(bed_dem_file)
-	# NOTE: the following might not be the permanent source for BDEM and SDEM input:
-	# write out Bed DEM to a format readable by RGM (and we'll use this as the initial SDEM input as well)
-	bed_dem_file = 'peyto_bed_dem.grd'
+
+	# NOTE: right now BDEM and SDEM input come from the same file (just for testing); we will probably
+	# get Markus to make the BDEM headers conform to ARC/ASCII grid format, eliminating the need for the call to
+	# write_grid_to_file() to write out the Bed DEM to a format readable by RGM
+	bed_dem_file = 'peyto_bed_dem.grd'  # this file will be the ARC/ASCII version of the Bed DEM Markus provided (temporary workaround)
 	write_grid_to_file(bed_dem_grid, bed_dem_file)
 	initial_surf_dem_file = bed_dem_file
 
@@ -225,15 +227,13 @@ if __name__ == '__main__':
 	sdem_file = initial_surf_dem_file
 
 	for year in range(start_year, end_year):
-		# Call initial VIC run starting at year 0. 
+		# Call initial VIC run starting at the first year in the VIC global parameters file 
 		if year > start_year:
 			global_file = temp_gpf
 			veg_file = temp_vpf
 			sdem_file = temp_sdem
 
-		# Run VIC for a year.  This will do the following:
-		# 1) create, if needed, and write a polynomial line to the Glacier Mass Balance (GMB) file
-		# 2) save VIC state at the end of the year
+		# 2. Run VIC for a year.  This will save VIC state at the end of the year, along with a Glacier Mass Balance (GMB) polynomial for each cell
 		subprocess.check_call([vic_full_path, "-g", global_file], shell=False, stderr=subprocess.STDOUT)
 
 		# 3. Open VIC NetCDF state file and get the most recent GMB polynomial for each grid cell being modeled
@@ -258,8 +258,9 @@ if __name__ == '__main__':
 		glacier_mask_grid = update_glacier_mask(temp_sdem, bed_dem_grid)
 		
 		# 8.1 Update HRUs in VIC state file 
+			# don't forget to close the state file
 
 		# 8.2 Write / Update temp_vpf
 
 		# 9. Write / Update temp_gpf
-		# need to introduce INIT_STATE line with most current state_filename (does not exist in the first read-in of global_parms)
+			# need to introduce INIT_STATE line with most current state_filename (does not exist in the first read-in of global_parms)
