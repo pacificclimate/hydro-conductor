@@ -3,27 +3,49 @@
 """ This script orchestrates a coupled Variable Infiltration Capacity (VIC) and Regional Glacier Model (RGM) run. """
 
 import sys
+import os
 import argparse
 import subprocess
 import numpy as np
 import h5py
 import csv
 
-
 vic_full_path = '/home/mfischer/code/vic/vicNl'
 rgm_full_path = '/home/mfischer/code/rgm/rgm'
 input_files_path = '/home/mfischer/vic_dev/input/peyto/'
-rgm_params_file =  input_files_path + 'global_params_VIC.txt'
+#rgm_params_file =  input_files_path + 'global_params_VIC.txt'
 #initial_vic_global_file = '/home/mfischer/vic_dev/input/place/glb_base_PLACE_19601995_VIC4.1.2_outNETCDF_initial.txt' 
 #vic_global_file = '/home/mfischer/vic_dev/input/place/glb_base_PLACE_19601995_VIC4.1.2_outNETCDF.txt' 
 #vpf_full_path = '/home/mfischer/vic_dev/input/place/vpf_place_100m.txt' 
-rgm_output_path = '/home/mfischer/vic_dev/out/testing/rgm_output/'
+#rgm_output_path = '/home/mfischer/vic_dev/out/testing/rgm_output/'
+temp_files_path = '/home/mfischer/vic_dev/out/testing/temp_out_files/'
 
 class MyParser(argparse.ArgumentParser):
     def error(self, message):
         sys.stderr.write('error: %s]n' % message)
         self.print_help()
         sys.exit(2)
+
+# Get all global parameters 
+parser = MyParser()
+parser.add_argument('--g', action="store", dest="vic_global_file", type=str, help = 'file name and path of the VIC global parameters file')
+parser.add_argument('--rgm-params', action="store", dest="rgm_params_file", type=str, help = 'file name and path of the Regional Glacier Model (RGM) parameters file')
+parser.add_argument('--sdem', action="store", dest="surf_dem_file", type=str, help = 'file name and path of the initial Surface Digital Elevation Model (SDEM) file')
+parser.add_argument('--bdem', action="store", dest="bed_dem_file", type=str, help = 'file name and path of the Bed Digital Elevation Model (BDEM) file')
+parser.add_argument('--pixel-map', action="store", dest="pixel_map_file", type=str, help = 'file name and path of the VIC Grid to RGM Pixel Mapping file')
+parser.add_argument('--trace-files', action="store_true", default=False, dest="trace_files", help = 'write out persistent ASCII DEM and mass balance grid files on each time step for offline inspection')
+
+if len(sys.argv) == 1:
+	parser.print_help()
+	sys.exit(1)
+options = parser.parse_args()
+vic_global_file = options.vic_global_file
+rgm_params_file = options.rgm_params_file
+initial_surf_dem_file = options.surf_dem_file
+bed_dem_file = options.bed_dem_file
+pixel_map_file = options.pixel_map_file
+output_trace_files = options.trace_files
+
 
 def get_global_parameters(global_parm_file):
 	""" Parses the VIC global parameters file created by the user that will be needed to conduct the VIC-RGM run """
@@ -101,7 +123,7 @@ def get_rgm_pixel_mapping(pixel_map_file):
 			#print 'columns: {}'.format(columns)
 	return pixel_grid, num_rows_rpg, num_cols_rpg
 
-def read_pcic_dem_file(dem_file):
+def read_asc_dem_file(dem_file):
 	""" Opens a DEM file, parses RGM grid extents parameters, and reads in the DEM """
 	# NOTE: this may have to change to conform to ARC/ASCII grid format instead
 	dem_grid = []
@@ -140,33 +162,46 @@ def read_pcic_dem_file(dem_file):
 			elif split_line[0] == 'NODATA_value': # should we do anything with this?
 				dem_no_data_value = int(split_line[1])
 			else: # read the next row of DEM data in
+				split_line = [float(x) for x in line.split()] # bad that we're doing the split() operation twice, but this fcn is probably only temporary anyway 
 				dem_grid.append(split_line)
 	return dem_grid, xmin, xmax, ymin, ymax
 
-def read_dem_file(dem_file):
+def read_gsa_dem_file(dem_file):
 	""" Opens an ASCII grid (.grd) DEM file, parses grid extents parameters, and reads in the DEM """
 	dem_grid = []
 	with open(dem_file, 'r') as f:
-		num_cols_bdem = 0
-		num_rows_bdem = 0
+		num_cols_dem = 0
+		num_rows_dem = 0
 		for line_num, line in enumerate(f):
-			split_line = line.split()
 			if line_num == 0:
+				split_line = line.split()
 				if split_line[0] != 'DSAA':
 					print 'DSAA header on first line of file {} not found or is malformed.  DEM file does not conform to ASCII grid format.  Exiting. \n'.format(dem_file)
 					#sys.exit(0)
 			elif line_num == 1:
-				num_cols_bdem = int(split_line[0])
-				num_rows_bdem = int(split_line[1])
+				split_line = [int(x) for x in line.split()]
+				num_cols_dem = split_line[0]
+				num_rows_dem = split_line[1]
+				#print 'num_rows_dem: {} num_cols_dem: {}'.format(num_rows_dem, num_cols_dem)
 			elif line_num == 2:
-				xmin = float(split_line[0])
-				xmax = float(split_line[1])
+				split_line = [float(x) for x in line.split()]
+				xmin = split_line[0]
+				xmax = split_line[1]
 			elif line_num == 3:
-				ymin = float(split_line[0])
-				ymax = float(split_line[1])
+				split_line = [float(x) for x in line.split()]
+				ymin = split_line[0]
+				ymax = split_line[1]
 			elif line_num == 4:
-				pass  # is anything to be done with this line?
-			else: # read the next row of DEM data in
+				pass  # is anything to be done with these zmin, zmax values?
+			else: # read the one big row of DEM data into num_rows_bdem & num_cols_bdem list of lists
+				# for row_index in range(0, num_rows_dem):
+				# 	start_row = row_index * num_cols_dem
+				# 	end_row = start_row + num_cols_dem
+				# 	row = line[start_row : end_row]
+				# 	split_row = [float(x) for x in row.split()]
+				# 	print split_row
+				# 	dem_grid.append(split_row)
+				split_line = [float(x) for x in line.split()] # bad that we're doing the split() operation twice, but this fcn is probably only temporary anyway 
 				dem_grid.append(split_line)
 	return dem_grid, xmin, xmax, ymin, ymax
 
@@ -206,34 +241,30 @@ def mass_balances_to_rgm_grid(gmb_polys, rgm_pixel_grid):
 		
 def write_grid_to_file(grid, outfilename):
 	""" Writes a 2D grid to ASCII file in the input format expected by the RGM for DEM and mass balance grids """
-	header_rows = [['DSAA'], [num_cols_rpg, num_rows_rpg], [rgm_xmin, rgm_xmax], [rgm_ymin, rgm_ymax], [0, 0]]
+	zmin = np.min(grid)
+	zmax = np.max(grid)
+	header_rows = [['DSAA'], [num_cols_rpg, num_rows_rpg], [rgm_xmin, rgm_xmax], [rgm_ymin, rgm_ymax], [zmin, zmax]]
 	with open(outfilename, 'w') as csvfile:
 		writer = csv.writer(csvfile, delimiter=' ')
 		for header in range(0, len(header_rows)):
 			writer.writerow(header_rows[header])
 		for row in range(0, num_rows_rpg):
 			writer.writerow(grid[row])
-	
+
+def update_glacier_mask(sdem, bdem):
+	""" Takes output Surface DEM from RGM and uses element-wise differencing with the Bed DEM to form an updated glacier mask """
+	diffs = np.array(sdem) - np.array(bed_dem)
+	if np.any(diffs < 0):
+		print 'update_glacier_mask: Error: subtraction of Bed DEM from output Surface DEM of RGM produced one or more negative values.  Exiting.\n'
+		sys.exit(0)
+	glacier_mask = np.zeros((num_rows_rpg, num_cols_rpg))
+	glacier_mask[diffs > 0] = 1
+	glacier_mask[diffs == 0] = 0
+	return glacier_mask
 
 if __name__ == '__main__':
-	# 1. Get all global parameters and perform initializations of constants
-	parser = MyParser()
-	parser.add_argument('--g', action="store", dest="vic_global_file", type=str, help = 'file name and path of the VIC global parameters file')
-	parser.add_argument('--rgm-params', action="store", dest="rgm_params_file", type=str, help = 'file name and path of the Regional Glacier Model (RGM) Parameters file')
-	parser.add_argument('--sdem', action="store", dest="surf_dem_file", type=str, help = 'file name and path of the initial Surface Digital Elevation Model (SDEM) file')
-	parser.add_argument('--bdem', action="store", dest="bed_dem_file", type=str, help = 'file name and path of the Bed Digital Elevation Model (BDEM) file')
-	parser.add_argument('--pixel-map', action="store", dest="pixel_map_file", type=str, help = 'file name and path of the VIC Grid to RGM Pixel Mapping file')
 
-	if len(sys.argv) == 1:
-		parser.print_help()
-		sys.exit(1)
-	options = parser.parse_args()
-	vic_global_file = options.vic_global_file
-	rgm_params_file = options.rgm_params_file
-	initial_surf_dem_file = options.surf_dem_file
-	bed_dem_file = options.bed_dem_file
-	pixel_map_file = options.pixel_map_file
-
+	print '\n\nVIC + RGM ... together at last!'
 	# Get all VIC global parameters
 	global_parms = get_global_parameters(vic_global_file)
 
@@ -247,55 +278,65 @@ if __name__ == '__main__':
 	rgm_pixel_grid, num_rows_rpg, num_cols_rpg = get_rgm_pixel_mapping(pixel_map_file)
 
 	# Open and read the provided Bed Digital Elevation Map (BDEM) file into a 2D bdem_grid
-	bed_dem_grid, rgm_xmin, rgm_xmax, rgm_ymin, rgm_ymax = read_pcic_dem_file(bed_dem_file)
-
-	# NOTE: right now BDEM and SDEM input come from the same file (just for testing); we will probably
-	# get Markus to make the BDEM headers conform to ARC/ASCII grid format, eliminating the need for the call to
-	# write_grid_to_file() to write out the Bed DEM to a format readable by RGM
-	bed_dem_file = input_files_path + 'peyto_bed_dem.grd'  # this file will be the ARC/ASCII version of the Bed DEM Markus provided (temporary workaround)
-	write_grid_to_file(bed_dem_grid, bed_dem_file)
-	initial_surf_dem_file = bed_dem_file
-
+	bed_dem, rgm_xmin, rgm_xmax, rgm_ymin, rgm_ymax = read_asc_dem_file(bed_dem_file)
 
 	start_year = int(global_parms['STARTYEAR'][0])
 	end_year = int(global_parms['ENDYEAR'][0])
 	global_file = vic_global_file
 	veg_file = initial_veg_parm_file
-	sdem_file = initial_surf_dem_file
+	surf_dem_file = initial_surf_dem_file
+
+	# NOTE: it appears the .gsa DEM from Markus does not conform to ARC/ASCII grid format (rows are clipped at 10 elements), 
+	# which makes RGM puke.  Once this is corrected, we can eliminate the need for the calls to write_grid_to_file() to 
+	# write out the Bed and Surface DEMs to a format readable by RGM.  Ideally, we probably only want to have to read .gsa files, 
+	# and remove support / need for .asc files entirely
+	rgm_bed_dem_file = input_files_path + 'peyto_bed_dem.gsa'  # this file will now point at the ARC/ASCII version, produced by read_pcic_dem_file, of the Bed DEM Markus provided (temporary workaround)
+	write_grid_to_file(bed_dem, rgm_bed_dem_file)
+	rgm_surf_dem_file = input_files_path + 'peyto_surf_dem.gsa'
+	write_grid_to_file(bed_dem, rgm_surf_dem_file)
 
 	for year in range(start_year, end_year):
 		# Call initial VIC run starting at the first year in the VIC global parameters file
-		print 'year: {}'.format(year)
+		print '\nRunning year: {}'.format(year)
 
 		if year > start_year:
 			global_file = temp_gpf
 			veg_file = temp_vpf
-			sdem_file = temp_sdem
+			surf_dem_file = temp_surf_dem
 
 		# 2. Run VIC for a year.  This will save VIC state at the end of the year, along with a Glacier Mass Balance (GMB) polynomial for each cell
 		subprocess.check_call([vic_full_path, "-g", global_file], shell=False, stderr=subprocess.STDOUT)
 
 		# 3. Open VIC NetCDF state file and get the most recent GMB polynomial for each grid cell being modeled
-		state_filename = str(global_parms['STATENAME'][0]) + "_" + str(year) + str(global_parms['STATEMONTH'][0]) + str(global_parms['STATEDAY'][0])
-		state = h5py.File(state_filename, 'r+')
+		state_file = str(global_parms['STATENAME'][0]) + "_" + str(year) + str(global_parms['STATEMONTH'][0]) + str(global_parms['STATEDAY'][0])
+		state = h5py.File(state_file, 'r+')
 		gmb_polys = get_mass_balance_polynomials(state)
 			
 		# 4. Translate mass balances using grid cell GMB polynomials and current veg_parm_file into a 2D RGM mass balance grid (MBG)
 		mass_balance_grid = mass_balances_to_rgm_grid(gmb_polys, rgm_pixel_grid)
 		# write Mass Balance Grid to ASCII file to direct the RGM to use as input
-		mbg_file = input_files_path + 'mass_balance_grid_' + str(year) + '.grd'
+		mbg_file = temp_files_path + 'mass_balance_grid_' + str(year) + '.gsa'
 		write_grid_to_file(mass_balance_grid, mbg_file)
 
 		# 5. Run RGM for one year, passing MBG, BDEM, SDEM
-		subprocess.check_call([rgm_full_path, "-p", rgm_params_file, "-b", bed_dem_file, "-d", sdem_file, "-m", mbg_file, "-o", rgm_output_path, "-s", "0", "-e", "0" ], shell=False, stderr=subprocess.STDOUT)
-	
+		#subprocess.check_call([rgm_full_path, "-p", rgm_params_file, "-b", bed_dem_file, "-d", sdem_file, "-m", mbg_file, "-o", temp_files_path, "-s", "0", "-e", "0" ], shell=False, stderr=subprocess.STDOUT)
+		subprocess.check_call([rgm_full_path, "-p", rgm_params_file, "-b", rgm_bed_dem_file, "-d", rgm_surf_dem_file, "-m", mbg_file, "-o", temp_files_path, "-s", "0", "-e", "0" ], shell=False, stderr=subprocess.STDOUT)
+		# remove temporary MBG file if not saving for offline viewing
+		if not output_trace_files:
+			os.remove(mbg_file)
+
 		# 6. Read in new Surface DEM file from RGM output
-		rgm_sdem_out_file = rgm_output_path + 's_out_00001.grd'
-		temp_sdem = read_dem_file(rgm_sdem_out_file)
-		#print temp_sdem[0][0]
+		rgm_surf_dem_out_file = temp_files_path + 's_out_00001.grd'
+		temp_surf_dem, sdem_xmin, sdem_xmax, sdem_ymin, sdem_ymax = read_gsa_dem_file(rgm_surf_dem_out_file)
+		if output_trace_files:
+			new_rgm_surf_dem_out_file = temp_files_path + 'rgm_surf_dem_out_' + str(year) + '.gsa'
+			os.rename(rgm_surf_dem_out_file, new_rgm_surf_dem_out_file)
 
 		# 7. Update glacier mask
-		#glacier_mask_grid = update_glacier_mask(temp_sdem, bed_dem_grid)
+		glacier_mask = update_glacier_mask(temp_surf_dem, bed_dem)
+		if output_trace_files:
+			glacier_mask_file = temp_files_path + 'glacier_mask_' + str(year) + '.gsa'
+			write_grid_to_file(glacier_mask, glacier_mask_file)
 		
 		# 8.1 Update HRUs in VIC state file 
 			# don't forget to close the state file
