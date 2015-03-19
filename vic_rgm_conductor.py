@@ -19,6 +19,8 @@ input_files_path = '/home/mfischer/vic_dev/input/peyto/'
 #vpf_full_path = '/home/mfischer/vic_dev/input/place/vpf_place_100m.txt' 
 #rgm_output_path = '/home/mfischer/vic_dev/out/testing/rgm_output/'
 temp_files_path = '/home/mfischer/vic_dev/out/testing/temp_out_files/'
+# NOTE: Setting a default elevation band size of 100 m (should this be a command line parameter?)
+band_size = 100
 
 class MyParser(argparse.ArgumentParser):
     def error(self, message):
@@ -32,7 +34,7 @@ parser.add_argument('--g', action="store", dest="vic_global_file", type=str, hel
 parser.add_argument('--rgm-params', action="store", dest="rgm_params_file", type=str, help = 'file name and path of the Regional Glacier Model (RGM) parameters file')
 parser.add_argument('--sdem', action="store", dest="surf_dem_file", type=str, help = 'file name and path of the initial Surface Digital Elevation Model (SDEM) file')
 parser.add_argument('--bdem', action="store", dest="bed_dem_file", type=str, help = 'file name and path of the Bed Digital Elevation Model (BDEM) file')
-parser.add_argument('--pixel-map', action="store", dest="pixel_map_file", type=str, help = 'file name and path of the VIC Grid to RGM Pixel Mapping file')
+parser.add_argument('--pixel-map', action="store", dest="pixel_cell_map_file", type=str, help = 'file name and path of the RGM Pixel to VIC Grid Cell mapping file')
 parser.add_argument('--trace-files', action="store_true", default=False, dest="trace_files", help = 'write out persistent ASCII DEM and mass balance grid files on each time step for offline inspection')
 
 if len(sys.argv) == 1:
@@ -43,9 +45,11 @@ vic_global_file = options.vic_global_file
 rgm_params_file = options.rgm_params_file
 initial_surf_dem_file = options.surf_dem_file
 bed_dem_file = options.bed_dem_file
-pixel_map_file = options.pixel_map_file
+pixel_cell_map_file = options.pixel_cell_map_file
 output_trace_files = options.trace_files
 
+
+def tree(): return defaultdict(tree)
 
 def get_global_parameters(global_parm_file):
 	""" Parses the VIC global parameters file created by the user that will be needed to conduct the VIC-RGM run """
@@ -75,24 +79,52 @@ def get_global_parameters(global_parm_file):
 							temp_list.append(columns[i])
 						global_parms[parm_name].append(temp_list)
 		#				print 'global_parms[{}]: {}'.format(parm_name,global_parms[parm_name])
-		f.close()
 	return global_parms
 
-def get_grid_cell_ids(veg_parm_file):
-	""" Parses the vegetation parameter file for the grid cell IDs that will be used in the simulation """
+def get_veg_parms(veg_parm_file):
 	cell_ids = []
+	veg_parms = {}
 	with open(veg_parm_file, 'r') as f:
 		for line in iter(f):
 			columns = line.split()
-			if len(columns) == 2:
-				cell_ids.append(columns[0])
-		f.close()
-	return cell_ids
+			num_columns = len(columns)
+			if num_columns == 2:
+				grid_cell = columns[0]
+				cell_ids.append(grid_cell)
+				veg_parms[grid_cell] = []
+			elif num_columns > 2:
+				veg_parms[grid_cell].append(columns)
+	return cell_ids, veg_parms
+
+def get_snb_parms(snb_file, num_snow_bands):
+	""" Reads in a Snow Band File and outputs a dict:
+	{'cell_id_0' : [area_frac_band_0,...,area_frac_band_N],[median_elev_band_0,...,median_elev_band_N],[Pfactor_band_0,...,Pfactor_band_N]], 'cell_id_1' : ..."""
+	snb_parms = {}
+	with open(snb_file, 'r') as f:
+		for line in iter(f):
+			#print 'line: {}'.format(line)
+			split_line = line.split()
+			num_columns = len(split_line)
+			if num_columns != 3*num_snow_bands + 1:
+				print 'get_snb_parms(): Number of columns ({}) in snow band file {} is incorrect for the given number of snow bands ({}) given in the global parameter file (should be 3 * num_snow_bands + 1). Exiting.\n'.format(num_columns, snb_file, num_snow_bands)
+				#sys.exit(0)
+			snb_parms[split_line[0]] = [float(x) for x in split_line[1 : num_snow_bands+1]],[float(x) for x in split_line[num_snow_bands+1 : 2*num_snow_bands+1]],[float(x) for x in split_line[2*num_snow_bands+1 : 3*num_snow_bands+1]]
+	return snb_parms
+
+def get_bands(snb_parms, band_size):
+	""" Takes a dict of Snow Band parameters and identifies and creates a list of elevation bands for each grid cell of band_size width in meters"""
+	band_map = {}
+	for cell in cell_ids:
+		band_map[cell] = []
+		for band in snb_parms[cell][1]:
+			if band > 0: # ignore bands with median elevation 0
+				band_map[cell].append(int(band - band % band_size))
+	return band_map
 
 def get_rgm_pixel_mapping(pixel_map_file):
-	""" Parses the VIC-to-RGM pixel-to-grid cell map file and initialises a 2D map of valid RGM pixels to use as one input to RGM 
-	   	pixel_grid is a list of lists of dimensions num_rows_rpg x num_cols_rpg, each element containing:
-	 	[<elevation_band>, <median elevation>, <VIC_cell_ID>]"""
+	""" Parses the RGM pixel to VIC grid cell mapping file and initialises a 2D  
+	   	grid of dimensions num_rows_rpg x num_cols_rpg (matching the RGM pixel grid),
+	   	each element containing the VIC cell ID associated with that RGM pixel"""
 	pixel_grid = []
 	with open(pixel_map_file, 'r') as f:
 		num_cols_rpg = 0
@@ -114,12 +146,12 @@ def get_rgm_pixel_mapping(pixel_map_file):
 				#print 'comment line: {}'.format(split_line)
 				pass
 			else:
+				# NOTE: we might want Markus to recreate this mapping file with zero-based indexing
 				row_num = int(split_line[1])
 				col_num = int(split_line[2])
 				#print 'populating row: {}, col: {}'.format(row_num, col_num)
-				# put band, elevation, and VIC cell ID triplet in the row,col position of pixel_grid
-				pixel_grid[row_num-1][col_num-1] = [split_line[3], split_line[4], split_line[5]]
-			
+				# NOTE: changed to only putting VIC cell ID into the row,col position (band and elev are not static)
+				pixel_grid[row_num-1][col_num-1] = split_line[5]
 			#print 'columns: {}'.format(columns)
 	return pixel_grid, num_rows_rpg, num_cols_rpg
 
@@ -128,23 +160,23 @@ def read_asc_dem_file(dem_file):
 	# NOTE: this may have to change to conform to ARC/ASCII grid format instead
 	dem_grid = []
 	with open(dem_file, 'r') as f:
-		num_cols_bdem = 0
-		num_rows_bdem = 0
+		num_cols_dem = 0
+		num_rows_dem = 0
 		for line in iter(f):
 			split_line = line.split()
 			if split_line[0] == 'NCOLS':
-				num_cols_bdem = int(split_line[1])
-				#print 'num_cols_bdem: {}'.format(num_cols_dem)
+				num_cols_dem = int(split_line[1])
+				#print 'num_cols_dem: {}'.format(num_cols_dem)
 				# we assume here that get_rgm_pixel_mapping() has already been called
-				if num_cols_bdem != num_cols_rpg:
-					print 'NCOLS ({}) stated in RGM-VIC mapping file disagrees with NCOLS ({}) stated in DEM file {}. Exiting.\n'.format(num_cols_rpg, num_cols_dem, dem_file)
+				if num_cols_dem != num_cols_rpg:
+					print 'read_asc_dem_file({}): NCOLS ({}) disagrees with NCOLS ({}) stated in RGM-VIC mapping file. Exiting.\n'.format(dem_file, num_cols_dem, num_cols_rpg)
 					sys.exit(0)
 			elif split_line[0] == 'NROWS':
-				num_rows_bdem = int(split_line[1])
-				#print 'num_rows_bdem: {}'.format(num_rows_bdem)
+				num_rows_dem = int(split_line[1])
+				#print 'num_rows_dem: {}'.format(num_rows_bdem)
 				# we assume here that get_rgm_pixel_mapping() has already been called
-				if num_rows_bdem != num_rows_rpg:
-					print 'NROWS ({}) stated in RGM-VIC mapping file disagrees with NROWS ({}) stated in DEM file {}. Exiting.\n'.format(num_rows_rpg, num_rows_dem, dem_file)
+				if num_rows_dem != num_rows_rpg:
+					print 'read_asc_dem_file({}): NROWS ({}) disagrees with NROWS ({}) stated in RGM-VIC mapping file. Exiting.\n'.format(dem_file, num_rows_dem, num_rows_rpg)
 					sys.exit(0)
 			elif split_line[0] == 'XLLCORNER':
 				xmin = float(split_line[1])
@@ -154,17 +186,19 @@ def read_asc_dem_file(dem_file):
 				#print 'ymin: {}'.format(ymin)
 			elif split_line[0] == 'CELLSIZE':
 				dem_pixel_size = int(split_line[1])
+				# Calculate the pixel area in square meters
+				dem_pixel_area = dem_pixel_size * dem_pixel_size
 				if xmin and ymin and dem_pixel_size:
-					xmax = (num_cols_bdem - 1) * dem_pixel_size + xmin
-					ymax = (num_rows_bdem - 1) * dem_pixel_size + ymin
+					xmax = (num_cols_dem - 1) * dem_pixel_size + xmin
+					ymax = (num_rows_dem - 1) * dem_pixel_size + ymin
 					#print 'xmax: {}'.format(xmax)
 					#print 'ymax: {}'.format(ymax)
 			elif split_line[0] == 'NODATA_value': # should we do anything with this?
-				dem_no_data_value = int(split_line[1])
+				dem_no_data_value = float(split_line[1])
 			else: # read the next row of DEM data in
 				split_line = [float(x) for x in line.split()] # bad that we're doing the split() operation twice, but this fcn is probably only temporary anyway 
 				dem_grid.append(split_line)
-	return dem_grid, xmin, xmax, ymin, ymax
+	return dem_grid, dem_pixel_area, xmin, xmax, ymin, ymax
 
 def read_gsa_dem_file(dem_file):
 	""" Opens an ASCII grid (.grd) DEM file, parses grid extents parameters, and reads in the DEM """
@@ -176,12 +210,15 @@ def read_gsa_dem_file(dem_file):
 			if line_num == 0:
 				split_line = line.split()
 				if split_line[0] != 'DSAA':
-					print 'DSAA header on first line of file {} not found or is malformed.  DEM file does not conform to ASCII grid format.  Exiting. \n'.format(dem_file)
+					print 'read_gsa_dem_file({}): DSAA header on first line of DEM file was not found or is malformed.  DEM file does not conform to ASCII grid format.  Exiting. \n'.format(dem_file)
 					#sys.exit(0)
 			elif line_num == 1:
 				split_line = [int(x) for x in line.split()]
 				num_cols_dem = split_line[0]
 				num_rows_dem = split_line[1]
+				if (num_cols_dem != num_cols_rpg) or (num_rows_dem != num_rows_rpg):
+					print 'read_gsa_dem_file({}): Disagreement in row/column dimensions between DEM file (NROWS={}, NCOLS={}) and RGM-VIC mapping file (NROWS={}, NCOLS={}). Exiting.\n'.format(dem_file, num_rows_dem, num_cols_dem, num_rows_rpg, num_cols_rpg)
+					#sys.exit(0)
 				#print 'num_rows_dem: {} num_cols_dem: {}'.format(num_rows_dem, num_cols_dem)
 			elif line_num == 2:
 				split_line = [float(x) for x in line.split()]
@@ -191,6 +228,14 @@ def read_gsa_dem_file(dem_file):
 				split_line = [float(x) for x in line.split()]
 				ymin = split_line[0]
 				ymax = split_line[1]
+				dem_pixel_size_x = (xmax - xmin) / num_cols_dem
+				dem_pixel_size_y = (ymax - ymin) / num_rows_dem
+				# Ask Markus what to do about disagreement between x & y pixel sizes, and between these and other DEMs in use
+#				if dem_pixel_size_x != dem_pixel_size_y: # perhaps these can be close within a number of decimal places?
+#					print 'read_gsa_dem_file({}): Calculated DEM x pixel size ({}) does not equal y pixel size ({}). Exiting.\n '.format(dem_file, dem_pixel_size_x, dem_pixel_size_y)
+					#sys.exit(0)
+				# Calculate the pixel area in square meters
+				dem_pixel_area = dem_pixel_size_x * dem_pixel_size_y
 			elif line_num == 4:
 				pass  # is anything to be done with these zmin, zmax values?
 			else: # read the one big row of DEM data into num_rows_bdem & num_cols_bdem list of lists
@@ -201,32 +246,32 @@ def read_gsa_dem_file(dem_file):
 				# 	split_row = [float(x) for x in row.split()]
 				# 	print split_row
 				# 	dem_grid.append(split_row)
-				split_line = [float(x) for x in line.split()] # bad that we're doing the split() operation twice, but this fcn is probably only temporary anyway 
+				split_line = [float(x) for x in line.split()] 
 				dem_grid.append(split_line)
-	return dem_grid, xmin, xmax, ymin, ymax
+	return dem_grid, dem_pixel_area, xmin, xmax, ymin, ymax
 
-def get_mass_balance_polynomials(state):
+def get_mass_balance_polynomials(state, state_file):
 	""" Extracts the Glacier Mass Balance polynomial for each grid cell from an open VIC state file """
 	gmb_info = state['GLAC_MASS_BALANCE_INFO'][0]
 	cell_count = len(gmb_info)
 	if cell_count != len(cell_ids):
-		print 'get_mass_balance_polynomials: The number of VIC cells read from the state file {} and the vegetation parameter file ({}) disagree. Exiting.\n'.format(cell_count, len(cell_ids))
+		print 'get_mass_balance_polynomials: The number of VIC cells ({}) read from the state file {} and those read from the vegetation parameter file ({}) disagree. Exiting.\n'.format(cell_count, state_file, len(cell_ids))
 		sys.exit(0)
 	gmb_polys = {}
 	for i in range(0, cell_count):
 		cell_id = str(int(gmb_info[i][0]))
 		if cell_id not in cell_ids:
 			print 'get_mass_balance_polynomials: Cell ID {} was not found in the list of VIC cell IDs read from the vegetation parameters file. Exiting.\n'.format(cell_id)
-			#sys.exit(0)
+			sys.exit(0)
 		gmb_polys[cell_id] = [gmb_info[i][1], gmb_info[i][2], gmb_info[i][3]]
 	return gmb_polys
 
-def mass_balances_to_rgm_grid(gmb_polys, rgm_pixel_grid):
+def mass_balances_to_rgm_grid(gmb_polys, pixel_to_cell_map):
 	""" Translate mass balances from grid cell GMB polynomials to 2D RGM pixel grid to use as one of the inputs to RGM """
 	mass_balance_grid = [[0 for x in range(0, num_cols_rpg)] for x in range(0, num_rows_rpg)]
 	for row in range(0, num_rows_rpg):
 		for col in range(0, num_cols_rpg):
-			pixel = rgm_pixel_grid[row][col]
+			pixel = pixel_to_cell_map[row][col]
 			band = pixel[0]
 			median_elev = float(pixel[1])
 			cell_id = pixel[2]
@@ -239,7 +284,7 @@ def mass_balances_to_rgm_grid(gmb_polys, rgm_pixel_grid):
 				mass_balance_grid[row][col] = gmb_polys[cell_id][0] + median_elev * (gmb_polys[cell_id][1] + median_elev * gmb_polys[cell_id][2])
 	return mass_balance_grid			
 		
-def write_grid_to_file(grid, outfilename):
+def write_grid_to_gsa_file(grid, outfilename):
 	""" Writes a 2D grid to ASCII file in the input format expected by the RGM for DEM and mass balance grids """
 	zmin = np.min(grid)
 	zmax = np.max(grid)
@@ -262,38 +307,84 @@ def update_glacier_mask(sdem, bdem):
 	glacier_mask[diffs == 0] = 0
 	return glacier_mask
 
+def update_band_areas():
+	""" Calculates the area fractions of elevation bands within VIC cells, and of glaciers within these bands """
+	total_cell_area = num_rows_rpg * num_cols_rpg
+	band_areas = {}
+	glacier_areas = {}
+	area_frac_band = {}
+	area_frac_glacier = {}
+	for cell in cell_ids:
+		band_areas[cell] = []
+		glacier_areas[cell] = []
+		area_frac_band[cell] = []
+		area_frac_glacier[cell] = []
+		for band_idx, band in enumerate(band_map[cell]):
+			band_areas[cell].append(0)
+			glacier_areas[cell].append(0)
+			area_frac_band[cell].append(0)
+			area_frac_glacier[cell].append(0)
+			for row in range(0, num_rows_rpg):
+				for col in range(0, num_cols_rpg):
+					if pixel_to_cell_map[row][col] == cell: # if this pixel is within the current VIC cell
+						if rgm_surf_dem_out[row][col] in range(band, band + band_size-1):
+							band_areas[cell][band_idx] += 1
+							if glacier_mask[row][col]:
+								glacier_areas[cell][band_idx] += 1
+			# This will be used to update the Snow Band File
+			area_frac_band[cell][band_idx] = band_areas[cell][band_idx] / total_cell_area
+			# This will be used to update the Vegetation Parameter File
+			area_frac_glacier[cell][band_idx] = glacier_areas[cell][band_idx] / total_cell_area
+	return area_frac_band, area_frac_glacier
+
+def update_veg_parms(veg_parms, year):
+	pass
+
+def update_snb_parms(snb_parms, year):
+	pass
+
 if __name__ == '__main__':
 
 	print '\n\nVIC + RGM ... together at last!'
 	# Get all VIC global parameters
 	global_parms = get_global_parameters(vic_global_file)
 
-	# Get all grid cell ID numbers for this simulation from the initial Vegetation Parameter File (iVPF)
+	# Get all VIC grid cell ID numbers and initial vegetation parameters from the initial Vegetation Parameter File
 	initial_veg_parm_file = global_parms['VEGPARAM'][0]
-	cell_ids = get_grid_cell_ids(initial_veg_parm_file)
+	cell_ids, veg_parms = get_veg_parms(initial_veg_parm_file)
+
+	# Get snow band file name and number of bands, and get snow band parameters from initial Snow Band File
+	initial_snb_file = global_parms['SNOW_BAND'][0][1]
+	num_snow_bands = int(global_parms['SNOW_BAND'][0][0])
+	snb_parms = get_snb_parms(initial_snb_file)
+	# Get list of elevation bands for each VIC grid cell
+	band_map = get_bands(snb_parms, band_size)
 
 	# Open and read VIC-grid-to-RGM-pixel mapping file
-	# rgm_pixel_grid is a list of lists of dimensions num_rows_rpg x num_cols_rpg, each element containing:
-	# [<elevation_band>, <median elevation>, <VIC_grid_cell_num>]
-	rgm_pixel_grid, num_rows_rpg, num_cols_rpg = get_rgm_pixel_mapping(pixel_map_file)
+	# pixel_to_cell_map is a list of dimensions num_rows_rpg x num_cols_rpg, each element containing a VIC grid cell ID
+	pixel_to_cell_map, num_rows_rpg, num_cols_rpg = get_rgm_pixel_mapping(pixel_cell_map_file)
 
 	# Open and read the provided Bed Digital Elevation Map (BDEM) file into a 2D bdem_grid
-	bed_dem, rgm_xmin, rgm_xmax, rgm_ymin, rgm_ymax = read_asc_dem_file(bed_dem_file)
+	# Also get RGM pixel area in meters, and min/max x and y coordinates 
+	bed_dem, rgm_pixel_area, rgm_xmin, rgm_xmax, rgm_ymin, rgm_ymax = read_asc_dem_file(bed_dem_file)
 
 	start_year = int(global_parms['STARTYEAR'][0])
 	end_year = int(global_parms['ENDYEAR'][0])
 	global_file = vic_global_file
 	veg_file = initial_veg_parm_file
+	snb_file = initial_snb_file
 	surf_dem_file = initial_surf_dem_file
+	# The RGM will always output a DEM file of the same name if running for a single year
+	rgm_surf_dem_out_file = temp_files_path + 's_out_00001.grd'
 
 	# NOTE: it appears the .gsa DEM from Markus does not conform to ARC/ASCII grid format (rows are clipped at 10 elements), 
 	# which makes RGM puke.  Once this is corrected, we can eliminate the need for the calls to write_grid_to_file() to 
 	# write out the Bed and Surface DEMs to a format readable by RGM.  Ideally, we probably only want to have to read .gsa files, 
 	# and remove support / need for .asc files entirely
 	rgm_bed_dem_file = input_files_path + 'peyto_bed_dem.gsa'  # this file will now point at the ARC/ASCII version, produced by read_pcic_dem_file, of the Bed DEM Markus provided (temporary workaround)
-	write_grid_to_file(bed_dem, rgm_bed_dem_file)
+	write_grid_to_gsa_file(bed_dem, rgm_bed_dem_file)
 	rgm_surf_dem_file = input_files_path + 'peyto_surf_dem.gsa'
-	write_grid_to_file(bed_dem, rgm_surf_dem_file)
+	write_grid_to_gsa_file(bed_dem, rgm_surf_dem_file) # using the bed DEM as the initial surface DEM for testing
 
 	for year in range(start_year, end_year):
 		# Call initial VIC run starting at the first year in the VIC global parameters file
@@ -301,47 +392,55 @@ if __name__ == '__main__':
 
 		if year > start_year:
 			global_file = temp_gpf
-			veg_file = temp_vpf
-			surf_dem_file = temp_surf_dem
+			veg_parm_file = temp_vpf
+			rgm_surf_dem_file = temp_surf_dem_file
 
-		# 2. Run VIC for a year.  This will save VIC state at the end of the year, along with a Glacier Mass Balance (GMB) polynomial for each cell
+		# 2. Run VIC for a year.  This will save VIC model state at the end of the year, along with a Glacier Mass Balance (GMB) polynomial for each cell
 		subprocess.check_call([vic_full_path, "-g", global_file], shell=False, stderr=subprocess.STDOUT)
 
 		# 3. Open VIC NetCDF state file and get the most recent GMB polynomial for each grid cell being modeled
 		state_file = str(global_parms['STATENAME'][0]) + "_" + str(year) + str(global_parms['STATEMONTH'][0]) + str(global_parms['STATEDAY'][0])
 		state = h5py.File(state_file, 'r+')
-		gmb_polys = get_mass_balance_polynomials(state)
+		gmb_polys = get_mass_balance_polynomials(state, state_file)
 			
 		# 4. Translate mass balances using grid cell GMB polynomials and current veg_parm_file into a 2D RGM mass balance grid (MBG)
-		mass_balance_grid = mass_balances_to_rgm_grid(gmb_polys, rgm_pixel_grid)
+		mass_balance_grid = mass_balances_to_rgm_grid(gmb_polys, pixel_to_cell_map)
 		# write Mass Balance Grid to ASCII file to direct the RGM to use as input
 		mbg_file = temp_files_path + 'mass_balance_grid_' + str(year) + '.gsa'
-		write_grid_to_file(mass_balance_grid, mbg_file)
+		write_grid_to_gsa_file(mass_balance_grid, mbg_file)
 
 		# 5. Run RGM for one year, passing MBG, BDEM, SDEM
 		#subprocess.check_call([rgm_full_path, "-p", rgm_params_file, "-b", bed_dem_file, "-d", sdem_file, "-m", mbg_file, "-o", temp_files_path, "-s", "0", "-e", "0" ], shell=False, stderr=subprocess.STDOUT)
 		subprocess.check_call([rgm_full_path, "-p", rgm_params_file, "-b", rgm_bed_dem_file, "-d", rgm_surf_dem_file, "-m", mbg_file, "-o", temp_files_path, "-s", "0", "-e", "0" ], shell=False, stderr=subprocess.STDOUT)
-		# remove temporary MBG file if not saving for offline viewing
+		# remove temporary files if not saving for offline inspection
 		if not output_trace_files:
 			os.remove(mbg_file)
+			os.remove(rgm_surf_dem_file)
 
 		# 6. Read in new Surface DEM file from RGM output
-		rgm_surf_dem_out_file = temp_files_path + 's_out_00001.grd'
-		temp_surf_dem, sdem_xmin, sdem_xmax, sdem_ymin, sdem_ymax = read_gsa_dem_file(rgm_surf_dem_out_file)
-		if output_trace_files:
-			new_rgm_surf_dem_out_file = temp_files_path + 'rgm_surf_dem_out_' + str(year) + '.gsa'
-			os.rename(rgm_surf_dem_out_file, new_rgm_surf_dem_out_file)
+		rgm_surf_dem_out, sdem_pixel_area, sdem_xmin, sdem_xmax, sdem_ymin, sdem_ymax = read_gsa_dem_file(rgm_surf_dem_out_file)
+		temp_surf_dem_file = temp_files_path + 'rgm_surf_dem_out_' + str(year) + '.gsa'
+		os.rename(rgm_surf_dem_out_file, temp_surf_dem_file) # this will be fed back into RGM on next time step
 
 		# 7. Update glacier mask
-		glacier_mask = update_glacier_mask(temp_surf_dem, bed_dem)
+		glacier_mask = update_glacier_mask(rgm_surf_dem_out, bed_dem)
 		if output_trace_files:
 			glacier_mask_file = temp_files_path + 'glacier_mask_' + str(year) + '.gsa'
-			write_grid_to_file(glacier_mask, glacier_mask_file)
+			write_grid_to_gsa_file(glacier_mask, glacier_mask_file)
 		
-		# 8.1 Update HRUs in VIC state file 
+		# 8. Update areas of each elevation band in each VIC grid cell, and calculate area fractions
+		area_fracs_band, area_fracs_glacier = update_band_areas()
+
+		# 9. Update vegetation parameters and write to new temporary file temp_vpf
+		temp_vpf = update_veg_parms(veg_parms, year)
+
+		# 10. Update snow band parameters and write to new temporary file temp_snb
+		temp_snb = update_snb_parms(snb_parms, year)
+
+		# 11 Update HRUs in VIC state file 
 			# don't forget to close the state file
 
-		# 8.2 Write / Update temp_vpf
-
-		# 9. Write / Update temp_gpf
+		# 12. Write / Update temp_gpf
 			# need to introduce INIT_STATE line with most current state_filename (does not exist in the first read-in of global_parms)
+			# overwrite VPF with temp_vpf
+			# overwrite SNB with temp_snb
