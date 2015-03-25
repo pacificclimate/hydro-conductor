@@ -126,28 +126,30 @@ def get_veg_parms(veg_parm_file):
 	return cell_ids, num_veg_tiles, veg_parms
 
 def update_veg_parms():
+	""" Updates vegetation parameters for all VIC grid cells by applying calculated changes in glacier area fractions across all elevation bands """
 	GLACIER_ID = global_parms['GLACIER_ID'][0]
 	for cell in cell_ids:
-		print 'cell: {}'.format(cell)
+#		print 'cell: {}'.format(cell)
 		for band in veg_parms[cell]:
 			num_tiles_in_band = len(veg_parms[cell][band])
-			print 'band: {}, num_tiles_in_band: {}'.format(band, num_tiles_in_band)
+#			print 'band: {}, num_tiles_in_band: {}'.format(band, num_tiles_in_band)
 			if area_frac_glacier[cell][int(band)] > 0: # there exists a glacier tile in this band
-				print 'glacier exists in band {}'.format(band)
+#				print 'glacier exists in band {}'.format(band)
 				# the remaining area fraction to be distributed among non-glacier tiles:
 				area_frac_to_distribute = 1 - area_frac_glacier[cell][int(band)]
-				print 'area_frac_to_distribute: {}'.format(area_frac_to_distribute)
+#				print 'area_frac_to_distribute: {}'.format(area_frac_to_distribute)
 				# the updated evenly-distributed area fraction values for each non-glacier tile: 
 				non_glacier_single_tile_area_frac = area_frac_to_distribute / (num_tiles_in_band - 1)
-				print 'non_glacier_single_tile_area_frac: {}'.format(non_glacier_single_tile_area_frac)
+#				print 'non_glacier_single_tile_area_frac: {}'.format(non_glacier_single_tile_area_frac)
 				for line_idx, line in enumerate(veg_parms[cell][band]): # go through all tile lines in this band
-					print 'line in band {}:  {}'.format(band, line)
+#					print 'line in band {}:  {}'.format(band, line)
 					if line[0] == GLACIER_ID: 
 						veg_parms[cell][band][line_idx][1] = str(area_frac_glacier[cell][int(band)])
 					else:
 						veg_parms[cell][band][line_idx][1] = str(non_glacier_single_tile_area_frac)
 
 def write_veg_parms_file():
+	""" Writes current (updated) vegetation parameters to a new temporary Vegetation Parameters File for feeding back into VIC """
 	temp_vpf = temp_files_path + 'vpf_temp_' + str(year) + '.txt'
 	with open(temp_vpf, 'w') as f:
 		writer = csv.writer(f, delimiter=' ')
@@ -156,21 +158,43 @@ def write_veg_parms_file():
 			for band in veg_parms[cell]:
 				for line in veg_parms[cell][band]:
 					writer.writerow(line)
+	return temp_vpf
 
 def get_snb_parms(snb_file, num_snow_bands):
-	""" Reads in a Snow Band File and outputs a dict:
+	""" Reads in a Snow Band File and outputs an ordered dict:
 	{'cell_id_0' : [area_frac_band_0,...,area_frac_band_N],[median_elev_band_0,...,median_elev_band_N],[Pfactor_band_0,...,Pfactor_band_N]], 'cell_id_1' : ..."""
-	snb_parms = {}
+	snb_parms = OrderedDict()
 	with open(snb_file, 'r') as f:
 		for line in iter(f):
-			#print 'line: {}'.format(line)
+			#print 'snb file line: {}'.format(line)
 			split_line = line.split()
 			num_columns = len(split_line)
 			if num_columns != 3*num_snow_bands + 1:
 				print 'get_snb_parms(): Number of columns ({}) in snow band file {} is incorrect for the given number of snow bands ({}) given in the global parameter file (should be 3 * num_snow_bands + 1). Exiting.\n'.format(num_columns, snb_file, num_snow_bands)
 				#sys.exit(0)
-			snb_parms[split_line[0]] = [float(x) for x in split_line[1 : num_snow_bands+1]],[float(x) for x in split_line[num_snow_bands+1 : 2*num_snow_bands+1]],[float(x) for x in split_line[2*num_snow_bands+1 : 3*num_snow_bands+1]]
+			snb_parms[split_line[0]] = [[float(x) for x in split_line[1 : num_snow_bands+1]],[float(x) for x in split_line[num_snow_bands+1 : 2*num_snow_bands+1]],[float(x) for x in split_line[2*num_snow_bands+1 : 3*num_snow_bands+1]]]
 	return snb_parms
+
+def update_snb_parms():
+	for cell in snb_parms:
+		snb_parms[cell][0] = area_frac_bands[cell]
+
+def write_snb_parms_file():
+	""" Writes current (updated) snow band parameters to a new temporary Snow Band File for feeding back into VIC """
+	temp_snb = temp_files_path + 'snb_temp_' + str(year) + '.txt'
+	with open(temp_snb, 'w') as f:
+		writer = csv.writer(f, delimiter=' ')
+		for cell in snb_parms:
+			line = []
+			line.append(cell)
+			for area_frac in area_frac_band[cell]:
+				line.append(area_frac)
+			for band_frac in snb_parms[cell][1]:
+				line.append(band_frac) # append existing median elevations
+			for pfactor in snb_parms[cell][2]:
+				line.append(pfactor) # append existing Pfactor values
+			writer.writerow(line)
+	return temp_snb
 
 def get_bands(snb_parms, band_size):
 	""" Takes a dict of Snow Band parameters and identifies and creates a list of elevation bands for each grid cell of band_size width in meters"""
@@ -399,11 +423,6 @@ def update_band_areas():
 	return area_frac_band, area_frac_glacier
 
 
-	
-
-def update_snb_parms(snb_parms, year):
-	pass
-
 if __name__ == '__main__':
 
 	print '\n\nVIC + RGM ... together at last!'
@@ -490,7 +509,7 @@ if __name__ == '__main__':
 			write_grid_to_gsa_file(glacier_mask, glacier_mask_file)
 		
 		# 8. Update areas of each elevation band in each VIC grid cell, and calculate area fractions
-		area_frac_band, area_frac_glacier = update_band_areas()
+		area_frac_bands, area_frac_glacier = update_band_areas()
 
 		# 9. Update vegetation parameters and write to new temporary file temp_vpf
 		update_veg_parms(veg_parms, year)
