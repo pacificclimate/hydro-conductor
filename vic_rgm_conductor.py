@@ -9,7 +9,8 @@ import subprocess
 import numpy as np
 import h5py
 import csv
-from collections import defaultdict, OrderedDict
+from collections import OrderedDict
+#import collections
 
 vic_full_path = '/home/mfischer/code/vic/vicNl'
 rgm_full_path = '/home/mfischer/code/rgm/rgm'
@@ -51,7 +52,7 @@ output_trace_files = options.trace_files
 
 
 # To have nested ordered defaultdicts
-class OrderedDefaultdict(collections.OrderedDict):
+class OrderedDefaultdict(OrderedDict):
 	# from: http://stackoverflow.com/questions/4126348/how-do-i-rewrite-this-function-to-implement-ordereddict/4127426#4127426
     def __init__(self, *args, **kwargs):
         if not args:
@@ -71,35 +72,86 @@ class OrderedDefaultdict(collections.OrderedDict):
         args = (self.default_factory,) if self.default_factory else ()
         return self.__class__, args, None, None, self.iteritems()
 
-def get_global_parameters(global_parm_file):
-	""" Parses the VIC global parameters file created by the user that will be needed to conduct the VIC-RGM run """
-	# Important parms: STARTYEAR, ENDYEAR, GLACIER_ID, GLACIER_ACCUM_START_YEAR, GLACIER_ACCUM_INTERVAL, STATENAME, VEGPARAM, SOIL, SNOW_BAND, RESULT_DIR
-	global_parms = {}
+def get_global_parms(global_parm_file):
+	""" Parses the initial VIC global parameters file created by the user with the settings for the entire VIC-RGM run """
+	global_parms = OrderedDefaultdict()
+	n_outfile_lines = 0
 	with open(global_parm_file, 'r') as f:
 		for line in iter(f):
 			#print 'line: {}'.format(line)
 			if not line.isspace() and line[0] is not '#':
 				split_line = line.split()
 				#print 'columns: {}'.format(split_line)
-				num_columns = len(split_line)
 				parm_name = split_line[0]
+				if parm_name == 'OUTFILE': # special case because there are multiple occurrences, not consecutive
+						n_outfile_lines += 1
+						parm_name = 'OUTFILE_' + str(n_outfile_lines)
+				elif parm_name == 'OUTVAR': # special case because multiple OUTVAR lines follow each OUTFILE line
+						parm_name = 'OUTVAR_' + str(n_outfile_lines)
 				try:
 					if global_parms[parm_name]: # if we've already read one or more entries of this parm_name
 #						print 'parm {} exists already'.format(parm_name)
-						for i in range(1, num_columns):
-							temp_list.append(split_line[i])
-						global_parms[parm_name].append(temp_list)
+						global_parms[parm_name].append(split_line[1:])
 				except:
 					global_parms[parm_name] = []
-					if num_columns == 2:
-						global_parms[parm_name].append(split_line[1])
-					elif num_columns > 2:
-						temp_list = []
-						for i in range(1, num_columns):
-							temp_list.append(split_line[i])
-						global_parms[parm_name].append(temp_list)
-		#				print 'global_parms[{}]: {}'.format(parm_name,global_parms[parm_name])
+					global_parms[parm_name].append(split_line[1:])
+#					print 'global_parms[{}]: {}'.format(parm_name,global_parms[parm_name])
+				# We need to create a placeholder in this position for INIT_STATE if it doesn't exist in the initial
+				# global parameters file, to be used for all iterations after the first year
+				if parm_name == 'OUTPUT_FORCE': # OUTPUT_FORCE should always immediately precede INIT_STATE in the global file
+					global_parms['INIT_STATE'] = []
 	return global_parms
+
+def update_global_parms(init_state):
+	# Important parms: STARTYEAR, ENDYEAR, VEGPARAM, SNOW_BAND (and GLACIER_ACCUM_START_YEAR, GLACIER_ACCUM_INTERVAL?)
+	global_parms['STARTYEAR'] = str(year)
+	global_parms['ENDYEAR'] = str(year)
+	# All iterations after the first / wind-up period have modified state, vegetation parms, and snow band parms
+	if init_state:
+		# set/create INIT_STATE parm with most current state_file (does not exist in the first read-in of global_parms)
+		init_state_file = state_filename_prefix + "_" + str(year - 1) + str(global_parms['STATEMONTH'][0]) + str(global_parms['STATEDAY'][0])
+		global_parms['INIT_STATE'].append(init_state_file)
+		# New output state filename for next VIC year run
+		global_parms['STATENAME'] = [state_file]
+		global_parms['VEGPARAM'] = temp_vpf
+		global_parms['SNOW_BAND'] = temp_snb
+
+def write_global_parms_file():
+	""" Reads existing global_parms dict and writes out a new temporary VIC Global Parameter File for feeding into VIC """
+	temp_gpf = temp_files_path + 'gpf_temp_' + str(year) + '.txt'
+	with open(temp_gpf, 'w') as f:
+		writer = csv.writer(f, delimiter=' ')
+		for parm in global_parms:
+			num_parm_lines = len(global_parms[parm])
+			if parm == 'INIT_STATE' and len(global_parms['INIT_STATE']) == 0:
+				pass
+			elif parm[0:8] == 'OUTFILE_':
+				line = []
+				line.append('OUTFILE')
+				for value in global_parms[parm][0]:
+					line.append(value)
+				writer.writerow(line)
+			elif parm[0:7] == 'OUTVAR_':
+				for line_num in range(0, num_parm_lines):
+					line = []
+					line.append('OUTVAR')
+					for value in global_parms[parm][line_num]:
+						line.append(value)
+						writer.writerow(line)
+			elif num_parm_lines == 1:
+				line = []
+				line.append(parm)
+				for value in global_parms[parm][0]:
+					line.append(value)
+				writer.writerow(line)
+			elif num_parm_lines > 1:
+				for line_num in range(0, num_parm_lines):
+					line = []
+					line.append(parm)
+					for value in global_parms[parm][line_num]:
+						line.append(value)
+					writer.writerow(line)
+	return temp_gpf
 
 def get_veg_parms(veg_parm_file):
 	""" Reads in a Vegetation Parameter File and parses out VIC grid cell IDs, as well as an ordered nested dict of all vegetation parameters,
@@ -427,21 +479,20 @@ if __name__ == '__main__':
 
 	print '\n\nVIC + RGM ... together at last!'
 	# Get all initial VIC global parameters
-	global_parms = get_global_parameters(vic_global_file)
+	global_parms = get_global_parms(vic_global_file)
 	# Get entire time range of coupled VIC-RGM run from the initial VIC global file
-	start_year = int(global_parms['STARTYEAR'][0])
-	end_year = int(global_parms['ENDYEAR'][0])
-	# this will point at a new temporary file created at each iteration after the first year
-	global_file = vic_global_file
+	start_year = int(global_parms['STARTYEAR'][0][0])
+	end_year = int(global_parms['ENDYEAR'][0][0])
+	# Initial VIC output state filename prefix is determined by STATENAME in the global file
+	state_filename_prefix = str(global_parms['STATENAME'][0][0])
 
 	# Get VIC vegetation parameters and grid cell IDs from initial Vegetation Parameter File
-	veg_parm_file = global_parms['VEGPARAM'][0]
+	veg_parm_file = global_parms['VEGPARAM'][0][0]
 	cell_ids, num_veg_tiles, veg_parms = get_veg_parms(veg_parm_file)
-
 	# Get VIC snow/elevation band parameters from initial Snow Band File
-	snb_file = global_parms['SNOW_BAND'][0][1]
 	num_snow_bands = int(global_parms['SNOW_BAND'][0][0])
-	snb_parms = get_snb_parms(snb_file)
+	snb_file = global_parms['SNOW_BAND'][0][1]
+	snb_parms = get_snb_parms(snb_file, num_snow_bands)
 	# Get list of elevation bands for each VIC grid cell
 	band_map = get_bands(snb_parms, band_size)
 
@@ -466,20 +517,24 @@ if __name__ == '__main__':
 	rgm_surf_dem_file = input_files_path + 'peyto_surf_dem.gsa'
 	write_grid_to_gsa_file(bed_dem, rgm_surf_dem_file) # using the bed DEM as the initial surface DEM for testing
 
+
 	for year in range(start_year, end_year):
 		# Call initial VIC run starting at the first year in the VIC global parameters file
 		print '\nRunning year: {}'.format(year)
 
-		if year > start_year:
-			global_file = temp_gpf
-			rgm_surf_dem_in_file = temp_surf_dem_file
-			# read global, veg_parm, and snb files again for updated info? or just keep them in memory
+		# 1. Write / Update temporary Global Parameters File, temp_gpf
+		# If year > start_year, introduce INIT_STATE line with most current state_file (does not exist in the first read-in of global_parms).
+		# Overwrite VEGPARAM parameter with temp_vpf, and SNOW_BAND with temp_snb
+		state_file = state_filename_prefix + "_" + str(year) + str(global_parms['STATEMONTH'][0][0]) + str(global_parms['STATEDAY'][0][0])
+		update_global_parms(year > start_year)
+		temp_gpf = write_global_parms_file()
+		print 'invoking VIC with global parameter file {}'.format(temp_gpf)
 
 		# 2. Run VIC for a year.  This will save VIC model state at the end of the year, along with a Glacier Mass Balance (GMB) polynomial for each cell
-		subprocess.check_call([vic_full_path, "-g", global_file], shell=False, stderr=subprocess.STDOUT)
+		subprocess.check_call([vic_full_path, "-g", temp_gpf], shell=False, stderr=subprocess.STDOUT)
 
 		# 3. Open VIC NetCDF state file and get the most recent GMB polynomial for each grid cell being modeled
-		state_file = str(global_parms['STATENAME'][0]) + "_" + str(year) + str(global_parms['STATEMONTH'][0]) + str(global_parms['STATEDAY'][0])
+		print 'opening state file {}'.format(state_file)
 		state = h5py.File(state_file, 'r+')
 		gmb_polys = get_mass_balance_polynomials(state, state_file)
 			
@@ -500,7 +555,9 @@ if __name__ == '__main__':
 		# 6. Read in new Surface DEM file from RGM output
 		rgm_surf_dem_out, sdem_pixel_area, sdem_xmin, sdem_xmax, sdem_ymin, sdem_ymax = read_gsa_dem_file(rgm_surf_dem_out_file)
 		temp_surf_dem_file = temp_files_path + 'rgm_surf_dem_out_' + str(year) + '.gsa'
-		os.rename(rgm_surf_dem_out_file, temp_surf_dem_file) # this will be fed back into RGM on next time step
+		os.rename(rgm_surf_dem_out_file, temp_surf_dem_file)
+		# this will be fed back into RGM on next time step
+		rgm_surf_dem_in_file = temp_surf_dem_file
 
 		# 7. Update glacier mask
 		glacier_mask = update_glacier_mask(rgm_surf_dem_out, bed_dem)
@@ -512,17 +569,13 @@ if __name__ == '__main__':
 		area_frac_bands, area_frac_glacier = update_band_areas()
 
 		# 9. Update vegetation parameters and write to new temporary file temp_vpf
-		update_veg_parms(veg_parms, year)
+		update_veg_parms()
 		temp_vpf = write_veg_parms_file()
 
 		# 10. Update snow band parameters and write to new temporary file temp_snb
-		update_snb_parms(snb_parms, year)
-		temp_snb = write_snb_file()
+		update_snb_parms()
+		temp_snb = write_snb_parms_file()
 
 		# 11 Update HRUs in VIC state file 
 			# don't forget to close the state file
-
-		# 12. Write / Update temp_gpf
-			# need to introduce INIT_STATE line with most current state_filename (does not exist in the first read-in of global_parms)
-			# overwrite VPF with temp_vpf
-			# overwrite SNB with temp_snb
+		
