@@ -104,53 +104,57 @@ def get_global_parms(global_parm_file):
 
 def update_global_parms(init_state):
 	# Important parms: STARTYEAR, ENDYEAR, VEGPARAM, SNOW_BAND (and GLACIER_ACCUM_START_YEAR, GLACIER_ACCUM_INTERVAL?)
-	global_parms['STARTYEAR'] = str(year)
-	global_parms['ENDYEAR'] = str(year)
+	global_parms['STARTYEAR'] = [[str(year)]]
+	global_parms['ENDYEAR'] = [[str(year)]]
+	global_parms['STATEYEAR'] = [[str(year)]]
 	# All iterations after the first / wind-up period have modified state, vegetation parms, and snow band parms
 	if init_state:
 		# set/create INIT_STATE parm with most current state_file (does not exist in the first read-in of global_parms)
-		init_state_file = state_filename_prefix + "_" + str(year - 1) + str(global_parms['STATEMONTH'][0]) + str(global_parms['STATEDAY'][0])
-		global_parms['INIT_STATE'].append(init_state_file)
+		init_state_file = state_filename_prefix + "_" + str(year - 1) + str(global_parms['STATEMONTH'][0][0]) + str(global_parms['STATEDAY'][0][0])
+		global_parms['INIT_STATE'] = [[init_state_file]]
 		# New output state filename for next VIC year run
-		global_parms['STATENAME'] = [state_file]
-		global_parms['VEGPARAM'] = temp_vpf
-		global_parms['SNOW_BAND'] = temp_snb
+		global_parms['VEGPARAM'] = [[temp_vpf]]
+		global_parms['SNOW_BAND'] = [[num_snow_bands, temp_snb]]
 
 def write_global_parms_file():
 	""" Reads existing global_parms dict and writes out a new temporary VIC Global Parameter File for feeding into VIC """
 	temp_gpf = temp_files_path + 'gpf_temp_' + str(year) + '.txt'
 	with open(temp_gpf, 'w') as f:
 		writer = csv.writer(f, delimiter=' ')
-		for parm in global_parms:
-			num_parm_lines = len(global_parms[parm])
-			if parm == 'INIT_STATE' and len(global_parms['INIT_STATE']) == 0:
-				pass
-			elif parm[0:8] == 'OUTFILE_':
-				line = []
-				line.append('OUTFILE')
-				for value in global_parms[parm][0]:
-					line.append(value)
-				writer.writerow(line)
-			elif parm[0:7] == 'OUTVAR_':
-				for line_num in range(0, num_parm_lines):
+		try:
+			for parm in global_parms:
+				num_parm_lines = len(global_parms[parm])
+				if parm == 'INIT_STATE' and len(global_parms['INIT_STATE']) == 0:
+					pass
+				elif parm[0:8] == 'OUTFILE_':
 					line = []
-					line.append('OUTVAR')
-					for value in global_parms[parm][line_num]:
-						line.append(value)
-						writer.writerow(line)
-			elif num_parm_lines == 1:
-				line = []
-				line.append(parm)
-				for value in global_parms[parm][0]:
-					line.append(value)
-				writer.writerow(line)
-			elif num_parm_lines > 1:
-				for line_num in range(0, num_parm_lines):
-					line = []
-					line.append(parm)
-					for value in global_parms[parm][line_num]:
+					line.append('OUTFILE')
+					for value in global_parms[parm][0]:
 						line.append(value)
 					writer.writerow(line)
+				elif parm[0:7] == 'OUTVAR_':
+					for line_num in range(0, num_parm_lines):
+						line = []
+						line.append('OUTVAR')
+						for value in global_parms[parm][line_num]:
+							line.append(value)
+							writer.writerow(line)
+				elif num_parm_lines == 1:
+					line = []
+					line.append(parm)
+					for value in global_parms[parm][0]:
+						line.append(value)
+					writer.writerow(line)
+				elif num_parm_lines > 1:
+					for line_num in range(0, num_parm_lines):
+						line = []
+						line.append(parm)
+						for value in global_parms[parm][line_num]:
+							line.append(value)
+						writer.writerow(line)
+		except:
+			print 'write_global_parms_file: Error while writing parameter {} to file. Exiting.\n'.format(parm)
+			sys.exit(0)
 	return temp_gpf
 
 def get_veg_parms(veg_parm_file):
@@ -188,7 +192,8 @@ def update_veg_parms():
 			if area_frac_glacier[cell][int(band)] > 0: # there exists a glacier tile in this band
 #				print 'glacier exists in band {}'.format(band)
 				# the remaining area fraction to be distributed among non-glacier tiles:
-				area_frac_to_distribute = 1 - area_frac_glacier[cell][int(band)]
+				# WRONG   area_frac_to_distribute = 1 - area_frac_glacier[cell][int(band)]
+				area_frac_to_distribute = area_frac_band[cell][band] - area_frac_glacier[cell][int(band)]  #CHECK THIS
 #				print 'area_frac_to_distribute: {}'.format(area_frac_to_distribute)
 				# the updated evenly-distributed area fraction values for each non-glacier tile: 
 				non_glacier_single_tile_area_frac = area_frac_to_distribute / (num_tiles_in_band - 1)
@@ -221,10 +226,11 @@ def get_snb_parms(snb_file, num_snow_bands):
 			#print 'snb file line: {}'.format(line)
 			split_line = line.split()
 			num_columns = len(split_line)
+			cell_id = split_line[0]
 			if num_columns != 3*num_snow_bands + 1:
 				print 'get_snb_parms(): Number of columns ({}) in snow band file {} is incorrect for the given number of snow bands ({}) given in the global parameter file (should be 3 * num_snow_bands + 1). Exiting.\n'.format(num_columns, snb_file, num_snow_bands)
-				#sys.exit(0)
-			snb_parms[split_line[0]] = [[float(x) for x in split_line[1 : num_snow_bands+1]],[float(x) for x in split_line[num_snow_bands+1 : 2*num_snow_bands+1]],[float(x) for x in split_line[2*num_snow_bands+1 : 3*num_snow_bands+1]]]
+				sys.exit(0)
+			snb_parms[cell_id] = [[float(x) for x in split_line[1 : num_snow_bands+1]],[int(x) for x in split_line[num_snow_bands+1 : 2*num_snow_bands+1]],[float(x) for x in split_line[2*num_snow_bands+1 : 3*num_snow_bands+1]]]
 	return snb_parms
 
 def update_snb_parms():
@@ -239,7 +245,7 @@ def write_snb_parms_file():
 		for cell in snb_parms:
 			line = []
 			line.append(cell)
-			for area_frac in area_frac_band[cell]:
+			for area_frac in area_frac_bands[cell]:
 				line.append(area_frac)
 			for band_frac in snb_parms[cell][1]:
 				line.append(band_frac) # append existing median elevations
@@ -248,21 +254,21 @@ def write_snb_parms_file():
 			writer.writerow(line)
 	return temp_snb
 
-def get_bands(snb_parms, band_size):
+def create_band_map(snb_parms, band_size):
 	""" Takes a dict of Snow Band parameters and identifies and creates a list of elevation bands for each grid cell of band_size width in meters"""
 	band_map = {}
 	for cell in cell_ids:
-		band_map[cell] = []
-		for band in snb_parms[cell][1]:
-			if band > 0: # ignore bands with median elevation 0
-				band_map[cell].append(int(band - band % band_size))
+		band_map[cell] = [0 for x in range(0, num_snow_bands)]
+		for band_idx, band in enumerate(snb_parms[cell][1]):
+			band_map[cell][band_idx] = int(band - band % band_size)
 	return band_map
 
 def get_rgm_pixel_mapping(pixel_map_file):
 	""" Parses the RGM pixel to VIC grid cell mapping file and initialises a 2D  
 	   	grid of dimensions num_rows_rpg x num_cols_rpg (matching the RGM pixel grid),
-	   	each element containing the VIC cell ID associated with that RGM pixel"""
+	   	each element containing a list with the VIC cell ID associated with that RGM pixel and its median elevation"""
 	pixel_grid = []
+	cell_areas = {}
 	with open(pixel_map_file, 'r') as f:
 		num_cols_rpg = 0
 		num_rows_rpg = 0
@@ -286,11 +292,18 @@ def get_rgm_pixel_mapping(pixel_map_file):
 				# NOTE: we might want Markus to recreate this mapping file with zero-based indexing
 				row_num = int(split_line[1])
 				col_num = int(split_line[2])
+				median_elev = int(split_line[4])
+				cell_id = split_line[5]
 				#print 'populating row: {}, col: {}'.format(row_num, col_num)
 				# NOTE: changed to only putting VIC cell ID into the row,col position (band and elev are not static)
-				pixel_grid[row_num-1][col_num-1] = split_line[5]
+				pixel_grid[row_num-1][col_num-1] = cell_id, median_elev
+				# Increment the pixel-normalized area within the grid cell
+				try:
+					cell_areas[cell_id] += 1
+				except:
+					cell_areas[cell_id] = 1
 			#print 'columns: {}'.format(columns)
-	return pixel_grid, num_rows_rpg, num_cols_rpg
+	return pixel_grid, num_rows_rpg, num_cols_rpg, cell_areas
 
 def read_asc_dem_file(dem_file):
 	""" Opens a DEM file, parses RGM grid extents parameters, and reads in the DEM """
@@ -376,13 +389,6 @@ def read_gsa_dem_file(dem_file):
 			elif line_num == 4:
 				pass  # is anything to be done with these zmin, zmax values?
 			else: # read the one big row of DEM data into num_rows_bdem & num_cols_bdem list of lists
-				# for row_index in range(0, num_rows_dem):
-				# 	start_row = row_index * num_cols_dem
-				# 	end_row = start_row + num_cols_dem
-				# 	row = line[start_row : end_row]
-				# 	split_row = [float(x) for x in row.split()]
-				# 	print split_row
-				# 	dem_grid.append(split_row)
 				split_line = [float(x) for x in line.split()] 
 				dem_grid.append(split_line)
 	return dem_grid, dem_pixel_area, xmin, xmax, ymin, ymax
@@ -406,19 +412,24 @@ def get_mass_balance_polynomials(state, state_file):
 def mass_balances_to_rgm_grid(gmb_polys, pixel_to_cell_map):
 	""" Translate mass balances from grid cell GMB polynomials to 2D RGM pixel grid to use as one of the inputs to RGM """
 	mass_balance_grid = [[0 for x in range(0, num_cols_rpg)] for x in range(0, num_rows_rpg)]
-	for row in range(0, num_rows_rpg):
-		for col in range(0, num_cols_rpg):
-			pixel = pixel_to_cell_map[row][col]
-			band = pixel[0]
-			median_elev = float(pixel[1])
-			cell_id = pixel[2]
-			# only grabbing pixels that fall within a VIC cell
-			if cell_id != 'NA':
-				# check that the cell_id agrees with what was read from the veg_parm_file
-				if cell_id not in cell_ids:
-					print 'mass_balances_to_rgm_grid: Cell ID {} was not found in the list of VIC cell IDs read from the vegetation parameters file. Exiting.\n'.format(cell_id)
-					#sys.exit(0)
-				mass_balance_grid[row][col] = gmb_polys[cell_id][0] + median_elev * (gmb_polys[cell_id][1] + median_elev * gmb_polys[cell_id][2])
+	try:
+		for row in range(0, num_rows_rpg):
+			for col in range(0, num_cols_rpg):
+				pixel = pixel_to_cell_map[row][col]
+				# band = pixel[0]
+				# median_elev = float(pixel[1])
+				# cell_id = pixel[2]
+				# # only grabbing pixels that fall within a VIC cell
+				cell_id = pixel[0]
+				median_elev = pixel[1]
+				if cell_id != 'NA':
+					# check that the cell_id agrees with what was read from the veg_parm_file
+					if cell_id not in cell_ids:
+						print 'mass_balances_to_rgm_grid: Cell ID {} was not found in the list of VIC cell IDs read from the vegetation parameters file. Exiting.\n'.format(cell_id)
+						#sys.exit(0)
+					mass_balance_grid[row][col] = gmb_polys[cell_id][0] + median_elev * (gmb_polys[cell_id][1] + median_elev * gmb_polys[cell_id][2])
+	except:
+		print 'mass_balances_to_rgm_grid: Error processing pixel {} (band {} row {} column {}'.format(pixel, band, row, col)
 	return mass_balance_grid			
 		
 def write_grid_to_gsa_file(grid, outfilename):
@@ -446,33 +457,35 @@ def update_glacier_mask(sdem, bdem):
 
 def update_band_areas():
 	""" Calculates the area fractions of elevation bands within VIC cells, and of glaciers within these bands """
-	total_cell_area = num_rows_rpg * num_cols_rpg
+	# TODO: total_cell_area needs to be per VIC grid cell, not total RPG grid as it is now
+	#total_cell_area = num_rows_rpg * num_cols_rpg
 	band_areas = {}
 	glacier_areas = {}
-	area_frac_band = {}
+	area_frac_bands = {}
 	area_frac_glacier = {}
 	for cell in cell_ids:
-		band_areas[cell] = []
-		glacier_areas[cell] = []
-		area_frac_band[cell] = []
-		area_frac_glacier[cell] = []
+		band_areas[cell] = [0 for x in range(0, num_snow_bands)]
+		glacier_areas[cell] = [0 for x in range(0, num_snow_bands)]
+		area_frac_bands[cell] = [0 for x in range(0, num_snow_bands)]
+		area_frac_glacier[cell] = [0 for x in range(0, num_snow_bands)]
+	for row in range(0, num_rows_rpg):
+		for col in range(0, num_cols_rpg):
+			cell = pixel_to_cell_map[row][col][0] # get the VIC cell this pixel belongs to
+			if cell != 'NA':
+				for band_idx, band in enumerate(band_map[cell]):
+					if rgm_surf_dem_out[row][col] in range(band, band + band_size-1):
+						band_areas[cell][band_idx] += 1
+						if glacier_mask[row][col]:
+							glacier_areas[cell][band_idx] += 1
+	for cell in cell_ids:
 		for band_idx, band in enumerate(band_map[cell]):
-			band_areas[cell].append(0)
-			glacier_areas[cell].append(0)
-			area_frac_band[cell].append(0)
-			area_frac_glacier[cell].append(0)
-			for row in range(0, num_rows_rpg):
-				for col in range(0, num_cols_rpg):
-					if pixel_to_cell_map[row][col] == cell: # if this pixel is within the current VIC cell
-						if rgm_surf_dem_out[row][col] in range(band, band + band_size-1):
-							band_areas[cell][band_idx] += 1
-							if glacier_mask[row][col]:
-								glacier_areas[cell][band_idx] += 1
 			# This will be used to update the Snow Band File
-			area_frac_band[cell][band_idx] = band_areas[cell][band_idx] / total_cell_area
+			# TODO: compare existing area_frac_band[cell][band_idx] (i.e. from last time step) with its calculated value now
+			# If it's the same, then no change in non-glacier tiles within this band
+			area_frac_bands[cell][band_idx] = band_areas[cell][band_idx] / cell_areas[cell]
 			# This will be used to update the Vegetation Parameter File
-			area_frac_glacier[cell][band_idx] = glacier_areas[cell][band_idx] / total_cell_area
-	return area_frac_band, area_frac_glacier
+			area_frac_glacier[cell][band_idx] = glacier_areas[cell][band_idx] / cell_areas[cell]
+	return area_frac_bands, area_frac_glacier
 
 
 if __name__ == '__main__':
@@ -484,7 +497,7 @@ if __name__ == '__main__':
 	start_year = int(global_parms['STARTYEAR'][0][0])
 	end_year = int(global_parms['ENDYEAR'][0][0])
 	# Initial VIC output state filename prefix is determined by STATENAME in the global file
-	state_filename_prefix = str(global_parms['STATENAME'][0][0])
+	state_filename_prefix = global_parms['STATENAME'][0][0]
 
 	# Get VIC vegetation parameters and grid cell IDs from initial Vegetation Parameter File
 	veg_parm_file = global_parms['VEGPARAM'][0][0]
@@ -494,19 +507,19 @@ if __name__ == '__main__':
 	snb_file = global_parms['SNOW_BAND'][0][1]
 	snb_parms = get_snb_parms(snb_file, num_snow_bands)
 	# Get list of elevation bands for each VIC grid cell
-	band_map = get_bands(snb_parms, band_size)
+	band_map = create_band_map(snb_parms, band_size)
 
 	# The RGM will always output a DEM file of the same name (if running RGM for a single year at a time)
 	rgm_surf_dem_out_file = temp_files_path + 's_out_00001.grd'
 
 	# Open and read VIC-grid-to-RGM-pixel mapping file
 	# pixel_to_cell_map is a list of dimensions num_rows_rpg x num_cols_rpg, each element containing a VIC grid cell ID
-	pixel_to_cell_map, num_rows_rpg, num_cols_rpg = get_rgm_pixel_mapping(pixel_cell_map_file)
+	pixel_to_cell_map, num_rows_rpg, num_cols_rpg, cell_areas = get_rgm_pixel_mapping(pixel_cell_map_file)
 
 	# Open and read the provided Bed Digital Elevation Map (BDEM) file into a 2D bdem_grid
 	# Also get RGM pixel area in meters, and min/max x and y coordinates 
 	bed_dem, rgm_pixel_area, rgm_xmin, rgm_xmax, rgm_ymin, rgm_ymax = read_asc_dem_file(bed_dem_file)
-
+	#NOTE: Markus will fix his R script to produce a properly formed GSA file to use instead
 
 	# NOTE: it appears the .gsa DEM from Markus does not conform to ARC/ASCII grid format (rows are clipped at 10 elements), 
 	# which makes RGM puke.  Once this is corrected, we can eliminate the need for the calls to write_grid_to_file() to 
@@ -523,7 +536,7 @@ if __name__ == '__main__':
 		print '\nRunning year: {}'.format(year)
 
 		# 1. Write / Update temporary Global Parameters File, temp_gpf
-		# If year > start_year, introduce INIT_STATE line with most current state_file (does not exist in the first read-in of global_parms).
+		# If year > start_year, introduce INIT_STATE line with most recent state_file (does not exist in the first read-in of global_parms).
 		# Overwrite VEGPARAM parameter with temp_vpf, and SNOW_BAND with temp_snb
 		state_file = state_filename_prefix + "_" + str(year) + str(global_parms['STATEMONTH'][0][0]) + str(global_parms['STATEDAY'][0][0])
 		update_global_parms(year > start_year)
