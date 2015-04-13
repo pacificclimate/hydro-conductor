@@ -343,7 +343,7 @@ def init_residual_area_fracs():
 	return residual_area_fracs
 
 def update_band_areas():
-	""" Calculates the area fractions of elevation bands within VIC cells, and area fractions of glaciers within each of these elevation bands """
+	""" Calculates the area fractions of elevation bands within VIC cells, and area fraction of glacier within VIC cells (broken down by elevation band) """
 	band_areas = {}
 	glacier_areas = {}
 	area_frac_bands = {}
@@ -376,7 +376,7 @@ def update_band_areas():
 						break
 #		raw_input('--------------- row processed. Hit enter --------------')
 	print 'Area fractions of elevation bands within VIC cells: {}'.format(band_areas)
-	print 'Area fractions of glacier within these elevation bands: {}'.format(glacier_areas)
+	print 'Area fraction of glacier within VIC cells, per elevation band: {}'.format(glacier_areas)
 	print '\n'
 	for cell in cell_ids:
 		print 'cell: {}'.format(cell)
@@ -413,7 +413,7 @@ def update_veg_parms():
 				bare_soil_exists = False # temporary boolean to identify if bare soil vegetation type (HRU) currently exists within this band
 				glacier_exists = False # temporary boolean to identify if glacier vegetation type (HRU) currently exists within this band 
 				sum_previous_band_area_fracs = 0 # sum of band vegetation tile (HRU) area fractions in the last iteration
-				if delta_residual < 0: # glacier portion of this band has shrunk; update its area fraction and increase the bare soil component accordingly
+				if delta_residual < 0: # glacier portion of this band has SHRUNK; update its area fraction and increase the bare soil component accordingly
 					print '\nGlacier portion of band {} has SHRUNK (delta_residual = {})'.format(band, delta_residual)
 					for line_idx, line in enumerate(veg_parms[cell][band]): 
 						print 'Current line in band {}:  {}'.format(band, line)
@@ -424,23 +424,21 @@ def update_veg_parms():
 							veg_parms[cell][band][line_idx][1] = str(float(veg_parms[cell][band][line_idx][1]) + abs(delta_residual))
 							print 'Bare soil already exists in this band.  New area fraction: veg_parms[{}][{}][{}][1] = {}'.format(cell, band, line_idx, veg_parms[cell][band][line_idx][1])
 						elif veg_types[-1] == int(GLACIER_ID):
-							new_glacier_area_frac = area_frac_glacier[cell][int(band)]
-							if new_glacier_area_frac >= 0:
-								veg_parms[cell][band][line_idx][1] = str(new_glacier_area_frac)
-								print 'Updated glacier area fraction: veg_parms[{}][{}][{}][1] = {}'.format(cell, band, line_idx, veg_parms[cell][band][line_idx][1])
-							else: 
-								# delete the existing glacier line in veg_parms?
-								#print 'Area fraction of glacier (vegetation type {}) in cell {}, band {} was reduced to {}. Removing tile (HRU) from vegetation parameters'.format(veg_types[-1], cell, band, new_glacier_area_frac)
-								#del veg_parms[cell][band][line_idx]
-								print 'update_veg_parms(): Error: Calculated a negative area fraction ({}) for glacier vegetation type {} in cell {}, band {}. Exiting.\n'.format(new_veg_area_frac, veg_types[-1], cell, band)
-								sys.exit(0)
+							veg_parms[cell][band][line_idx][1] = str(area_frac_glacier[cell][int(band)])
+							print 'Updated glacier area fraction: veg_parms[{}][{}][{}][1] = {}'.format(cell, band, line_idx, veg_parms[cell][band][line_idx][1])
 					if not bare_soil_exists: # insert new line for bare soil vegetation (HRU) type in the correct numerical position within this band
-						new_line = BARE_SOIL_ID + ' ' + str(delta_residual) + ' ' + ''.join(str(x) for x in bare_soil_root_parms) + ' ' + str(band)
+						#new_line = BARE_SOIL_ID + ' ' + str(delta_residual) + ' ' + ''.join(str(x) for x in bare_soil_root_parms) + ' ' + str(band)
+						new_line = []
+						new_line.append(BARE_SOIL_ID)
+						new_line.append(str(delta_residual))
+						for num in bare_soil_root_parms:
+							new_line.append(str(num))
+						new_line.append(str(band))						
 						bisect.insort_left(veg_types, int(BARE_SOIL_ID))
 						position = veg_types.index(int(BARE_SOIL_ID))
 						veg_parms[cell][band].insert(position, new_line)
 						print 'Bare soil did NOT already exist in this band. Inserted line: veg_parms[{}][{}][{}] = {}'.format(cell, band, position, veg_parms[cell][band][position])
-				elif delta_residual > 0: # glacier portion of this band has grown; decrease fraction of non-glacier HRUs by a total of delta_residual
+				elif delta_residual > 0: # glacier portion of this band has GROWN; decrease fraction of non-glacier HRUs by a total of delta_residual
 					print '\nGlacier portion of band {} has GROWN (delta_residual = {})'.format(band, delta_residual)
 					for line_idx, line in enumerate(veg_parms[cell][band]): 
 						sum_previous_band_area_fracs += float(line[1])
@@ -454,7 +452,6 @@ def update_veg_parms():
 							veg_parms[cell][band][line_idx][1] = str(area_frac_glacier[cell][int(band)])
 							print 'Glacier already exists in this band.  New glacier area fraction: veg_parms[{}][{}][{}][1] = {}'.format(cell, band, line_idx, veg_parms[cell][band][line_idx][1])
 						else:
-							#### NOTE Friday April 10: suspect that this is not getting calculated correctly.
 							# Get the change in area fraction for this vegetation type (HRU) based on its previous share of the residuals in this elevation band
 							print 'Existing area fraction for this vegetation type: {}'.format(veg_parms[cell][band][line_idx][1])
 							delta_veg_area_frac = delta_residual * (float(veg_parms[cell][band][line_idx][1]) / sum_previous_band_area_fracs)
@@ -470,18 +467,23 @@ def update_veg_parms():
 								print 'update_veg_parms(): Error: Calculated a negative area fraction ({}) for vegetation type {} in cell {}, band {}. Exiting.\n'.format(new_veg_area_frac, veg_types[-1], cell, band)
 								sys.exit(0)
 					if not glacier_exists: # insert new line for glacier vegetation (HRU) type in the correct numerical position within this band
-						new_line = GLACIER_ID + ' ' + str(delta_residual) + ' ' + ''.join(str(x) for x in glacier_root_parms) + ' ' + str(band)
+						#new_line = GLACIER_ID + ' ' + str(area_frac_glacier[cell][int(band)]) + ' ' + ''.join(str(x) for x in glacier_root_parms) + ' ' + str(band)
+						new_line = []
+						new_line.append(GLACIER_ID)
+						new_line.append(str(area_frac_glacier[cell][int(band)]))
+						for num in glacier_root_parms:
+							new_line.append(str(num))
+						new_line.append(str(band))
 						bisect.insort_left(veg_types, int(GLACIER_ID))
 						position = veg_types.index(int(GLACIER_ID))
-						veg_parms[cell][band].insert(position, [new_line])
+						veg_parms[cell][band].insert(position, new_line)
 						print 'Glacier did NOT already exist in this band. Inserted line with new glacier area fraction: veg_parms[{}][{}][{}] = {}'.format(cell, band, position, veg_parms[cell][band][position])
 			else: # We have nothing left in this elevation band.  Set all fractional areas for all vegetation tiles (HRUs) in this band to zero
 				print '\nNothing left in elevation band {}.  Setting all fractional areas to zero.'.format(band)
 				for line_idx, line in enumerate(veg_parms[cell][band]):
 					veg_parms[cell][band][line_idx][1] = 0
 			# Set residual area fractions to the new calculated values for the next iteration
-	### uncomment this when done testing:
-			#residual_area_fracs[cell][band] = new_residual_area_frac
+			residual_area_fracs[cell][band] = new_residual_area_frac
 
 def write_veg_parms_file():
 	""" Writes current (updated) vegetation parameters to a new temporary Vegetation Parameters File for feeding back into VIC """
@@ -490,6 +492,7 @@ def write_veg_parms_file():
 	with open(temp_vpf, 'w') as f:
 		writer = csv.writer(f, delimiter=' ')
 		for cell in veg_parms:
+			# TODO: recount num_veg_tiles for each cell to include any added lines
 			writer.writerow([cell, num_veg_tiles[cell]])
 			print '{}    {}'.format(cell, num_veg_tiles[cell])
 			for band in veg_parms[cell]:
