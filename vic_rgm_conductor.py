@@ -337,7 +337,6 @@ def init_residual_area_fracs():
 						sys.exit(0)
 					break
 			if not glacier_exists:
-				#residual_area_fracs[cell][band] = 0
 				residual_area_fracs[cell][band] = snb_parms[cell][0][int(band)]
 				print 'No glacier in this band.  residual_area_fracs[{}][{}] = {}'.format(cell, band, residual_area_fracs[cell][band])
 	return residual_area_fracs
@@ -489,6 +488,10 @@ def write_veg_parms_file():
 	""" Writes current (updated) vegetation parameters to a new temporary Vegetation Parameters File for feeding back into VIC """
 	temp_vpf = temp_files_path + 'vpf_temp_' + str(year) + '.txt'
 	print 'writing new temporary vegetation parameter file {}...'.format(temp_vpf)
+	for cell in veg_parms:
+		num_veg_tiles[cell] = 0
+		for band in veg_parms[cell]:
+			num_veg_tiles[cell] += len(veg_parms[cell][band])
 	with open(temp_vpf, 'w') as f:
 		writer = csv.writer(f, delimiter=' ')
 		for cell in veg_parms:
