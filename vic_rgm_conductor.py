@@ -17,6 +17,7 @@ import h5py
 vic_full_path = '/home/mfischer/code/vic/vicNl'  # should this be a command line parameter?
 rgm_full_path = '/home/mfischer/code/rgm/rgm' # ditto?
 temp_files_path = '/home/mfischer/vic_dev/out/testing/temp_out_files/' # ditto?
+# set it as default = os.env(tmp)
 
 BARE_SOIL_ID = '19'
 
@@ -140,7 +141,7 @@ def get_rgm_pixel_mapping(pixel_map_file):
     with open(pixel_map_file, 'r') as f:
         num_cols_dem = 0
         num_rows_dem = 0
-        for line in iter(f):
+        for line in f:
             #print('line: {}'.format(line))
             split_line = line.split()
             if split_line[0] == 'NCOLS':
@@ -172,7 +173,7 @@ def get_rgm_pixel_mapping(pixel_map_file):
             #print('columns: {}'.format(columns))
     return pixel_to_cell_map, num_rows_dem, num_cols_dem, cell_areas
 
-def get_mass_balance_polynomials(state, state_file):
+def get_mass_balance_polynomials(state, state_file, cell_ids):
     """ Extracts the Glacier Mass Balance polynomial for each grid cell from an open VIC state file """
     gmb_info = state['GLAC_MASS_BALANCE_INFO'][0]
     cell_count = len(gmb_info)
@@ -188,7 +189,7 @@ def get_mass_balance_polynomials(state, state_file):
         gmb_polys[cell_id] = [gmb_info[i][1], gmb_info[i][2], gmb_info[i][3]]
     return gmb_polys
 
-def mass_balances_to_rgm_grid(gmb_polys, pixel_to_cell_map):
+def mass_balances_to_rgm_grid(gmb_polys, pixel_to_cell_map, num_rows_dem, num_cols_dem, cell_ids):
     """ Translate mass balances from grid cell GMB polynomials to 2D RGM pixel grid to use as one of the inputs to RGM """
     mass_balance_grid = [[0 for x in range(0, num_cols_dem)] for x in range(0, num_rows_dem)]
     try:
@@ -209,7 +210,7 @@ def mass_balances_to_rgm_grid(gmb_polys, pixel_to_cell_map):
         print('mass_balances_to_rgm_grid: Error while processing pixel {} (row {} column {})'.format(pixel, row, col))
     return mass_balance_grid
 
-def write_grid_to_gsa_file(grid, outfilename):
+def write_grid_to_gsa_file(grid, outfilename, num_cols_dem, num_rows_dem, dem_xmin, dem_xmax, dem_ymin, dem_ymax):
     """ Writes a 2D grid to ASCII file in the input format expected by the RGM for DEM and mass balance grids """
     zmin = np.min(grid)
     zmax = np.max(grid)
@@ -226,7 +227,7 @@ def get_global_parms(global_parm_file):
     global_parms = OrderedDefaultdict()
     n_outfile_lines = 0
     with open(global_parm_file, 'r') as f:
-        for line in iter(f):
+        for line in f:
             #print('line: {}'.format(line))
             if not line.isspace() and line[0] is not '#':
                 split_line = line.split()
@@ -251,7 +252,7 @@ def get_global_parms(global_parm_file):
                     global_parms['INIT_STATE'] = []
     return global_parms
 
-def update_global_parms(init_state):
+def update_global_parms(global_parms, init_state):
     """ Updates the global_parms dict at the beginning of an annual iteration """
 # TODO: need to update this to support VIC wind-up from STARTYEAR to GLAC_ACCUM_START_YEAR
     global_parms['STARTYEAR'] = [[str(year)]]
@@ -266,46 +267,40 @@ def update_global_parms(init_state):
         global_parms['VEGPARAM'] = [[temp_vpf]]
         global_parms['SNOW_BAND'] = [[num_snow_bands, temp_snb]]
 
-def write_global_parms_file():
-    """ Reads existing global_parms dict and writes out a new temporary VIC Global Parameter File for feeding into VIC """
-    temp_gpf = temp_files_path + 'gpf_temp_' + str(year) + '.txt'
+def write_global_parms_file(global_parms, temp_gpf):
+    """ Reads existing global_parms dict and writes out a new temporary VIC Global Parameter File for feeding into VIC to the temporary global parameters file temp_gpf """
     with open(temp_gpf, 'w') as f:
         writer = csv.writer(f, delimiter=' ')
-        try:
-            for parm in global_parms:
-                num_parm_lines = len(global_parms[parm])
-                if parm == 'INIT_STATE' and len(global_parms['INIT_STATE']) == 0:
-                    pass
-                elif parm[0:8] == 'OUTFILE_':
+        for parm_name, parm_value in global_parms.items():
+            num_parm_lines = len(global_parms[parm])
+            if parm == 'INIT_STATE' and len(global_parms['INIT_STATE']) == 0:
+                pass
+            elif parm[0:8] == 'OUTFILE_':
+                line = []
+                line.append('OUTFILE')
+                for value in parm_value[0]:
+                    line.append(value)
+                writer.writerow(line)
+            elif parm[0:7] == 'OUTVAR_':
+                for line_num in range(0, num_parm_lines):
                     line = []
-                    line.append('OUTFILE')
-                    for value in global_parms[parm][0]:
+                    line.append('OUTVAR')
+                    for value in parm_value[line_num]:
                         line.append(value)
-                    writer.writerow(line)
-                elif parm[0:7] == 'OUTVAR_':
-                    for line_num in range(0, num_parm_lines):
-                        line = []
-                        line.append('OUTVAR')
-                        for value in global_parms[parm][line_num]:
-                            line.append(value)
-                            writer.writerow(line)
-                elif num_parm_lines == 1:
+                        writer.writerow(line)
+            elif num_parm_lines == 1:
+                line = []
+                line.append(parm)
+                for value in parm_value[0]:
+                    line.append(value)
+                writer.writerow(line)
+            elif num_parm_lines > 1:
+                for line_num in range(0, num_parm_lines):
                     line = []
                     line.append(parm)
-                    for value in global_parms[parm][0]:
+                    for value in parm_value[line_num]:
                         line.append(value)
                     writer.writerow(line)
-                elif num_parm_lines > 1:
-                    for line_num in range(0, num_parm_lines):
-                        line = []
-                        line.append(parm)
-                        for value in global_parms[parm][line_num]:
-                            line.append(value)
-                        writer.writerow(line)
-        except:
-            print('write_global_parms_file: Error while writing parameter {} to file. Exiting.\n'.format(parm))
-            sys.exit(0)
-    return temp_gpf
 
 def get_veg_parms(veg_parm_file):
     """ Reads in a Vegetation Parameter File and parses out VIC grid cell IDs, as well as an ordered nested dict of all vegetation parameters,
@@ -314,7 +309,7 @@ def get_veg_parms(veg_parm_file):
     num_veg_tiles = {}
     veg_parms = OrderedDefaultdict()
     with open(veg_parm_file, 'r') as f:
-        for line in iter(f):
+        for line in f:
             split_line = line.split()
             num_columns = len(split_line)
             if num_columns == 2:
@@ -331,7 +326,7 @@ def get_veg_parms(veg_parm_file):
                     veg_parms[cell][band_id].append(split_line)
     return cell_ids, num_veg_tiles, veg_parms
 
-def init_residual_area_fracs():
+def init_residual_area_fracs(cell_ids, veg_parms, snb_parms):
     """ Reads the initial snow band area fractions and glacier vegetation (HRU) tile area fractions and calculates the initial residual area fractions """
     residual_area_fracs = {}
     for cell in cell_ids:
@@ -358,7 +353,7 @@ def init_residual_area_fracs():
 def get_initial_residual_area_fracs():
     """ Reads initial vegetation tile area fractions for all non-glacier vegetation types (HRUs) """
 
-def update_band_areas():
+def update_band_areas(cell_ids, band_map, num_snow_bands, pixel_to_cell_map, rgm_surf_dem_out, num_rows_dem, num_cols_dem):
     """ Calculates the area fractions of elevation bands within VIC cells, and area fraction of glacier within VIC cells (broken down by elevation band) """
     band_areas = {}
     glacier_areas = {}
@@ -417,7 +412,7 @@ def update_band_areas():
             print('\n')
     return area_frac_bands, area_frac_glacier
 
-def update_veg_parms():
+def update_veg_parms(cell_ids, veg_parms, area_frac_bands, area_frac_glacier, residual_area_fracs):
     """ Updates vegetation parameters for all VIC grid cells by applying calculated changes in glacier area fractions across all elevation bands """
     for cell in cell_ids:
         print('cell: {}'.format(cell))
@@ -501,9 +496,8 @@ def update_veg_parms():
             # Set residual area fractions to the new calculated values for the next iteration
             residual_area_fracs[cell][band] = new_residual_area_frac
 
-def write_veg_parms_file():
+def write_veg_parms_file(veg_parms, num_veg_tiles, temp_vpf):
     """ Writes current (updated) vegetation parameters to a new temporary Vegetation Parameters File for feeding back into VIC """
-    temp_vpf = temp_files_path + 'vpf_temp_' + str(year) + '.txt'
     print('writing new temporary vegetation parameter file {}...'.format(temp_vpf))
     for cell in veg_parms:
         num_veg_tiles[cell] = 0
@@ -518,14 +512,13 @@ def write_veg_parms_file():
                 for line in veg_parms[cell][band]:
                     writer.writerow(line)
                     print(' ').join(map(str, line))
-    return temp_vpf
 
 def get_snb_parms(snb_file, num_snow_bands):
     """ Reads in a Snow Band File and outputs an ordered dict:
     {'cell_id_0' : [area_frac_band_0,...,area_frac_band_N],[median_elev_band_0,...,median_elev_band_N],[Pfactor_band_0,...,Pfactor_band_N]], 'cell_id_1' : ..."""
     snb_parms = OrderedDict()
     with open(snb_file, 'r') as f:
-        for line in iter(f):
+        for line in f:
             #print('snb file line: {}'.format(line))
             split_line = line.split()
             num_columns = len(split_line)
@@ -546,7 +539,7 @@ def create_band_map(snb_parms, band_size):
             band_map[cell][band_idx] = int(band - band % band_size)
     return band_map
 
-def update_glacier_mask(sdem, bdem):
+def update_glacier_mask(sdem, bdem, num_rows_dem, num_cols_dem):
     """ Takes output Surface DEM from RGM and uses element-wise differencing with the Bed DEM to form an updated glacier mask """
     diffs = sdem - bed_dem
     if np.any(diffs < 0):
@@ -556,15 +549,14 @@ def update_glacier_mask(sdem, bdem):
     glacier_mask[diffs > 0] = 1
     return glacier_mask
 
-def update_snb_parms():
+def update_snb_parms(snb_parms, area_frac_bands):
     for cell in snb_parms:
         #print('cell: {}'.format(cell)
         snb_parms[cell][0] = area_frac_bands[cell]
         print(' ').join(map(str, snb_parms[cell][0]))
 
-def write_snb_parms_file():
+def write_snb_parms_file(temp_snb, snb_parms, area_frac_bands):
     """ Writes current (updated) snow band parameters to a new temporary Snow Band File for feeding back into VIC """
-    temp_snb = temp_files_path + 'snb_temp_' + str(year) + '.txt'
     with open(temp_snb, 'w') as f:
         writer = csv.writer(f, delimiter=' ')
         for cell in snb_parms:
@@ -577,11 +569,12 @@ def write_snb_parms_file():
             for pfactor in snb_parms[cell][2]:
                 line.append(pfactor) # append existing Pfactor values
             writer.writerow(line)
-    return temp_snb
 
 # Main program.  
 if __name__ == '__main__':
+    main()
 
+def main():
     print('\n\nVIC + RGM ... together at last!')
 
     # Parse command line parameters
@@ -613,7 +606,7 @@ if __name__ == '__main__':
     # Get list of elevation bands for each VIC grid cell
     band_map = create_band_map(snb_parms, band_size)
     # Calculate the initial residual (i.e. non-glacier) area fractions for all bands in all cells 
-    residual_area_fracs = init_residual_area_fracs()
+    residual_area_fracs = init_residual_area_fracs(cell_ids, veg_parms, snb_parms)
 
     # Open and read VIC-grid-to-RGM-pixel mapping file
     # pixel_to_cell_map is a list of dimensions num_rows_dem x num_cols_dem, each element containing a VIC grid cell ID
@@ -635,30 +628,36 @@ if __name__ == '__main__':
         # If year > start_year, introduce INIT_STATE line with most recent state_file (does not exist in the first read-in of global_parms).
         # Overwrite VEGPARAM parameter with temp_vpf, and SNOW_BAND with temp_snb
         state_file = state_filename_prefix + "_" + str(year) + str(global_parms['STATEMONTH'][0][0]) + str(global_parms['STATEDAY'][0][0])
-        update_global_parms(year > start_year)
-        temp_gpf = write_global_parms_file()
+
+        # if year == start_year
+            # set_wind_up_global_parms()
+        # else:
+            update_global_parms(year, GLACIER_ACCUM_START_MONTH, GLACIER_ACCUM_START_DAY)
+
+        temp_gpf = temp_files_path + 'gpf_temp_' + str(year) + '.txt'
+        write_global_parms_file(global_parms, temp_gpf)
         print('invoking VIC with global parameter file {}'.format(temp_gpf))
 
         # 2. Run VIC for a year.  This will save VIC model state at the end of the year, along with a Glacier Mass Balance (GMB) polynomial for each cell
         subprocess.check_call([vic_full_path, "-g", temp_gpf], shell=False, stderr=subprocess.STDOUT)
 
         # 3. Open VIC NetCDF state file and get the most recent GMB polynomial for each grid cell being modeled
-        print('opening state file {}'.format(state_file))
+        print('opening VIC state file {}'.format(state_file))
         state = h5py.File(state_file, 'r+')
-        gmb_polys = get_mass_balance_polynomials(state, state_file)
+        gmb_polys = get_mass_balance_polynomials(state, state_file, cell_ids)
             
         # 4. Translate mass balances using grid cell GMB polynomials and current veg_parm_file into a 2D RGM mass balance grid (MBG)
-        mass_balance_grid = mass_balances_to_rgm_grid(gmb_polys, pixel_to_cell_map)
+        mass_balance_grid = mass_balances_to_rgm_grid(gmb_polys, pixel_to_cell_map, num_rows_dem, num_cols_dem, cell_ids)
         # write Mass Balance Grid to ASCII file to direct the RGM to use as input
         mbg_file = temp_files_path + 'mass_balance_grid_' + str(year) + '.gsa'
-        write_grid_to_gsa_file(mass_balance_grid, mbg_file)
+        write_grid_to_gsa_file(mass_balance_grid, mbg_file, num_cols_dem, num_rows_dem, dem_xmin, dem_xmax, dem_ymin, dem_ymax)
 
         # 5. Run RGM for one year, passing MBG, BDEM, SDEM
         #subprocess.check_call([rgm_full_path, "-p", rgm_params_file, "-b", bed_dem_file, "-d", sdem_file, "-m", mbg_file, "-o", temp_files_path, "-s", "0", "-e", "0" ], shell=False, stderr=subprocess.STDOUT)
         subprocess.check_call([rgm_full_path, "-p", rgm_params_file, "-b", bed_dem_file, "-d", rgm_surf_dem_in_file, "-m", mbg_file, "-o", temp_files_path, "-s", "0", "-e", "0" ], shell=False, stderr=subprocess.STDOUT)
         # remove temporary files if not saving for offline inspection
         if not output_trace_files:
-            os.remove(mbg_file)
+            os.remove(mbg_file) #f.name
             os.remove(rgm_surf_dem_file)
 
         # 6. Read in new Surface DEM file from RGM output
@@ -669,21 +668,23 @@ if __name__ == '__main__':
         rgm_surf_dem_in_file = temp_surf_dem_file
 
         # 7. Update glacier mask
-        glacier_mask = update_glacier_mask(rgm_surf_dem_out, bed_dem)
+        glacier_mask = update_glacier_mask(rgm_surf_dem_out, bed_dem, num_rows_dem, num_cols_dem)
         if output_trace_files:
             glacier_mask_file = temp_files_path + 'glacier_mask_' + str(year) + '.gsa'
             write_grid_to_gsa_file(glacier_mask, glacier_mask_file)
         
         # 8. Update areas of each elevation band in each VIC grid cell, and calculate area fractions
-        area_frac_bands, area_frac_glacier = update_band_areas()
+        area_frac_bands, area_frac_glacier = update_band_areas(cell_ids, band_map, num_snow_bands, pixel_to_cell_map, rgm_surf_dem_out, num_rows_dem, num_cols_dem)
 
         # 9. Update vegetation parameters and write to new temporary file temp_vpf
-        update_veg_parms()
-        temp_vpf = write_veg_parms_file()
+        update_veg_parms(cell_ids, veg_parms, area_frac_bands, area_frac_glacier, residual_area_fracs)
+        temp_vpf = temp_files_path + 'vpf_temp_' + str(year) + '.txt'
+        write_veg_parms_file(veg_parms, num_veg_tiles, temp_vpf)
 
         # 10. Update snow band parameters and write to new temporary file temp_snb
-        update_snb_parms()
-        temp_snb = write_snb_parms_file()
+        update_snb_parms(snb_parms, area_frac_bands)
+        temp_snb = temp_files_path + 'snb_temp_' + str(year) + '.txt'
+        write_snb_parms_file(temp_snb, snb_parms, area_frac_bands)
 
         # 11 Update HRUs in VIC state file 
             # don't forget to close the state file
