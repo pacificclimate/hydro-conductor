@@ -147,12 +147,12 @@ def get_rgm_pixel_mapping(pixel_map_file):
                 num_cols_dem = int(split_line[1])
                 #print('num_cols_dem: {}'.format(num_cols_dem))
                 if num_cols_dem and num_rows_dem:
-                    pixel_to_cell_map = [[0 for x in range(0, num_cols_dem)] for x in range(0, num_rows_dem)]
+                    pixel_to_cell_map = [[0 for x in range(num_cols_dem)] for x in range(num_rows_dem)]
             elif split_line[0] == 'NROWS':
                 num_rows_dem = int(split_line[1])
                 #print('num_rows_dem: {}'.format(num_rows_dem))
                 if num_cols_dem and num_rows_dem:
-                    pixel_to_cell_map = [[0 for x in range(0, num_cols_dem)] for x in range(0, num_rows_dem)]
+                    pixel_to_cell_map = [[0 for x in range(num_cols_dem)] for x in range(num_rows_dem)]
             elif split_line[0][0] == '"': # column header row / comments
                 #print('comment line: {}'.format(split_line))
                 pass
@@ -180,7 +180,7 @@ def get_mass_balance_polynomials(state, state_file, cell_ids):
         print('get_mass_balance_polynomials: The number of VIC cells ({}) read from the state file {} and those read from the vegetation parameter file ({}) disagree. Exiting.\n'.format(cell_count, state_file, len(cell_ids)))
         sys.exit(0)
     gmb_polys = {}
-    for i in range(0, cell_count):
+    for i in range(cell_count):
         cell_id = str(int(gmb_info[i][0]))
         if cell_id not in cell_ids:
             print('get_mass_balance_polynomials: Cell ID {} was not found in the list of VIC cell IDs read from the vegetation parameters file. Exiting.\n'.format(cell_id))
@@ -190,10 +190,10 @@ def get_mass_balance_polynomials(state, state_file, cell_ids):
 
 def mass_balances_to_rgm_grid(gmb_polys, pixel_to_cell_map, num_rows_dem, num_cols_dem, cell_ids):
     """ Translate mass balances from grid cell GMB polynomials to 2D RGM pixel grid to use as one of the inputs to RGM """
-    mass_balance_grid = [[0 for x in range(0, num_cols_dem)] for x in range(0, num_rows_dem)]
+    mass_balance_grid = [[0 for x in range(num_cols_dem)] for x in range(num_rows_dem)]
     try:
-        for row in range(0, num_rows_dem):
-            for col in range(0, num_cols_dem):
+        for row in range(num_rows_dem):
+            for col in range(num_cols_dem):
                 pixel = pixel_to_cell_map[row][col]
                 # band = pixel[0]
                 cell_id = pixel[0]
@@ -216,9 +216,9 @@ def write_grid_to_gsa_file(grid, outfilename, num_cols_dem, num_rows_dem, dem_xm
     header_rows = [['DSAA'], [num_cols_dem, num_rows_dem], [dem_xmin, dem_xmax], [dem_ymin, dem_ymax], [zmin, zmax]]
     with open(outfilename, 'w') as csvfile:
         writer = csv.writer(csvfile, delimiter=' ')
-        for header in range(0, len(header_rows)):
+        for header in range(len(header_rows)):
             writer.writerow(header_rows[header])
-        for row in range(0, num_rows_dem):
+        for row in range(num_rows_dem):
             writer.writerow(grid[row])
 
 def get_global_parms(global_parm_file):
@@ -281,7 +281,7 @@ def write_global_parms_file(global_parms, temp_gpf):
                     line.append(value)
                 writer.writerow(line)
             elif parm[0:7] == 'OUTVAR_':
-                for line_num in range(0, num_parm_lines):
+                for line_num in range(num_parm_lines):
                     line = []
                     line.append('OUTVAR')
                     for value in parm_value[line_num]:
@@ -294,7 +294,7 @@ def write_global_parms_file(global_parms, temp_gpf):
                     line.append(value)
                 writer.writerow(line)
             elif num_parm_lines > 1:
-                for line_num in range(0, num_parm_lines):
+                for line_num in range(num_parm_lines):
                     line = []
                     line.append(parm)
                     for value in parm_value[line_num]:
@@ -359,12 +359,12 @@ def update_band_areas(cell_ids, band_map, num_snow_bands, pixel_to_cell_map, rgm
     area_frac_bands = {}
     area_frac_glacier = {}
     for cell in cell_ids:
-        band_areas[cell] = [0 for x in range(0, num_snow_bands)]
-        glacier_areas[cell] = [0 for x in range(0, num_snow_bands)]
-        area_frac_bands[cell] = [0 for x in range(0, num_snow_bands)]
-        area_frac_glacier[cell] = [0 for x in range(0, num_snow_bands)]
-    for row in range(0, num_rows_dem):
-        for col in range(0, num_cols_dem):
+        band_areas[cell] = [0 for x in range(num_snow_bands)]
+        glacier_areas[cell] = [0 for x in range(num_snow_bands)]
+        area_frac_bands[cell] = [0 for x in range(num_snow_bands)]
+        area_frac_glacier[cell] = [0 for x in range(num_snow_bands)]
+    for row in range(num_rows_dem):
+        for col in range(num_cols_dem):
             cell = pixel_to_cell_map[row][col][0] # get the VIC cell this pixel belongs to
             if cell != 'NA':
 #                print('row: {}, col: {}'.format(row, col))
@@ -533,7 +533,7 @@ def create_band_map(snb_parms, band_size):
     #TODO: create command line parameter to allow for extra bands to be specified as padding above/below existing ones, to allow for glacier growth(/slide?)
     band_map = {}
     for cell in cell_ids:
-        band_map[cell] = [0 for x in range(0, num_snow_bands)]
+        band_map[cell] = [0 for x in range(num_snow_bands)]
         for band_idx, band in enumerate(snb_parms[cell][1]):
             band_map[cell][band_idx] = int(band - band % band_size)
     return band_map
