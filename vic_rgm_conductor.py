@@ -184,10 +184,10 @@ def write_grid_to_gsa_file(grid, outfilename, num_cols_dem, num_rows_dem, dem_xm
     header_rows = [['DSAA'], [num_cols_dem, num_rows_dem], [dem_xmin, dem_xmax], [dem_ymin, dem_ymax], [zmin, zmax]]
     with open(outfilename, 'w') as csvfile:
         writer = csv.writer(csvfile, delimiter=' ')
-        for header in range(len(header_rows)):
-            writer.writerow(header_rows[header])
-        for row in range(num_rows_dem):
-            writer.writerow(grid[row])
+        for header_row in header_rows:
+            writer.writerow(header_row)
+        for row in grid:
+            writer.writerow(row)
 
 def get_global_parms(global_parm_file):
     """ Parses the initial VIC global parameters file created by the user with the settings for the entire VIC-RGM run """
