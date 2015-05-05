@@ -318,10 +318,17 @@ def init_residual_area_fracs(cell_ids, veg_parms, snb_parms):
     return residual_area_fracs
 
 def get_initial_residual_area_fracs():
-    """ Reads initial vegetation tile area fractions for all non-glacier vegetation types (HRUs) """
+    """ Reads initial vegetation tile area fractions for all non-glacier
+        vegetation types (HRUs)
+    """
+    pass
 
-def update_band_areas(cell_ids, band_map, num_snow_bands, pixel_to_cell_map, rgm_surf_dem_out, num_rows_dem, num_cols_dem):
-    """ Calculates the area fractions of elevation bands within VIC cells, and area fraction of glacier within VIC cells (broken down by elevation band) """
+def update_band_areas(cell_ids, band_map, num_snow_bands, pixel_to_cell_map,
+                      rgm_surf_dem_out, num_rows_dem, num_cols_dem):
+    """ Calculates the area fractions of elevation bands within VIC cells, and
+        area fraction of glacier within VIC cells (broken down by elevation
+        band)
+    """
     band_areas = {}
     glacier_areas = {}
     area_frac_bands = {}
@@ -335,24 +342,16 @@ def update_band_areas(cell_ids, band_map, num_snow_bands, pixel_to_cell_map, rgm
         for col in range(num_cols_dem):
             cell = pixel_to_cell_map[row][col][0] # get the VIC cell this pixel belongs to
             if cell != 'NA':
-#                print('row: {}, col: {}'.format(row, col))
-#                print('cell: {}'.format(cell))                
                 # Use the RGM DEM output to update the pixel median elevation in the pixel_to_cell_map
                 pixel_elev = rgm_surf_dem_out[row][col]
                 pixel_to_cell_map[row][col][1] = pixel_elev
-#                print('pixel_elev: {}'.format(pixel_elev))
-#                band_found = False
                 for band_idx, band in enumerate(band_map[cell]):
-#                    print('band: {}, band_idx: {}'.format(band, band_idx))
                     if int(pixel_elev) in range(band, band + band_size):
-#                        band_found = True
                         band_areas[cell][band_idx] += 1
-#                        print('band_areas[{}][{}] = {}'.format(cell, band_idx, band_areas[cell][band_idx]))
                         if glacier_mask[row][col]:
                             glacier_areas[cell][band_idx] += 1
-#                            print('glacier_areas[{}][{}] = {}'.format(cell, band_idx, glacier_areas[cell][band_idx]))
                         break
-#        raw_input('--------------- row processed. Hit enter --------------')
+
     print('Area fractions of elevation bands within VIC cells: {}'.format(band_areas))
     print('Area fraction of glacier within VIC cells, per elevation band: {}'.format(glacier_areas))
     print('\n')
@@ -497,7 +496,9 @@ def get_snb_parms(snb_file, num_snow_bands):
     return snb_parms
 
 def create_band_map(snb_parms, band_size):
-    """ Takes a dict of Snow Band parameters and identifies and creates a list of elevation bands for each grid cell of band_size width in meters"""
+    """ Takes a dict of Snow Band parameters and identifies and creates a list
+        of elevation bands for each grid cell of band_size width in meters
+    """
     #TODO: create command line parameter to allow for extra bands to be specified as padding above/below existing ones, to allow for glacier growth(/slide?)
     band_map = {}
     for cell in cell_ids:
@@ -523,7 +524,9 @@ def update_snb_parms(snb_parms, area_frac_bands):
         print(' ').join(map(str, snb_parms[cell][0]))
 
 def write_snb_parms_file(temp_snb, snb_parms, area_frac_bands):
-    """ Writes current (updated) snow band parameters to a new temporary Snow Band File for feeding back into VIC """
+    """ Writes current (updated) snow band parameters to a new temporary
+        Snow Band File for feeding back into VIC
+    """
     with open(temp_snb, 'w') as f:
         writer = csv.writer(f, delimiter=' ')
         for cell in snb_parms:
@@ -599,7 +602,7 @@ def main():
         # if year == start_year
             # set_wind_up_global_parms()
         # else:
-            update_global_parms(year, GLACIER_ACCUM_START_MONTH, GLACIER_ACCUM_START_DAY)
+        update_global_parms(year, GLACIER_ACCUM_START_MONTH, GLACIER_ACCUM_START_DAY)
 
         temp_gpf = temp_files_path + 'gpf_temp_' + str(year) + '.txt'
         write_global_parms_file(global_parms, temp_gpf)
