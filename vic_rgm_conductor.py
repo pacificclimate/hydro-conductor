@@ -89,36 +89,10 @@ def parse_input_parms():
     return vic_global_file, rgm_params_file, rgm_surf_dem_in_file, bed_dem_file, pixel_cell_map_file, init_glacier_mask_file, output_trace_files, glacier_root_parms_file, band_size
 
 def read_gsa_headers(dem_file):
-    """ Opens and reads the header metadata from a GSA Digital Elevation Map file, 
-    verifies agreement with the VIC-RGM mapping file metadata, and returns the x and y extents metadata """
-    # with open(dem_file, 'r') as f:
-    #     num_cols = 0
-    #     num_rows = 0
-    #     for line_num, line in enumerate(f):
-    #         if line_num == 0:
-    #             split_line = line.split()
-    #             if split_line[0] != 'DSAA':
-    #                 print('read_gsa_headers({}): DSAA header on first line of DEM file was not found or is malformed.  DEM file does not conform to ASCII grid format.  Exiting. \n'.format(dem_file)
-    #                 #sys.exit(0)
-    #         elif line_num == 1:
-    #             split_line = [int(x) for x in line.split()]
-    #             num_cols = split_line[0]
-    #             num_rows = split_line[1]
-    #             if (num_cols != num_cols_dem) or (num_rows != num_rows_dem):
-    #                 print('read_gsa_headers({}): Disagreement in row/column dimensions between DEM file (NROWS={}, NCOLS={}) and RGM-VIC mapping file (NROWS={}, NCOLS={}). Exiting.\n'.format(dem_file, num_rows, num_cols, num_rows_dem, num_cols_dem)
-    #                 #sys.exit(0)
-    #             #print('num_rows_dem: {} num_cols_dem: {}'.format(num_rows_dem, num_cols_dem)
-    #         elif line_num == 2:
-    #             split_line = [float(x) for x in line.split()]
-    #             xmin = split_line[0]
-    #             xmax = split_line[1]
-    #         elif line_num == 3:
-    #             split_line = [float(x) for x in line.split()]
-    #             ymin = split_line[0]
-    #             ymax = split_line[1]
-    #         else:
-    #             break
-    # return xmin, xmax, ymin, ymax
+    """ Opens and reads the header metadata from a GSA Digital Elevation Map
+        file, verifies agreement with the VIC-RGM mapping file metadata, and
+        returns the x and y extents metadata
+    """
     with open(dem_file, 'r') as f:
         # First line
         first_line = f.readline()
@@ -132,44 +106,38 @@ def read_gsa_headers(dem_file):
     return [ float(n) for n in (xmin, xmax, ymin, ymax) ]
 
 def get_rgm_pixel_mapping(pixel_map_file):
-    """ Parses the RGM pixel to VIC grid cell mapping file and initialises a 2D  
-           grid of dimensions num_rows_dem x num_cols_dem (matching the RGM pixel grid),
-           each element containing a list with the VIC cell ID associated with that RGM pixel and its median elevation"""
-    pixel_to_cell_map = []
+    """ Parses the RGM pixel to VIC grid cell mapping file and initialises a 2D
+        grid of dimensions num_rows_dem x num_cols_dem (matching the RGM pixel
+        grid), each element containing a list with the VIC cell ID associated
+        with that RGM pixel and its median elevation
+    """
     cell_areas = {}
+    headers = {}
+    
     with open(pixel_map_file, 'r') as f:
-        num_cols_dem = 0
-        num_rows_dem = 0
+
+        # Read the number of columns and rows (order is unimportant)
+        for _ in range(2):
+            key, value = f.readline().split(None, 1)
+            headers[key] = value
+
+        num_cols_dem = int(headers['NCOLS'])
+        num_rows_dem = int(headers['NROWS'])
+        # create an empty two dimensional list
+        pixel_to_cell_map = [[None] * num_col_dems] * num_rows_dem 
+
+        _ = f.readline() # Consume the column headers
+        
         for line in f:
-            #print('line: {}'.format(line))
-            split_line = line.split()
-            if split_line[0] == 'NCOLS':
-                num_cols_dem = int(split_line[1])
-                #print('num_cols_dem: {}'.format(num_cols_dem))
-                if num_cols_dem and num_rows_dem:
-                    pixel_to_cell_map = [[0 for x in range(num_cols_dem)] for x in range(num_rows_dem)]
-            elif split_line[0] == 'NROWS':
-                num_rows_dem = int(split_line[1])
-                #print('num_rows_dem: {}'.format(num_rows_dem))
-                if num_cols_dem and num_rows_dem:
-                    pixel_to_cell_map = [[0 for x in range(num_cols_dem)] for x in range(num_rows_dem)]
-            elif split_line[0][0] == '"': # column header row / comments
-                #print('comment line: {}'.format(split_line))
-                pass
+            # NOTE: we might want Markus to recreate this mapping file with zero-based indexing
+            _, row_num, col_num, median_elev, cell_id = line.split()
+            pixel_to_cell_map[row_num][col_num] = (cell_id, median_elev)
+            # Increment the pixel-normalized area within the grid cell
+            if cell_id in cell_areas:
+                cell_areas[cell_id] += 1
             else:
-                # NOTE: we might want Markus to recreate this mapping file with zero-based indexing
-                row_num = int(split_line[1])
-                col_num = int(split_line[2])
-                median_elev = int(split_line[4])
-                cell_id = split_line[5]
-                #print('populating row: {}, col: {}'.format(row_num, col_num))
-                pixel_to_cell_map[row_num][col_num] = [cell_id, median_elev]
-                # Increment the pixel-normalized area within the grid cell
-                try:
-                    cell_areas[cell_id] += 1
-                except:
-                    cell_areas[cell_id] = 1
-            #print('columns: {}'.format(columns))
+                cell_areas[cell_id] = 1
+
     return pixel_to_cell_map, num_rows_dem, num_cols_dem, cell_areas
 
 def get_mass_balance_polynomials(state, state_file, cell_ids):
