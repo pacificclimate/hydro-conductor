@@ -269,6 +269,7 @@ def write_global_parms_file(global_parms, temp_gpf):
                         line.append(value)
                     writer.writerow(line)
 
+
 def get_veg_parms(veg_parm_file):
     """ Reads in a Vegetation Parameter File and parses out VIC grid cell IDs, as well as an ordered nested dict of all vegetation parameters,
     grouped by elevation band index """
@@ -502,9 +503,7 @@ def create_band_map(snb_parms, band_size):
     #TODO: create command line parameter to allow for extra bands to be specified as padding above/below existing ones, to allow for glacier growth(/slide?)
     band_map = {}
     for cell in cell_ids:
-        band_map[cell] = [0 for x in range(num_snow_bands)]
-        for band_idx, band in enumerate(snb_parms[cell][1]):
-            band_map[cell][band_idx] = int(band - band % band_size)
+        band_map[cell] = [ int(band - band % band_size) for band in snb_parms[cell][1] ]
     return band_map
 
 def update_glacier_mask(sdem, bdem, num_rows_dem, num_cols_dem):
@@ -530,14 +529,11 @@ def write_snb_parms_file(temp_snb, snb_parms, area_frac_bands):
     with open(temp_snb, 'w') as f:
         writer = csv.writer(f, delimiter=' ')
         for cell in snb_parms:
-            line = []
-            line.append(cell)
-            for area_frac in area_frac_bands[cell]:
-                line.append(area_frac)
-            for band_frac in snb_parms[cell][1]:
-                line.append(band_frac) # append existing median elevations
-            for pfactor in snb_parms[cell][2]:
-                line.append(pfactor) # append existing Pfactor values
+            line = [ cell +
+                     area_frac_bands[cell] +
+                     snb_parms[cell][1] + # median elevations
+                     snb_parms[cell][2] # Pfactor values
+                   ]
             writer.writerow(line)
 
 # Main program.  
