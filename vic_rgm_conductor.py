@@ -271,28 +271,12 @@ def write_global_parms_file(global_parms, temp_gpf):
 
 
 def get_veg_parms(veg_parm_file):
-    """ Reads in a Vegetation Parameter File and parses out VIC grid cell IDs, as well as an ordered nested dict of all vegetation parameters,
-    grouped by elevation band index """
-    cell_ids = []
-    num_veg_tiles = {}
-    veg_parms = OrderedDefaultdict()
-    with open(veg_parm_file, 'r') as f:
-        for line in f:
-            split_line = line.split()
-            num_columns = len(split_line)
-            if num_columns == 2:
-                cell = split_line[0]
-                cell_ids.append(cell)
-                num_veg_tiles[cell] = split_line[1]
-                veg_parms[cell] = OrderedDefaultdict()
-            elif num_columns > 2:
-                band_id = split_line[-1]
-                try:
-                    veg_parms[cell][band_id].append(split_line)
-                except:
-                    veg_parms[cell][band_id] = []
-                    veg_parms[cell][band_id].append(split_line)
-    return cell_ids, num_veg_tiles, veg_parms
+    """Reads in a Vegetation Parameter File and parses out VIC grid cell IDs,
+       as well as an ordered dict of all vegetation parameters,
+       grouped by elevation band index
+    """
+    vp = VegParams(veg_parm_file)
+    return vp.cells_ids, vp.num_veg_tiles, veg_parms.cells
 
 def init_residual_area_fracs(cell_ids, veg_parms, snb_parms):
     """ Reads the initial snow band area fractions and glacier vegetation (HRU) tile area fractions and calculates the initial residual area fractions """
