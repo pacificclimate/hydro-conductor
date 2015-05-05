@@ -59,8 +59,8 @@ def parse_input_parms():
     parser.add_argument('--pixel-map', action="store", dest="pixel_cell_map_file", type=str, help = 'file name and path of the RGM Pixel to VIC Grid Cell mapping file')
     parser.add_argument('--glacier-mask', action="store", dest="init_glacier_mask_file", type=str, help = 'file name and path of the file containing the initial glacier mask (GSA format)')
     parser.add_argument('--trace-files', action="store_true", default=False, dest="trace_files", help = 'write out persistent GSA format surface DEMs and glacier masks, and 2D mass balance grid files, on each time step for offline inspection')
-    parser.add_argument('--bare-soil-root', action="store", dest="bare_soil_root_parms_file", type=str, default='NA', help = 'file name and path of one-line text file containing 6 custom root parameters for the bare soil vegetation type / HRU (same format as a vegetation tile line in the vegetation parameters file).  Default: 0.10  1.00  0.10  0.00  0.10  0.00')
-    parser.add_argument('--glacier-root', action="store", dest="glacier_root_parms_file", type=str, default='NA', help = 'file name and path of one-line text file containing 6 custom root parameters for the glacier vegetation type / HRU (same format as a vegetation tile line in the vegetation parameters file).  Default: 0.10  1.00  0.10  0.00  0.10  0.00')
+    parser.add_argument('--bare-soil-root', action="store", dest="bare_soil_root_parms_file", type=str, default=None, help = 'file name and path of one-line text file containing 6 custom root parameters for the bare soil vegetation type / HRU (same format as a vegetation tile line in the vegetation parameters file).  Default: 0.10  1.00  0.10  0.00  0.10  0.00')
+    parser.add_argument('--glacier-root', action="store", dest="glacier_root_parms_file", type=str, default=None, help = 'file name and path of one-line text file containing 6 custom root parameters for the glacier vegetation type / HRU (same format as a vegetation tile line in the vegetation parameters file).  Default: 0.10  1.00  0.10  0.00  0.10  0.00')
     parser.add_argument('--band-size', action="store", dest="band_size", type=int, default=100, help = 'vertical size of VIC elevation bands in metres (default = 100m)')
 
     if len(sys.argv) == 1:
@@ -74,20 +74,19 @@ def parse_input_parms():
     pixel_cell_map_file = options.pixel_cell_map_file
     init_glacier_mask_file = options.init_glacier_mask_file
     output_trace_files = options.trace_files
-    bare_soil_root_parms_file = options.bare_soil_root_parms_file
     glacier_root_parms_file = options.glacier_root_parms_file
     band_size = options.band_size
 
-    if bare_soil_root_parms_file == 'NA':
+    if not bare_soil_root_parms_file:
         bare_soil_root_parms = '0.10  1.00  0.10  0.00  0.10  0.00'
     else:
-        bare_soil_root_parms = np.loadtxt(bare_soil_root_parms_file)
-    if glacier_root_parms_file == 'NA':
+        bare_soil_root_parms = np.loadtxt(options.bare_soil_root_parms_file)
+    if not glacier_root_parms_file:
         glacier_root_parms = '0.10  1.00  0.10  0.00  0.10  0.00'
     else:
         glacier_root_parms = np.loadtxt(glacier_root_parms_file)
 
-    return vic_global_file, rgm_params_file, rgm_surf_dem_in_file, bed_dem_file, pixel_cell_map_file, init_glacier_mask_file, output_trace_files, bare_soil_root_parms_file, glacier_root_parms_file, band_size
+    return vic_global_file, rgm_params_file, rgm_surf_dem_in_file, bed_dem_file, pixel_cell_map_file, init_glacier_mask_file, output_trace_files, glacier_root_parms_file, band_size
 
 def read_gsa_headers(dem_file):
     """ Opens and reads the header metadata from a GSA Digital Elevation Map file, 
@@ -579,7 +578,7 @@ def main():
 
     # Parse command line parameters
     vic_global_file, rgm_params_file, rgm_surf_dem_in_file, bed_dem_file, pixel_cell_map_file, \
-    init_glacier_mask_file, output_trace_files, bare_soil_root_parms_file, glacier_root_parms_file, band_size = parse_input_parms()
+    init_glacier_mask_file, output_trace_files, glacier_root_parms_file, band_size = parse_input_parms()
 
     # Get all initial VIC global parameters
     global_parms = get_global_parms(vic_global_file)
