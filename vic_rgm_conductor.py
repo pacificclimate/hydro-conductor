@@ -2,17 +2,20 @@
 
 """ This script orchestrates a coupled Variable Infiltration Capacity (VIC) and Regional Glacier Model (RGM) run. """
 
-import sys
-import os
 import argparse
-import subprocess
-import csv
-from collections import OrderedDict
 import bisect
+import csv
 import collections
+from collections import OrderedDict
+from datetime import date
+import os
+import subprocess
+import sys
 
 import numpy as np
 import h5py
+
+import vegparams
 
 vic_full_path = '/home/mfischer/code/vic/vicNl'  # should this be a command line parameter?
 rgm_full_path = '/home/mfischer/code/rgm/rgm' # ditto?
@@ -129,7 +132,6 @@ def get_rgm_pixel_mapping(pixel_map_file):
         _ = f.readline() # Consume the column headers
         
         for line in f:
-            # NOTE: we might want Markus to recreate this mapping file with zero-based indexing
             _, row_num, col_num, median_elev, cell_id = line.split()
             pixel_to_cell_map[row_num][col_num] = (cell_id, median_elev)
             # Increment the pixel-normalized area within the grid cell
@@ -219,21 +221,25 @@ def get_global_parms(global_parm_file):
                     global_parms['INIT_STATE'] = []
     return global_parms
 
-def update_global_parms(global_parms, init_state):
+def update_global_parms(global_parms, temp_vpf, temp_snb, num_snow_bands, start_year, start_month, start_day, end_year, end_month, end_day, init_state_file, state_save_year, state_save_month, state_save_day):
     """ Updates the global_parms dict at the beginning of an annual iteration """
-# TODO: need to update this to support VIC wind-up from STARTYEAR to GLAC_ACCUM_START_YEAR
-    global_parms['STARTYEAR'] = [[str(year)]]
-    global_parms['ENDYEAR'] = [[str(year)]]
-    global_parms['STATEYEAR'] = [[str(year)]]
-    # All iterations after the first / wind-up period have modified state, vegetation parms, and snow band parms
-    if init_state:
-        # set/create INIT_STATE parm with most current state_file (does not exist in the first read-in of global_parms)
-        init_state_file = state_filename_prefix + "_" + str(year - 1) + str(global_parms['STATEMONTH'][0][0]) + str(global_parms['STATEDAY'][0][0])
+    # Set start and end dates for the upcoming VIC run (should be one year long, except for the spin-up run)
+    global_parms['STARTYEAR'] = [[str(start_year)]]
+    global_parms['STARTMONTH'] = [[str(start_month)]]
+    global_parms['STARTDAY'] = [[str(start_day)]]
+    global_parms['ENDYEAR'] = [[str(end_year)]]
+    global_parms['ENDMONTH'] = [[str(end_month)]]
+    global_parms['ENDDAY'] = [[str(end_day)]]
+    # Set new output state file parameters for upcoming VIC run
+    global_parms['STATEYEAR'] = state_save_year
+    global_parms['STATEMONTH'] = state_save_month
+    global_parms['STATEDAY'] = state_save_day
+    global_parms['VEGPARAM'] = [[temp_vpf]]
+    global_parms['SNOW_BAND'] = [[num_snow_bands, temp_snb]]
+    # All VIC iterations except for the initial spin-up period have to load a saved state from the previous
+    if init_state_file:
         global_parms['INIT_STATE'] = [[init_state_file]]
-        # New output state filename for next VIC year run
-        global_parms['VEGPARAM'] = [[temp_vpf]]
-        global_parms['SNOW_BAND'] = [[num_snow_bands, temp_snb]]
-
+        
 def write_global_parms_file(global_parms, temp_gpf):
     """ Reads existing global_parms dict and writes out a new temporary VIC Global Parameter File for feeding into VIC to the temporary global parameters file temp_gpf """
     with open(temp_gpf, 'w') as f:
@@ -535,26 +541,36 @@ def main():
     global_parms = get_global_parms(vic_global_file)
     # Get entire time range of coupled VIC-RGM run from the initial VIC global file
     start_year = int(global_parms['STARTYEAR'][0][0])
+    start_month = int(global_parms['STARTMONTH'][0][0])
+    start_day = int(global_parms['STARTDAY'][0][0])
+    start_date = date(start_year, start_month, start_day)
     end_year = int(global_parms['ENDYEAR'][0][0])
+    end_month = int(global_parms['ENDMONTH'][0][0])
+    end_day = int(global_parms['ENDDAY'][0][0])
+    end_date = date(end_year, end_month, end_day)
+    # Point in time that glacier accumulation is to start (at the end of VIC "spin-up")
+    glacier_accum_start_year = int(global_parms['GLACIER_ACCUM_START_YEAR'][0][0])
+    glacier_accum_start_month = int(global_parms['GLACIER_ACCUM_START_MONTH'][0][0])
+    glacier_accum_start_day = int(global_parms['GLACIER_ACCUM_START_DAY'][0][0])
+    glacier_accum_start_date = date(glacier_accum_start_year, glacier_accum_start_month, glacier_accum_start_day)
+
     # Initial VIC output state filename prefix is determined by STATENAME in the global file
     state_filename_prefix = global_parms['STATENAME'][0][0]
     # Numeric code indicating a glacier vegetation tile (HRU)
     GLACIER_ID = global_parms['GLACIER_ID'][0]
-    # Point in time that glacier accumulation is to start (after VIC "wind-up")
-    GLACIER_ACCUM_START_YEAR = global_parms['GLACIER_ACCUM_START_YEAR'][0]
-    GLACIER_ACCUM_START_MONTH = global_parms['GLACIER_ACCUM_START_MONTH'][0]
-    GLACIER_ACCUM_START_DAY = global_parms['GLACIER_ACCUM_START_DAY'][0]
-
 
     # Get VIC vegetation parameters and grid cell IDs from initial Vegetation Parameter File
     veg_parm_file = global_parms['VEGPARAM'][0][0]
     cell_ids, num_veg_tiles, veg_parms = get_veg_parms(veg_parm_file)
+
     # Get VIC snow/elevation band parameters from initial Snow Band File
     num_snow_bands = int(global_parms['SNOW_BAND'][0][0])
     snb_file = global_parms['SNOW_BAND'][0][1]
     snb_parms = get_snb_parms(snb_file, num_snow_bands)
+
     # Get list of elevation bands for each VIC grid cell
     band_map = create_band_map(snb_parms, band_size)
+
     # Calculate the initial residual (i.e. non-glacier) area fractions for all bands in all cells 
     residual_area_fracs = init_residual_area_fracs(cell_ids, veg_parms, snb_parms)
 
@@ -571,20 +587,38 @@ def main():
     rgm_surf_dem_out_file = temp_files_path + 's_out_00001.grd'
     
     # Run the coupled VIC-RGM model for the time range specified in the VIC global parameters file
-    for year in range(start_year, end_year):
+    year = start_date.year
+    #for year in range(start_date.year, end_date.year):
+    while year < end_date.year:
         print('\nRunning year: {}'.format(year))
 
         # 1. Write / Update temporary Global Parameters File, temp_gpf
-        # If year > start_year, introduce INIT_STATE line with most recent state_file (does not exist in the first read-in of global_parms).
-        # Overwrite VEGPARAM parameter with temp_vpf, and SNOW_BAND with temp_snb
-        state_file = state_filename_prefix + "_" + str(year) + str(global_parms['STATEMONTH'][0][0]) + str(global_parms['STATEDAY'][0][0])
-
-        # if year == start_year
-            # set_wind_up_global_parms()
-        # else:
-        update_global_parms(year, GLACIER_ACCUM_START_MONTH, GLACIER_ACCUM_START_DAY)
-
         temp_gpf = temp_files_path + 'gpf_temp_' + str(year) + '.txt'
+        #update_global_parms(global_parms, temp_vpf, temp_snb, num_snow_bands, \
+        #    start_year, start_month, start_day, \
+        #    end_year, end_month, end_day, \
+        #    init_state_file, state_save_year, state_save_month, state_save_day)
+        if year == start_date.year:
+            # set global parameters for VIC "spin-up", from start_date.year to the end of the first glacier accumulation
+            init_state_file = None
+            temp_end_date = glacier_accum_start_date - timedelta(days=1)
+            update_global_parms(global_parms, temp_vpf, temp_snb, num_snow_bands, \
+                start_date.year, start_date.month, start_date.day, \
+                temp_end_date.year, temp_end_date.month, temp_end_date.day, \
+                init_state_file, temp_end_date.year, temp_end_date.month, temp_end_date.day)
+            # Update year to what it will be when VIC finishes its spin-up
+            year = temp_end_date.year
+        else:
+            temp_start_date = date(year, glacier_accum_start_date.month, glacier_accum_start_date.day)
+            temp_end_date = date(year+1, glacier_accum_start_date.month, glacier_accum_start_date.day) - timedelta(days=1)
+            # set/create INIT_STATE parm as the last written VIC state_file (parm does not exist in the first read-in of global_parms)
+            temp_state_date = temp_end_date - timedelta(days=1)
+            init_state_file = state_filename_prefix + "_" + str(year-1) + str(temp_state_date.month) + str(temp_state_date.day)
+            update_global_parms(global_parms, temp_vpf, temp_snb, num_snow_bands, \
+                temp_start_date.year, temp_start_date.month, temp_start_date.day, \
+                temp_end_date.year, temp_end_date.month, temp_end_date.day, \
+                init_state_file, temp_end_date.year, temp_end_date.month, temp_end_date.day)
+
         write_global_parms_file(global_parms, temp_gpf)
         print('invoking VIC with global parameter file {}'.format(temp_gpf))
 
@@ -639,3 +673,5 @@ def main():
         # 11 Update HRUs in VIC state file 
             # don't forget to close the state file
         
+        # Increment the year for the next loop iteration
+        year += 1
