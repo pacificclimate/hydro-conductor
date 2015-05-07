@@ -72,7 +72,7 @@ def parse_input_parms():
     options = parser.parse_args()
     vic_global_file = options.vic_global_file
     rgm_params_file = options.rgm_params_file
-    rgm_surf_dem_in_file = options.surf_dem_file
+    surf_dem_in_file = options.surf_dem_file
     bed_dem_file = options.bed_dem_file
     pixel_cell_map_file = options.pixel_cell_map_file
     init_glacier_mask_file = options.init_glacier_mask_file
@@ -89,7 +89,7 @@ def parse_input_parms():
     else:
         glacier_root_parms = np.loadtxt(glacier_root_parms_file)
 
-    return vic_global_file, rgm_params_file, rgm_surf_dem_in_file, bed_dem_file, pixel_cell_map_file, init_glacier_mask_file, output_trace_files, glacier_root_parms_file, band_size
+    return vic_global_file, rgm_params_file, surf_dem_in_file, bed_dem_file, pixel_cell_map_file, init_glacier_mask_file, output_trace_files, glacier_root_parms_file, band_size
 
 def read_gsa_headers(dem_file):
     """ Opens and reads the header metadata from a GSA Digital Elevation Map
@@ -102,11 +102,11 @@ def read_gsa_headers(dem_file):
         assert first_line.startswith('DSAA'), 'read_gsa_headers({}): DSAA header on first line of DEM file was not found or is malformed.  DEM file does not conform to ASCII grid format.'.format(dem_file)
         # Second line
         num_cols, num_rows = f.readline().split()
-        # You *could* do this, but better not to check against globals in a local function
-        #assert (num_cols == num_cols_dem) and (num_rows == num_rows_dem), 'read_gsa_headers({}): Disagreement in row/column dimensions between DEM file (NROWS={}, NCOLS={}) and RGM-VIC mapping file (NROWS={}, NCOLS={}). Exiting.\n'.format(dem_file, num_rows, num_cols, num_rows_dem, num_cols_dem)
         xmin, xmax = f.readline().split()
         ymin, ymax = f.readline().split()
-    return [ float(n) for n in (xmin, xmax, ymin, ymax) ]
+        out_1 = [float(n) for n in (xmin, xmax, ymin, ymax)]
+        out_2 = [int(x) for x in (num_rows, num_cols)]
+    return out_1 + out_2
 
 def get_rgm_pixel_mapping(pixel_map_file):
     """ Parses the RGM pixel to VIC grid cell mapping file and initialises a 2D
@@ -315,7 +315,7 @@ def get_initial_residual_area_fracs():
     pass
 
 def update_band_areas(cell_ids, band_map, num_snow_bands, band_size, pixel_to_cell_map,
-                      surf_dem, num_rows_dem, num_cols_dem):
+                      surf_dem, num_rows_dem, num_cols_dem, glacier_mask):
     """ Calculates the area fractions of elevation bands within VIC cells, and
         area fraction of glacier within VIC cells (broken down by elevation
         band)
@@ -519,11 +519,12 @@ def main():
     print('\n\nVIC + RGM ... together at last!')
 
     # Parse command line parameters
-    vic_global_file, rgm_params_file, rgm_surf_dem_in_file, bed_dem_file, pixel_cell_map_file, \
+    vic_global_file, rgm_params_file, surf_dem_in_file, bed_dem_file, pixel_cell_map_file, \
     init_glacier_mask_file, output_trace_files, glacier_root_parms_file, band_size = parse_input_parms()
 
-    # Get all initial VIC global parameters
+    # Get all initial VIC global parameters from the global parameter file
     global_parms = get_global_parms(vic_global_file)
+
     # Get entire time range of coupled VIC-RGM run from the initial VIC global file
     start_year = int(global_parms['STARTYEAR'][0][0])
     start_month = int(global_parms['STARTMONTH'][0][0])
@@ -533,7 +534,9 @@ def main():
     end_month = int(global_parms['ENDMONTH'][0][0])
     end_day = int(global_parms['ENDDAY'][0][0])
     end_date = date(end_year, end_month, end_day)
-    # Point in time that glacier accumulation is to start (at the end of VIC "spin-up")
+    # Set the initial year for the coupled VIC-RGM simulation
+    year = start_date.year
+    # Get the date that glacier accumulation is to start (at the end of VIC "spin-up")
     glacier_accum_start_year = int(global_parms['GLACIER_ACCUM_START_YEAR'][0][0])
     glacier_accum_start_month = int(global_parms['GLACIER_ACCUM_START_MONTH'][0][0])
     glacier_accum_start_day = int(global_parms['GLACIER_ACCUM_START_DAY'][0][0])
@@ -556,24 +559,63 @@ def main():
     # Get list of elevation bands for each VIC grid cell
     band_map = create_band_map(snb_parms, band_size)
 
+    # The RGM will always output a DEM file of the same name (if running RGM for a single year at a time)
+    rgm_surf_dem_out_file = temp_files_path + 's_out_00001.grd'
+
     # Calculate the initial residual (i.e. non-glacier) area fractions for all bands in all cells 
-    residual_area_fracs = init_residual_area_fracs(cell_ids, veg_parms, snb_parms)
+    #residual_area_fracs = init_residual_area_fracs(cell_ids, veg_parms, snb_parms)
+    # NOTE: this should probably go move to after the initial update_band_areas() and before update_veg_parms()
 
     # Open and read VIC-grid-to-RGM-pixel mapping file
     # pixel_to_cell_map is a list of dimensions num_rows_dem x num_cols_dem, each element containing a VIC grid cell ID
     pixel_to_cell_map, num_rows_dem, num_cols_dem, cell_areas = get_rgm_pixel_mapping(pixel_cell_map_file)
 
-    # Check header validity, verify number of columns & rows agree with what's stated in the pixel_to_cell_map_file, and get DEM xmin, xmax, ymin, ymax metadata    
-    dem_xmin, dem_xmax, dem_ymin, dem_ymax = read_gsa_headers(bed_dem_file)
-    # Read the provided Bed Digital Elevation Map (BDEM) file into a 2D bed_dem array
+    # Get DEM xmin, xmax, ymin, ymax metadata of Bed DEM and check file header validity     
+    dem_xmin, dem_xmax, dem_ymin, dem_ymax, num_rows, num_cols = read_gsa_headers(bed_dem_file)
+    # Verify number of columns & rows agree with what's stated in the pixel_to_cell_map_file
+    assert (num_cols == num_cols_dem) and (num_rows == num_rows_dem),'Mismatch of stated dimension(s) \
+        between Bed DEM in {} (num rows: {}, num columns: {}) and the VIC-grid-to-RGM-pixel map in {} \
+        (num rows: {}, num columns: {}). Exiting.\n'.format(bed_dem_file, num_rows, num_cols, pixel_cell_map_file, num_rows_dem, num_cols_dem))
+    # Read in the provided Bed Digital Elevation Map (BDEM) file to 2D bed_dem array
     bed_dem = np.loadtxt(bed_dem_file, skiprows=5)
 
-    # The RGM will always output a DEM file of the same name (if running RGM for a single year at a time)
-    rgm_surf_dem_out_file = temp_files_path + 's_out_00001.grd'
-    
+    # Check header validity of Surface DEM file
+    _, _, _, _, num_rows, num_cols = read_gsa_headers(surf_dem_in_file)
+    # Verify number of columns & rows agree with what's stated in the pixel_to_cell_map_file
+    assert (num_cols == num_cols_dem) and (num_rows == num_rows_dem),'Mismatch of stated dimension(s) \
+        between Surface DEM in {} (num rows: {}, num columns: {}) and the VIC-grid-to-RGM-pixel map in {} \
+        (num rows: {}, num columns: {}). Exiting.\n'.format(surf_dem_in_file, num_rows, num_cols, pixel_cell_map_file, num_rows_dem, num_cols_dem))
+    # Read in the provided Surface Digital Elevation Map (SDEM) file to 2D surf_dem array
+    surf_dem_initial = np.loadtxt(surf_dem_in_file, skiprows=5)
+
+    # Check header validity of Glacier Mask file
+    _, _, _, _, num_rows, num_cols = read_gsa_headers(glacier_mask_file)
+    # Verify number of columns & rows agree with what's stated in the pixel_to_cell_map_file
+    assert (num_cols == num_cols_dem) and (num_rows == num_rows_dem),'Mismatch of stated dimension(s) \
+        between Glacier Mask in {} (num rows: {}, num columns: {}) and the VIC-grid-to-RGM-pixel map in {} \
+        (num rows: {}, num columns: {}). Exiting.\n'.format(glacier_mask_file, num_rows, num_cols, pixel_cell_map_file, num_rows_dem, num_cols_dem))
+    # Read in the provided initial glacier mask file to 2D glacier_mask array 
+    glacier_mask = np.loadtxt(glacier_mask_file, skiprows=5)
+
+    # Apply the initial glacier mask and modify the band and glacier area fractions accordingly
+    area_frac_bands, area_frac_glacier = update_band_areas(cell_ids, band_map, num_snow_bands, band_size, pixel_to_cell_map,
+                      surf_dem_initial, num_rows_dem, num_cols_dem)
+
+    # Calculate the initial residual (i.e. non-glacier) area fractions for all bands in all cells
+    residual_area_fracs = init_residual_area_fracs(cell_ids, veg_parms, snb_parms)
+
+    # Update the vegetation parameters vis-a-vis the application of the initial glacier mask, and write to new temporary file temp_vpf
+    update_veg_parms(cell_ids, veg_parms, area_frac_bands, area_frac_glacier, residual_area_fracs)
+    temp_vpf = temp_files_path + 'vpf_temp_' + str(year) + '.txt'
+    veg_parms.save(temp_vpf)
+
+    # Update snow band parameters vis-a-vis the application of the initial glacier mask, and write to new temporary file temp_snb
+    update_snb_parms(snb_parms, area_frac_bands)
+    temp_snb = temp_files_path + 'snb_temp_' + str(year) + '.txt'
+    write_snb_parms_file(temp_snb, snb_parms, area_frac_bands)
+
+
     # Run the coupled VIC-RGM model for the time range specified in the VIC global parameters file
-    year = start_date.year
-    #for year in range(start_date.year, end_date.year):
     while year < end_date.year:
         print('\nRunning year: {}'.format(year))
 
@@ -591,7 +633,7 @@ def main():
                 start_date.year, start_date.month, start_date.day, \
                 temp_end_date.year, temp_end_date.month, temp_end_date.day, \
                 init_state_file, temp_end_date.year, temp_end_date.month, temp_end_date.day)
-            # Update year to what it will be when VIC finishes its spin-up
+            # Fast-forward year to what it will be when VIC finishes its spin-up
             year = temp_end_date.year
         else:
             temp_start_date = date(year, glacier_accum_start_date.month, glacier_accum_start_date.day)
@@ -623,7 +665,7 @@ def main():
 
         # 5. Run RGM for one year, passing MBG, BDEM, SDEM
         #subprocess.check_call([rgm_full_path, "-p", rgm_params_file, "-b", bed_dem_file, "-d", sdem_file, "-m", mbg_file, "-o", temp_files_path, "-s", "0", "-e", "0" ], shell=False, stderr=subprocess.STDOUT)
-        subprocess.check_call([rgm_full_path, "-p", rgm_params_file, "-b", bed_dem_file, "-d", rgm_surf_dem_in_file, "-m", mbg_file, "-o", temp_files_path, "-s", "0", "-e", "0" ], shell=False, stderr=subprocess.STDOUT)
+        subprocess.check_call([rgm_full_path, "-p", rgm_params_file, "-b", bed_dem_file, "-d", surf_dem_in_file, "-m", mbg_file, "-o", temp_files_path, "-s", "0", "-e", "0" ], shell=False, stderr=subprocess.STDOUT)
         # remove temporary files if not saving for offline inspection
         if not output_trace_files:
             os.remove(mbg_file)
@@ -634,7 +676,7 @@ def main():
         temp_surf_dem_file = temp_files_path + 'rgm_surf_dem_out_' + str(year) + '.gsa'
         os.rename(rgm_surf_dem_out_file, temp_surf_dem_file)
         # this will be fed back into RGM on next time step
-        rgm_surf_dem_in_file = temp_surf_dem_file
+        surf_dem_in_file = temp_surf_dem_file
 
         # 7. Update glacier mask
         glacier_mask = update_glacier_mask(rgm_surf_dem_out, bed_dem, num_rows_dem, num_cols_dem)
