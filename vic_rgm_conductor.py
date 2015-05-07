@@ -282,7 +282,7 @@ def get_veg_parms(veg_parm_file):
        grouped by elevation band index
     """
     vp = VegParams(veg_parm_file)
-    return vp.cells_ids, vp.num_veg_tiles, veg_parms.cells
+    return vp, vp.cell_ids
 
 def init_residual_area_fracs(cell_ids, veg_parms, snb_parms):
     """ Reads the initial snow band area fractions and glacier vegetation (HRU) tile area fractions and calculates the initial residual area fractions """
@@ -453,23 +453,6 @@ def update_veg_parms(cell_ids, veg_parms, area_frac_bands, area_frac_glacier, re
             # Set residual area fractions to the new calculated values for the next iteration
             residual_area_fracs[cell][band] = new_residual_area_frac
 
-def write_veg_parms_file(veg_parms, num_veg_tiles, temp_vpf):
-    """ Writes current (updated) vegetation parameters to a new temporary Vegetation Parameters File for feeding back into VIC """
-    print('writing new temporary vegetation parameter file {}...'.format(temp_vpf))
-    for cell in veg_parms:
-        num_veg_tiles[cell] = 0
-        for band in veg_parms[cell]:
-            num_veg_tiles[cell] += len(veg_parms[cell][band])
-    with open(temp_vpf, 'w') as f:
-        writer = csv.writer(f, delimiter=' ')
-        for cell in veg_parms:
-            writer.writerow([cell, num_veg_tiles[cell]])
-            print('{}    {}'.format(cell, num_veg_tiles[cell]))
-            for band in veg_parms[cell]:
-                for line in veg_parms[cell][band]:
-                    writer.writerow(line)
-                    print(' ').join(map(str, line))
-
 def get_snb_parms(snb_file, num_snow_bands):
     """ Reads in a Snow Band File and outputs an ordered dict:
     {'cell_id_0' : [area_frac_band_0,...,area_frac_band_N],[median_elev_band_0,...,median_elev_band_N],[Pfactor_band_0,...,Pfactor_band_N]], 'cell_id_1' : ..."""
@@ -497,7 +480,9 @@ def create_band_map(snb_parms, band_size):
     return band_map
 
 def update_glacier_mask(sdem, bdem, num_rows_dem, num_cols_dem):
-    """ Takes output Surface DEM from RGM and uses element-wise differencing with the Bed DEM to form an updated glacier mask """
+    """ Takes output Surface DEM from RGM and uses element-wise differencing 
+        with the Bed DEM to form an updated glacier mask 
+    """
     diffs = sdem - bed_dem
     if np.any(diffs < 0):
         print('update_glacier_mask: Error: subtraction of Bed DEM from output Surface DEM of RGM produced one or more negative values.  Exiting.\n')
@@ -561,7 +546,7 @@ def main():
 
     # Get VIC vegetation parameters and grid cell IDs from initial Vegetation Parameter File
     veg_parm_file = global_parms['VEGPARAM'][0][0]
-    cell_ids, num_veg_tiles, veg_parms = get_veg_parms(veg_parm_file)
+    veg_parms, cell_ids = get_veg_parms(veg_parm_file)
 
     # Get VIC snow/elevation band parameters from initial Snow Band File
     num_snow_bands = int(global_parms['SNOW_BAND'][0][0])
@@ -663,7 +648,7 @@ def main():
         # 9. Update vegetation parameters and write to new temporary file temp_vpf
         update_veg_parms(cell_ids, veg_parms, area_frac_bands, area_frac_glacier, residual_area_fracs)
         temp_vpf = temp_files_path + 'vpf_temp_' + str(year) + '.txt'
-        write_veg_parms_file(veg_parms, num_veg_tiles, temp_vpf)
+        veg_parms.save(temp_vpf)
 
         # 10. Update snow band parameters and write to new temporary file temp_snb
         update_snb_parms(snb_parms, area_frac_bands)

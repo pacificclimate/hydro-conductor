@@ -8,8 +8,11 @@
 
    Then the following attributes will be accessible:
 
-   >>> vp.cells_ids, vp.num_veg_tiles, veg_parms.cells
+   >>> vp.cell_ids, vp.num_veg_tiles, vp.cells
 '''
+
+from collections import OrderedDict
+import csv
 
 __all__ = ['VegParams']
 
@@ -75,4 +78,15 @@ class VegParams(object):
                     self.cells[id_] = cell    
 
     def save(self, filename):
-        raise NotImplementedError('One day... one day...')
+        ''' write the vegetation parameters out to a file of the same 
+            format as the original vegetation parameters file
+        '''
+        with open(filename, 'w') as f:
+            writer = csv.writer(f, delimiter=' ')
+            for cell in self.cells:
+                writer.writerow([cell, self.num_veg_tiles[cell]])
+                print('{}    {}'.format(cell, self.num_veg_tiles[cell]))
+                for band in self.cells[cell]:
+                    for line in self.cells[cell][band]:
+                        writer.writerow(line)
+                        print(' '.join(map(str, line)))
