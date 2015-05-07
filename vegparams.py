@@ -85,7 +85,6 @@ class VegParams(object):
             writer = csv.writer(f, delimiter=' ')
             for cell in self.cells:
                 writer.writerow([cell, self.num_veg_tiles[cell]])
-                print('{}    {}'.format(cell, self.num_veg_tiles[cell]))
                 for band in self.cells[cell]:
                     for line in self.cells[cell][band]:
                         writer.writerow(line)

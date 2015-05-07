@@ -314,8 +314,8 @@ def get_initial_residual_area_fracs():
     """
     pass
 
-def update_band_areas(cell_ids, band_map, num_snow_bands, pixel_to_cell_map,
-                      rgm_surf_dem_out, num_rows_dem, num_cols_dem):
+def update_band_areas(cell_ids, band_map, num_snow_bands, band_size, pixel_to_cell_map,
+                      surf_dem, num_rows_dem, num_cols_dem):
     """ Calculates the area fractions of elevation bands within VIC cells, and
         area fraction of glacier within VIC cells (broken down by elevation
         band)
@@ -334,7 +334,7 @@ def update_band_areas(cell_ids, band_map, num_snow_bands, pixel_to_cell_map,
             cell = pixel_to_cell_map[row][col][0] # get the VIC cell this pixel belongs to
             if cell != 'NA':
                 # Use the RGM DEM output to update the pixel median elevation in the pixel_to_cell_map
-                pixel_elev = rgm_surf_dem_out[row][col]
+                pixel_elev = surf_dem[row][col]
                 pixel_to_cell_map[row][col][1] = pixel_elev
                 for band_idx, band in enumerate(band_map[cell]):
                     if int(pixel_elev) in range(band, band + band_size):
@@ -495,7 +495,7 @@ def update_snb_parms(snb_parms, area_frac_bands):
     for cell in snb_parms:
         #print('cell: {}'.format(cell)
         snb_parms[cell][0] = area_frac_bands[cell]
-        print(' ').join(map(str, snb_parms[cell][0]))
+        print(' '.join(map(str, snb_parms[cell][0])))
 
 def write_snb_parms_file(temp_snb, snb_parms, area_frac_bands):
     """ Writes current (updated) snow band parameters to a new temporary
@@ -626,7 +626,7 @@ def main():
         subprocess.check_call([rgm_full_path, "-p", rgm_params_file, "-b", bed_dem_file, "-d", rgm_surf_dem_in_file, "-m", mbg_file, "-o", temp_files_path, "-s", "0", "-e", "0" ], shell=False, stderr=subprocess.STDOUT)
         # remove temporary files if not saving for offline inspection
         if not output_trace_files:
-            os.remove(mbg_file) #f.name
+            os.remove(mbg_file)
             os.remove(rgm_surf_dem_file)
 
         # 6. Read in new Surface DEM file from RGM output
@@ -643,7 +643,7 @@ def main():
             write_grid_to_gsa_file(glacier_mask, glacier_mask_file)
         
         # 8. Update areas of each elevation band in each VIC grid cell, and calculate area fractions
-        area_frac_bands, area_frac_glacier = update_band_areas(cell_ids, band_map, num_snow_bands, pixel_to_cell_map, rgm_surf_dem_out, num_rows_dem, num_cols_dem)
+        area_frac_bands, area_frac_glacier = update_band_areas(cell_ids, band_map, num_snow_bands, band_size, pixel_to_cell_map, rgm_surf_dem_out, num_rows_dem, num_cols_dem)
 
         # 9. Update vegetation parameters and write to new temporary file temp_vpf
         update_veg_parms(cell_ids, veg_parms, area_frac_bands, area_frac_glacier, residual_area_fracs)
