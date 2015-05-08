@@ -25,6 +25,12 @@ $ source env/bin/activate
 $ pip install -r requirements.txt
 ```
 
+* Add the package to your environment's path
+
+```bash
+$ python ./setup.py develop
+```
+
 ## How to run the tests
 
 We haven't yet written any tests, but once we do, do this:
