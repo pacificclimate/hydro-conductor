@@ -1,2 +1,3 @@
-h5py
+cython
 numpy
+h5py

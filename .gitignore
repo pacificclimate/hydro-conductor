@@ -1,14 +1,5 @@
-*.o
 *~
-.project
-.depend
-.cproject
-vicNl
-Debug/subdir.mk
-Debug/sources.mk
-Debug/objects.mk
-Debug/makefile
-.settings/*
-.metadata/*
-venv/*
 __pycache__/*
+*env/*
+build/*
+*.egg-info
