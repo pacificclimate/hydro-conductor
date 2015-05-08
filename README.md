@@ -15,7 +15,7 @@ $ virtualenv -p python3 env
 
 * Activate the environment
 
-``bash
+```bash
 $ source env/bin/activate
 ```
 
