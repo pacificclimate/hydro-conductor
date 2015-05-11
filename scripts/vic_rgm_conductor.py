@@ -7,7 +7,7 @@ import bisect
 import csv
 import collections
 from collections import OrderedDict
-from datetime import date
+from datetime import date, timedelta
 import os
 import subprocess
 import sys
@@ -15,7 +15,7 @@ import sys
 import numpy as np
 import h5py
 
-import vegparams
+from vegparams import VegParams
 
 vic_full_path = '/home/mfischer/code/vic/vicNl'  # should this be a command line parameter?
 rgm_full_path = '/home/mfischer/code/rgm/rgm' # ditto?
@@ -77,6 +77,7 @@ def parse_input_parms():
     pixel_cell_map_file = options.pixel_cell_map_file
     init_glacier_mask_file = options.init_glacier_mask_file
     output_trace_files = options.trace_files
+    bare_soil_root_parms_file = options.bare_soil_root_parms_file
     glacier_root_parms_file = options.glacier_root_parms_file
     band_size = options.band_size
 
@@ -127,14 +128,15 @@ def get_rgm_pixel_mapping(pixel_map_file):
         num_cols_dem = int(headers['NCOLS'])
         num_rows_dem = int(headers['NROWS'])
         # create an empty two dimensional list
-        pixel_to_cell_map = [[None] * num_col_dems] * num_rows_dem 
+        pixel_to_cell_map = [[None] * num_cols_dem] * num_rows_dem 
 
         _ = f.readline() # Consume the column headers
         
         for line in f:
-            _, row_num, col_num, median_elev, cell_id = line.split()
-            pixel_to_cell_map[row_num][col_num] = (cell_id, median_elev)
-            # Increment the pixel-normalized area within the grid cell
+            # NOTE: column 3 is the elevation band; not used now, but maybe in future?
+            _, row_num, col_num, _, median_elev, cell_id = line.split()
+            pixel_to_cell_map[int(row_num)][int(col_num)] = (cell_id, median_elev)
+            # Increment the pixel-granularity area within the grid cell
             if cell_id in cell_areas:
                 cell_areas[cell_id] += 1
             else:
@@ -214,7 +216,7 @@ def get_global_parms(global_parm_file):
                 except:
                     global_parms[parm_name] = []
                     global_parms[parm_name].append(split_line[1:])
-#                    print('global_parms[{}]: {}'.format(parm_name,global_parms[parm_name]))
+                    #print('global_parms[{}]: {}'.format(parm_name,global_parms[parm_name]))
                 # We need to create a placeholder in this position for INIT_STATE if it doesn't exist in the initial
                 # global parameters file, to be used for all iterations after the first year
                 if parm_name == 'OUTPUT_FORCE': # OUTPUT_FORCE should always immediately precede INIT_STATE in the global file
@@ -231,9 +233,9 @@ def update_global_parms(global_parms, temp_vpf, temp_snb, num_snow_bands, start_
     global_parms['ENDMONTH'] = [[str(end_month)]]
     global_parms['ENDDAY'] = [[str(end_day)]]
     # Set new output state file parameters for upcoming VIC run
-    global_parms['STATEYEAR'] = state_save_year
-    global_parms['STATEMONTH'] = state_save_month
-    global_parms['STATEDAY'] = state_save_day
+    global_parms['STATEYEAR'] = [[str(state_save_year)]]
+    global_parms['STATEMONTH'] = [[str(state_save_month)]]
+    global_parms['STATEDAY'] = [[str(state_save_day)]]
     global_parms['VEGPARAM'] = [[temp_vpf]]
     global_parms['SNOW_BAND'] = [[num_snow_bands, temp_snb]]
     # All VIC iterations except for the initial spin-up period have to load a saved state from the previous
@@ -241,20 +243,23 @@ def update_global_parms(global_parms, temp_vpf, temp_snb, num_snow_bands, start_
         global_parms['INIT_STATE'] = [[init_state_file]]
         
 def write_global_parms_file(global_parms, temp_gpf):
-    """ Reads existing global_parms dict and writes out a new temporary VIC Global Parameter File for feeding into VIC to the temporary global parameters file temp_gpf """
+    """ Reads existing global_parms OrderedDict and writes out a new temporary VIC Global Parameter File 
+        temp_gpf for feeding into VIC 
+    """
     with open(temp_gpf, 'w') as f:
         writer = csv.writer(f, delimiter=' ')
         for parm_name, parm_value in global_parms.items():
-            num_parm_lines = len(global_parms[parm])
-            if parm == 'INIT_STATE' and len(global_parms['INIT_STATE']) == 0:
+            #print('write_global_parms_file: parm_name: {} parm_value: {}'.format(parm_name, parm_value))
+            num_parm_lines = len(global_parms[parm_name])
+            if parm_name == 'INIT_STATE' and not global_parms['INIT_STATE']:
                 pass
-            elif parm[0:8] == 'OUTFILE_':
+            elif parm_name[0:8] == 'OUTFILE_':
                 line = []
                 line.append('OUTFILE')
                 for value in parm_value[0]:
                     line.append(value)
                 writer.writerow(line)
-            elif parm[0:7] == 'OUTVAR_':
+            elif parm_name[0:7] == 'OUTVAR_':
                 for line_num in range(num_parm_lines):
                     line = []
                     line.append('OUTVAR')
@@ -263,18 +268,17 @@ def write_global_parms_file(global_parms, temp_gpf):
                         writer.writerow(line)
             elif num_parm_lines == 1:
                 line = []
-                line.append(parm)
+                line.append(parm_name)
                 for value in parm_value[0]:
                     line.append(value)
                 writer.writerow(line)
             elif num_parm_lines > 1:
                 for line_num in range(num_parm_lines):
                     line = []
-                    line.append(parm)
+                    line.append(parm_name)
                     for value in parm_value[line_num]:
                         line.append(value)
                     writer.writerow(line)
-
 
 def get_veg_parms(veg_parm_file):
     """Reads in a Vegetation Parameter File and parses out VIC grid cell IDs,
@@ -284,37 +288,7 @@ def get_veg_parms(veg_parm_file):
     vp = VegParams(veg_parm_file)
     return vp, vp.cell_ids
 
-def init_residual_area_fracs(cell_ids, veg_parms, snb_parms):
-    """ Reads the initial snow band area fractions and glacier vegetation (HRU) tile area fractions and calculates the initial residual area fractions """
-    residual_area_fracs = {}
-    for cell in cell_ids:
-        print('cell: {}'.format(cell))
-        residual_area_fracs[cell] = {}
-        for band in veg_parms[cell]:
-            print('band: {}'.format(band))
-            glacier_exists = False
-            for line_idx, line in enumerate(veg_parms[cell][band]):
-                print('line: {}'.format(line))
-                if line[0] == GLACIER_ID:
-                    glacier_exists = True
-                    residual_area_fracs[cell][band] = snb_parms[cell][0][int(band)] - float(veg_parms[cell][band][line_idx][1])
-                    print('Glacier exists in this band. residual_area_fracs[{}][{}] = {} - {} = {}'.format(cell, band, snb_parms[cell][0][int(band)], float(veg_parms[cell][band][line_idx][1]), residual_area_fracs[cell][band]))
-                    if residual_area_fracs[cell][band] < 0:
-                        print('init_residual_area_fracs(): Error: Calculated a negative residual area fraction for cell {}, band {}. The sum of vegetation tile fraction areas for a given band in the Vegetation Parameter File must be equal to the area fraction for that band in the Snow Band File. Exiting.\n'.format(cell, band))
-                        sys.exit(0)
-                    break
-            if not glacier_exists:
-                residual_area_fracs[cell][band] = snb_parms[cell][0][int(band)]
-                print('No glacier in this band.  residual_area_fracs[{}][{}] = {}'.format(cell, band, residual_area_fracs[cell][band]))
-    return residual_area_fracs
-
-def get_initial_residual_area_fracs():
-    """ Reads initial vegetation tile area fractions for all non-glacier
-        vegetation types (HRUs)
-    """
-    pass
-
-def update_band_areas(cell_ids, band_map, num_snow_bands, band_size, pixel_to_cell_map,
+def update_band_areas(cell_ids, cell_areas, band_map, num_snow_bands, band_size, pixel_to_cell_map,
                       surf_dem, num_rows_dem, num_cols_dem, glacier_mask):
     """ Calculates the area fractions of elevation bands within VIC cells, and
         area fraction of glacier within VIC cells (broken down by elevation
@@ -369,90 +343,6 @@ def update_band_areas(cell_ids, band_map, num_snow_bands, band_size, pixel_to_ce
             print('\n')
     return area_frac_bands, area_frac_glacier
 
-def update_veg_parms(cell_ids, veg_parms, area_frac_bands, area_frac_glacier, residual_area_fracs):
-    """ Updates vegetation parameters for all VIC grid cells by applying calculated changes in glacier area fractions across all elevation bands """
-    for cell in cell_ids:
-        print('cell: {}'.format(cell))
-        for band in veg_parms[cell]:
-            if area_frac_bands[cell][int(band)] > 0: # If we (still) have anything in this elevation band
-                new_residual_area_frac = area_frac_bands[cell][int(band)] - area_frac_glacier[cell][int(band)]
-                delta_residual = residual_area_fracs[cell][band] - new_residual_area_frac
-                veg_types = [] # identify and temporarily store vegetation types (HRUs) currently existing within this band
-                bare_soil_exists = False # temporary boolean to identify if bare soil vegetation type (HRU) currently exists within this band
-                glacier_exists = False # temporary boolean to identify if glacier vegetation type (HRU) currently exists within this band 
-                sum_previous_band_area_fracs = 0 # sum of band vegetation tile (HRU) area fractions in the last iteration
-                if delta_residual < 0: # glacier portion of this band has SHRUNK; update its area fraction and increase the bare soil component accordingly
-                    print('\nGlacier portion of band {} has SHRUNK (delta_residual = {})'.format(band, delta_residual))
-                    for line_idx, line in enumerate(veg_parms[cell][band]): 
-                        print('Current line in band {}:  {}'.format(band, line))
-                        veg_types.append(int(line[0]))
-                        print('Existing vegetation type identified in this elevation band: {}'.format(veg_types[-1]))
-                        if veg_types[-1] == int(BARE_SOIL_ID):
-                            bare_soil_exists = True
-                            veg_parms[cell][band][line_idx][1] = str(float(veg_parms[cell][band][line_idx][1]) + abs(delta_residual))
-                            print('Bare soil already exists in this band.  New area fraction: veg_parms[{}][{}][{}][1] = {}'.format(cell, band, line_idx, veg_parms[cell][band][line_idx][1]))
-                        elif veg_types[-1] == int(GLACIER_ID):
-                            veg_parms[cell][band][line_idx][1] = str(area_frac_glacier[cell][int(band)])
-                            print('Updated glacier area fraction: veg_parms[{}][{}][{}][1] = {}'.format(cell, band, line_idx, veg_parms[cell][band][line_idx][1]))
-                    if not bare_soil_exists: # insert new line for bare soil vegetation (HRU) type in the correct numerical position within this band
-                        #new_line = BARE_SOIL_ID + ' ' + str(delta_residual) + ' ' + ''.join(str(x) for x in bare_soil_root_parms) + ' ' + str(band)
-                        new_line = []
-                        new_line.append(BARE_SOIL_ID)
-                        new_line.append(str(delta_residual))
-                        for num in bare_soil_root_parms:
-                            new_line.append(str(num))
-                        new_line.append(str(band))                        
-                        bisect.insort_left(veg_types, int(BARE_SOIL_ID))
-                        position = veg_types.index(int(BARE_SOIL_ID))
-                        veg_parms[cell][band].insert(position, new_line)
-                        print('Bare soil did NOT already exist in this band. Inserted line: veg_parms[{}][{}][{}] = {}'.format(cell, band, position, veg_parms[cell][band][position]))
-                elif delta_residual > 0: # glacier portion of this band has GROWN; decrease fraction of non-glacier HRUs by a total of delta_residual
-                    print('\nGlacier portion of band {} has GROWN (delta_residual = {})'.format(band, delta_residual))
-                    for line_idx, line in enumerate(veg_parms[cell][band]): 
-                        sum_previous_band_area_fracs += float(line[1])
-                    print('sum_previous_band_area_fracs = {}'.format(sum_previous_band_area_fracs))
-                    for line_idx, line in enumerate(veg_parms[cell][band]):
-                        print('Current line in band {}:  {}'.format(band, line))
-                        veg_types.append(int(line[0])) # keep a record of vegetation types (HRUs) currently existing within this band
-                        print('Existing vegetation type identified in this elevation band: {}'.format(veg_types[-1]))
-                        if veg_types[-1] == int(GLACIER_ID): # set glacier tile area fraction
-                            glacier_exists = True
-                            veg_parms[cell][band][line_idx][1] = str(area_frac_glacier[cell][int(band)])
-                            print('Glacier already exists in this band.  New glacier area fraction: veg_parms[{}][{}][{}][1] = {}'.format(cell, band, line_idx, veg_parms[cell][band][line_idx][1]))
-                        else:
-                            # Get the change in area fraction for this vegetation type (HRU) based on its previous share of the residuals in this elevation band
-                            print('Existing area fraction for this vegetation type: {}'.format(veg_parms[cell][band][line_idx][1]))
-                            delta_veg_area_frac = delta_residual * (float(veg_parms[cell][band][line_idx][1]) / sum_previous_band_area_fracs)
-                            print('Calculated delta_veg_area_frac = {}'.format(delta_veg_area_frac))
-                            new_veg_area_frac = float(veg_parms[cell][band][line_idx][1]) - delta_veg_area_frac
-                            if new_veg_area_frac >= 0:
-                                veg_parms[cell][band][line_idx][1] = str(new_veg_area_frac)
-                                print('Reduced area fraction of vegetation type {} by delta_veg_area_frac.  New area fraction: veg_parms[{}][{}][{}][1] = {}'.format(veg_types[-1], cell, band, line_idx, veg_parms[cell][band][line_idx][1]))
-                            else: #the existing vegetation tile (HRU) was overtaken by glacier
-                                # delete the existing vegetation tile (HRU) that was overtaken by glacier?
-                                #print('Area fraction of vegetation type {} in cell {}, band {} was reduced to {}. Removing tile (HRU) from vegetation parameters'.format(veg_types[-1], cell, band, new_veg_area_frac)
-                                #del veg_parms[cell][band][line_idx]
-                                print('update_veg_parms(): Error: Calculated a negative area fraction ({}) for vegetation type {} in cell {}, band {}. Exiting.\n'.format(new_veg_area_frac, veg_types[-1], cell, band))
-                                sys.exit(0)
-                    if not glacier_exists: # insert new line for glacier vegetation (HRU) type in the correct numerical position within this band
-                        #new_line = GLACIER_ID + ' ' + str(area_frac_glacier[cell][int(band)]) + ' ' + ''.join(str(x) for x in glacier_root_parms) + ' ' + str(band)
-                        new_line = []
-                        new_line.append(GLACIER_ID)
-                        new_line.append(str(area_frac_glacier[cell][int(band)]))
-                        for num in glacier_root_parms:
-                            new_line.append(str(num))
-                        new_line.append(str(band))
-                        bisect.insort_left(veg_types, int(GLACIER_ID))
-                        position = veg_types.index(int(GLACIER_ID))
-                        veg_parms[cell][band].insert(position, new_line)
-                        print('Glacier did NOT already exist in this band. Inserted line with new glacier area fraction: veg_parms[{}][{}][{}] = {}'.format(cell, band, position, veg_parms[cell][band][position]))
-            else: # We have nothing left in this elevation band.  Set all fractional areas for all vegetation tiles (HRUs) in this band to zero
-                print('\nNothing left in elevation band {}.  Setting all fractional areas to zero.'.format(band))
-                for line_idx, line in enumerate(veg_parms[cell][band]):
-                    veg_parms[cell][band][line_idx][1] = 0
-            # Set residual area fractions to the new calculated values for the next iteration
-            residual_area_fracs[cell][band] = new_residual_area_frac
-
 def get_snb_parms(snb_file, num_snow_bands):
     """ Reads in a Snow Band File and outputs an ordered dict:
     {'cell_id_0' : [area_frac_band_0,...,area_frac_band_N],[median_elev_band_0,...,median_elev_band_N],[Pfactor_band_0,...,Pfactor_band_N]], 'cell_id_1' : ..."""
@@ -469,7 +359,7 @@ def get_snb_parms(snb_file, num_snow_bands):
             snb_parms[cell_id] = [[float(x) for x in split_line[1 : num_snow_bands+1]],[int(x) for x in split_line[num_snow_bands+1 : 2*num_snow_bands+1]],[float(x) for x in split_line[2*num_snow_bands+1 : 3*num_snow_bands+1]]]
     return snb_parms
 
-def create_band_map(snb_parms, band_size):
+def create_band_map(snb_parms, band_size, cell_ids):
     """ Takes a dict of Snow Band parameters and identifies and creates a list
         of elevation bands for each grid cell of band_size width in meters
     """
@@ -492,6 +382,7 @@ def update_glacier_mask(sdem, bdem, num_rows_dem, num_cols_dem):
     return glacier_mask
 
 def update_snb_parms(snb_parms, area_frac_bands):
+    print('update_snb_parms...')
     for cell in snb_parms:
         #print('cell: {}'.format(cell)
         snb_parms[cell][0] = area_frac_bands[cell]
@@ -501,20 +392,29 @@ def write_snb_parms_file(temp_snb, snb_parms, area_frac_bands):
     """ Writes current (updated) snow band parameters to a new temporary
         Snow Band File for feeding back into VIC
     """
+    print('write_snb_parms_file...')
+    #NOTE: the following does not work for the list of lists that is snb_parms
+    # with open(temp_snb, 'w') as f:
+    #     writer = csv.writer(f, delimiter=' ')
+    #     for cell in snb_parms: 
+    #         print('area_frac_bands[{}]: {}'.format(cell, area_frac_bands[cell]))
+    #         print('snb_parms[{}][1:3]: {}'.format(cell, snb_parms[cell][1:3]))                  
+    #         line = [ cell, area_frac_bands[cell] ] + snb_parms[cell][1:3]
+    #         writer.writerow(line)
     with open(temp_snb, 'w') as f:
         writer = csv.writer(f, delimiter=' ')
         for cell in snb_parms:
-            line = [ cell +
-                     area_frac_bands[cell] +
-                     snb_parms[cell][1] + # median elevations
-                     snb_parms[cell][2] # Pfactor values
-                   ]
+            line = []
+            line.append(cell)
+            for area_frac in area_frac_bands[cell]:
+                line.append(area_frac)
+            for band_frac in snb_parms[cell][1]:
+                line.append(band_frac) # append existing median elevations
+            for pfactor in snb_parms[cell][2]:
+                line.append(pfactor) # append existing Pfactor values
             writer.writerow(line)
 
-# Main program.  
-if __name__ == '__main__':
-    main()
-
+# Main program
 def main():
     print('\n\nVIC + RGM ... together at last!')
 
@@ -557,14 +457,10 @@ def main():
     snb_parms = get_snb_parms(snb_file, num_snow_bands)
 
     # Get list of elevation bands for each VIC grid cell
-    band_map = create_band_map(snb_parms, band_size)
+    band_map = create_band_map(snb_parms, band_size, cell_ids)
 
     # The RGM will always output a DEM file of the same name (if running RGM for a single year at a time)
     rgm_surf_dem_out_file = temp_files_path + 's_out_00001.grd'
-
-    # Calculate the initial residual (i.e. non-glacier) area fractions for all bands in all cells 
-    #residual_area_fracs = init_residual_area_fracs(cell_ids, veg_parms, snb_parms)
-    # NOTE: this should probably go move to after the initial update_band_areas() and before update_veg_parms()
 
     # Open and read VIC-grid-to-RGM-pixel mapping file
     # pixel_to_cell_map is a list of dimensions num_rows_dem x num_cols_dem, each element containing a VIC grid cell ID
@@ -575,7 +471,7 @@ def main():
     # Verify number of columns & rows agree with what's stated in the pixel_to_cell_map_file
     assert (num_cols == num_cols_dem) and (num_rows == num_rows_dem),'Mismatch of stated dimension(s) \
         between Bed DEM in {} (num rows: {}, num columns: {}) and the VIC-grid-to-RGM-pixel map in {} \
-        (num rows: {}, num columns: {}). Exiting.\n'.format(bed_dem_file, num_rows, num_cols, pixel_cell_map_file, num_rows_dem, num_cols_dem))
+        (num rows: {}, num columns: {}). Exiting.\n'.format(bed_dem_file, num_rows, num_cols, pixel_cell_map_file, num_rows_dem, num_cols_dem)
     # Read in the provided Bed Digital Elevation Map (BDEM) file to 2D bed_dem array
     bed_dem = np.loadtxt(bed_dem_file, skiprows=5)
 
@@ -584,36 +480,38 @@ def main():
     # Verify number of columns & rows agree with what's stated in the pixel_to_cell_map_file
     assert (num_cols == num_cols_dem) and (num_rows == num_rows_dem),'Mismatch of stated dimension(s) \
         between Surface DEM in {} (num rows: {}, num columns: {}) and the VIC-grid-to-RGM-pixel map in {} \
-        (num rows: {}, num columns: {}). Exiting.\n'.format(surf_dem_in_file, num_rows, num_cols, pixel_cell_map_file, num_rows_dem, num_cols_dem))
+        (num rows: {}, num columns: {}). Exiting.\n'.format(surf_dem_in_file, num_rows, num_cols, pixel_cell_map_file, num_rows_dem, num_cols_dem)
     # Read in the provided Surface Digital Elevation Map (SDEM) file to 2D surf_dem array
     surf_dem_initial = np.loadtxt(surf_dem_in_file, skiprows=5)
 
-    # Check header validity of Glacier Mask file
-    _, _, _, _, num_rows, num_cols = read_gsa_headers(glacier_mask_file)
+    # Check header validity of initial Glacier Mask file
+    _, _, _, _, num_rows, num_cols = read_gsa_headers(init_glacier_mask_file)
     # Verify number of columns & rows agree with what's stated in the pixel_to_cell_map_file
     assert (num_cols == num_cols_dem) and (num_rows == num_rows_dem),'Mismatch of stated dimension(s) \
         between Glacier Mask in {} (num rows: {}, num columns: {}) and the VIC-grid-to-RGM-pixel map in {} \
-        (num rows: {}, num columns: {}). Exiting.\n'.format(glacier_mask_file, num_rows, num_cols, pixel_cell_map_file, num_rows_dem, num_cols_dem))
+        (num rows: {}, num columns: {}). Exiting.\n'.format(init_glacier_mask_file, num_rows, num_cols, pixel_cell_map_file, num_rows_dem, num_cols_dem)
     # Read in the provided initial glacier mask file to 2D glacier_mask array 
-    glacier_mask = np.loadtxt(glacier_mask_file, skiprows=5)
+    glacier_mask = np.loadtxt(init_glacier_mask_file, skiprows=5)
 
     # Apply the initial glacier mask and modify the band and glacier area fractions accordingly
-    area_frac_bands, area_frac_glacier = update_band_areas(cell_ids, band_map, num_snow_bands, band_size, pixel_to_cell_map,
-                      surf_dem_initial, num_rows_dem, num_cols_dem)
-
+    area_frac_bands, area_frac_glacier = update_band_areas(cell_ids, cell_areas, band_map, num_snow_bands, band_size, pixel_to_cell_map,
+                      surf_dem_initial, num_rows_dem, num_cols_dem, glacier_mask)
+    input('')
     # Calculate the initial residual (i.e. non-glacier) area fractions for all bands in all cells
-    residual_area_fracs = init_residual_area_fracs(cell_ids, veg_parms, snb_parms)
-
+    #residual_area_fracs = init_residual_area_fracs(cell_ids, veg_parms, snb_parms)
+    veg_parms.init_residual_area_fracs(snb_parms)
+    input('')
     # Update the vegetation parameters vis-a-vis the application of the initial glacier mask, and write to new temporary file temp_vpf
-    update_veg_parms(cell_ids, veg_parms, area_frac_bands, area_frac_glacier, residual_area_fracs)
+    #update_veg_parms(cell_ids, veg_parms, area_frac_bands, area_frac_glacier, residual_area_fracs)
+    veg_parms.update(area_frac_bands, area_frac_glacier)
     temp_vpf = temp_files_path + 'vpf_temp_' + str(year) + '.txt'
     veg_parms.save(temp_vpf)
-
+    input('')
     # Update snow band parameters vis-a-vis the application of the initial glacier mask, and write to new temporary file temp_snb
     update_snb_parms(snb_parms, area_frac_bands)
     temp_snb = temp_files_path + 'snb_temp_' + str(year) + '.txt'
     write_snb_parms_file(temp_snb, snb_parms, area_frac_bands)
-
+    input('')
 
     # Run the coupled VIC-RGM model for the time range specified in the VIC global parameters file
     while year < end_date.year:
@@ -628,7 +526,7 @@ def main():
         if year == start_date.year:
             # set global parameters for VIC "spin-up", from start_date.year to the end of the first glacier accumulation
             init_state_file = None
-            temp_end_date = glacier_accum_start_date - timedelta(days=1)
+            temp_end_date = date(glacier_accum_start_date.year+1, glacier_accum_start_date.month, glacier_accum_start_date.day) - timedelta(days=1)
             update_global_parms(global_parms, temp_vpf, temp_snb, num_snow_bands, \
                 start_date.year, start_date.month, start_date.day, \
                 temp_end_date.year, temp_end_date.month, temp_end_date.day, \
@@ -639,7 +537,6 @@ def main():
             temp_start_date = date(year, glacier_accum_start_date.month, glacier_accum_start_date.day)
             temp_end_date = date(year+1, glacier_accum_start_date.month, glacier_accum_start_date.day) - timedelta(days=1)
             # set/create INIT_STATE parm as the last written VIC state_file (parm does not exist in the first read-in of global_parms)
-            temp_state_date = temp_end_date - timedelta(days=1)
             init_state_file = state_filename_prefix + "_" + str(year-1) + str(temp_state_date.month) + str(temp_state_date.day)
             update_global_parms(global_parms, temp_vpf, temp_snb, num_snow_bands, \
                 temp_start_date.year, temp_start_date.month, temp_start_date.day, \
@@ -653,6 +550,7 @@ def main():
         subprocess.check_call([vic_full_path, "-g", temp_gpf], shell=False, stderr=subprocess.STDOUT)
 
         # 3. Open VIC NetCDF state file and get the most recent GMB polynomial for each grid cell being modeled
+        state_file = state_filename_prefix + "_" + str(temp_end_date.year) + str(temp_end_date.month) + str(temp_end_date.day)
         print('opening VIC state file {}'.format(state_file))
         state = h5py.File(state_file, 'r+')
         gmb_polys = get_mass_balance_polynomials(state, state_file, cell_ids)
@@ -685,10 +583,11 @@ def main():
             write_grid_to_gsa_file(glacier_mask, glacier_mask_file)
         
         # 8. Update areas of each elevation band in each VIC grid cell, and calculate area fractions
-        area_frac_bands, area_frac_glacier = update_band_areas(cell_ids, band_map, num_snow_bands, band_size, pixel_to_cell_map, rgm_surf_dem_out, num_rows_dem, num_cols_dem)
+        area_frac_bands, area_frac_glacier = update_band_areas(cell_ids, cell_areas, band_map, num_snow_bands, band_size, pixel_to_cell_map, rgm_surf_dem_out, num_rows_dem, num_cols_dem, glacier_mask)
 
         # 9. Update vegetation parameters and write to new temporary file temp_vpf
-        update_veg_parms(cell_ids, veg_parms, area_frac_bands, area_frac_glacier, residual_area_fracs)
+        #update_veg_parms(cell_ids, veg_parms, area_frac_bands, area_frac_glacier, residual_area_fracs)
+        veg_parms.update(area_frac_bands, area_frac_glacier, residual_area_fracs)
         temp_vpf = temp_files_path + 'vpf_temp_' + str(year) + '.txt'
         veg_parms.save(temp_vpf)
 
@@ -702,3 +601,7 @@ def main():
         
         # Increment the year for the next loop iteration
         year += 1
+
+# Main program invocation.  
+if __name__ == '__main__':
+    main()
