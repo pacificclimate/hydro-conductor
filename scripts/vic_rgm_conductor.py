@@ -223,19 +223,19 @@ def get_global_parms(global_parm_file):
                     global_parms['INIT_STATE'] = []
     return global_parms
 
-def update_global_parms(global_parms, temp_vpf, temp_snb, num_snow_bands, start_year, start_month, start_day, end_year, end_month, end_day, init_state_file, state_save_year, state_save_month, state_save_day):
+def update_global_parms(global_parms, temp_vpf, temp_snb, num_snow_bands, start_date, end_date, init_state_file, state_date):
     """ Updates the global_parms dict at the beginning of an annual iteration """
     # Set start and end dates for the upcoming VIC run (should be one year long, except for the spin-up run)
-    global_parms['STARTYEAR'] = [[str(start_year)]]
-    global_parms['STARTMONTH'] = [[str(start_month)]]
-    global_parms['STARTDAY'] = [[str(start_day)]]
-    global_parms['ENDYEAR'] = [[str(end_year)]]
-    global_parms['ENDMONTH'] = [[str(end_month)]]
-    global_parms['ENDDAY'] = [[str(end_day)]]
+    global_parms['STARTYEAR'] = [[str(start_date.year)]]
+    global_parms['STARTMONTH'] = [[str(start_date.month)]]
+    global_parms['STARTDAY'] = [[str(start_date.day)]]
+    global_parms['ENDYEAR'] = [[str(end_date.year)]]
+    global_parms['ENDMONTH'] = [[str(end_date.month)]]
+    global_parms['ENDDAY'] = [[str(end_date.day)]]
     # Set new output state file parameters for upcoming VIC run
-    global_parms['STATEYEAR'] = [[str(state_save_year)]]
-    global_parms['STATEMONTH'] = [[str(state_save_month)]]
-    global_parms['STATEDAY'] = [[str(state_save_day)]]
+    global_parms['STATEYEAR'] = [[str(state_date.year)]]
+    global_parms['STATEMONTH'] = [[str(state_date.month)]]
+    global_parms['STATEDAY'] = [[str(state_date.day)]]
     global_parms['VEGPARAM'] = [[temp_vpf]]
     global_parms['SNOW_BAND'] = [[num_snow_bands, temp_snb]]
     # All VIC iterations except for the initial spin-up period have to load a saved state from the previous
@@ -520,28 +520,22 @@ def main():
         # 1. Write / Update temporary Global Parameters File, temp_gpf
         temp_gpf = temp_files_path + 'gpf_temp_' + str(year) + '.txt'
         #update_global_parms(global_parms, temp_vpf, temp_snb, num_snow_bands, \
-        #    start_year, start_month, start_day, \
-        #    end_year, end_month, end_day, \
-        #    init_state_file, state_save_year, state_save_month, state_save_day)
+        #    start_date, end_date, init_state_file, state_date)
         if year == start_date.year:
             # set global parameters for VIC "spin-up", from start_date.year to the end of the first glacier accumulation
             init_state_file = None
             temp_end_date = date(glacier_accum_start_date.year+1, glacier_accum_start_date.month, glacier_accum_start_date.day) - timedelta(days=1)
             update_global_parms(global_parms, temp_vpf, temp_snb, num_snow_bands, \
-                start_date.year, start_date.month, start_date.day, \
-                temp_end_date.year, temp_end_date.month, temp_end_date.day, \
-                init_state_file, temp_end_date.year, temp_end_date.month, temp_end_date.day)
+                start_date, temp_end_date, init_state_file, temp_end_date)
             # Fast-forward year to what it will be when VIC finishes its spin-up
             year = temp_end_date.year
         else:
             temp_start_date = date(year, glacier_accum_start_date.month, glacier_accum_start_date.day)
             temp_end_date = date(year+1, glacier_accum_start_date.month, glacier_accum_start_date.day) - timedelta(days=1)
             # set/create INIT_STATE parm as the last written VIC state_file (parm does not exist in the first read-in of global_parms)
-            init_state_file = state_filename_prefix + "_" + str(year-1) + str(temp_state_date.month) + str(temp_state_date.day)
+            init_state_file = state_filename_prefix + "_" + str(year-1) + str(temp_end_date.month) + str(temp_end_date.day)
             update_global_parms(global_parms, temp_vpf, temp_snb, num_snow_bands, \
-                temp_start_date.year, temp_start_date.month, temp_start_date.day, \
-                temp_end_date.year, temp_end_date.month, temp_end_date.day, \
-                init_state_file, temp_end_date.year, temp_end_date.month, temp_end_date.day)
+                temp_start_date, temp_end_date, init_state_file, temp_end_date)
 
         write_global_parms_file(global_parms, temp_gpf)
         print('invoking VIC with global parameter file {}'.format(temp_gpf))
