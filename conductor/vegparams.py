@@ -27,11 +27,12 @@ def leaves(d):
         return 1
                     
 class VegParams(object):
-    def __init__(self, veg_parm_file=None, glacier_id='22', bare_soil_id='19'):
+    glacier_id = '22'
+    bare_soil_id ='19'
+
+    def __init__(self, veg_parm_file=None):
         self.cells = OrderedDict()
         self.residual_area_fracs = {}
-        self.glacier_id = glacier_id
-        self.bare_soil_id = bare_soil_id
         if veg_parm_file:
             self.load(veg_parm_file)
 
