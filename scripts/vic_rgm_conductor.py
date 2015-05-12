@@ -200,7 +200,7 @@ def get_global_parms(global_parm_file):
     with open(global_parm_file, 'r') as f:
         for line in f:
             #print('line: {}'.format(line))
-            if not line.isspace() and line[0] is not '#':
+            if not (line.isspace() or line.startswith('#')):
                 split_line = line.split()
                 #print('columns: {}'.format(split_line))
                 parm_name = split_line[0]
@@ -419,8 +419,9 @@ def main():
     print('\n\nVIC + RGM ... together at last!')
 
     # Parse command line parameters
-    vic_global_file, rgm_params_file, surf_dem_in_file, bed_dem_file, pixel_cell_map_file, \
-    init_glacier_mask_file, output_trace_files, glacier_root_parms_file, band_size = parse_input_parms()
+    vic_global_file, rgm_params_file, surf_dem_in_file, bed_dem_file, \
+        pixel_cell_map_file, init_glacier_mask_file, output_trace_files, \
+        glacier_root_parms_file, band_size = parse_input_parms()
 
     # Get all initial VIC global parameters from the global parameter file
     global_parms = get_global_parms(vic_global_file)
