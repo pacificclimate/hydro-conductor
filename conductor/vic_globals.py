@@ -133,59 +133,64 @@ def get_global_parms(global_parm_file):
 
     return g
 
-def update_global_parms(global_parms, temp_vpf, temp_snb, num_snow_bands, start_date, end_date, init_state_file, state_date):
-    """ Updates the global_parms dict at the beginning of an annual iteration """
+def update_global_parms(global_parm_dict, temp_vpf, temp_snb, num_snow_bands,
+                        start_date, end_date, init_state_file, state_date):
+    """ Updates the global_parms dict at the beginning of an annual
+        iteration
+    """
+    g = global_parm_dict
     # Set start and end dates for the upcoming VIC run (should be one year long, except for the spin-up run)
-    global_parms['STARTYEAR'] = [[str(start_date.year)]]
-    global_parms['STARTMONTH'] = [[str(start_date.month)]]
-    global_parms['STARTDAY'] = [[str(start_date.day)]]
-    global_parms['ENDYEAR'] = [[str(end_date.year)]]
-    global_parms['ENDMONTH'] = [[str(end_date.month)]]
-    global_parms['ENDDAY'] = [[str(end_date.day)]]
+    g['STARTYEAR'] = [[str(start_date.year)]]
+    g['STARTMONTH'] = [[str(start_date.month)]]
+    g['STARTDAY'] = [[str(start_date.day)]]
+    g['ENDYEAR'] = [[str(end_date.year)]]
+    g['ENDMONTH'] = [[str(end_date.month)]]
+    g['ENDDAY'] = [[str(end_date.day)]]
     # Set new output state file parameters for upcoming VIC run
-    global_parms['STATEYEAR'] = [[str(state_date.year)]]
-    global_parms['STATEMONTH'] = [[str(state_date.month)]]
-    global_parms['STATEDAY'] = [[str(state_date.day)]]
-    global_parms['VEGPARAM'] = [[temp_vpf]]
-    global_parms['SNOW_BAND'] = [[num_snow_bands, temp_snb]]
+    g['STATEYEAR'] = [[str(state_date.year)]]
+    g['STATEMONTH'] = [[str(state_date.month)]]
+    g['STATEDAY'] = [[str(state_date.day)]]
+    g['VEGPARAM'] = [[temp_vpf]]
+    g['SNOW_BAND'] = [[num_snow_bands, temp_snb]]
     # All VIC iterations except for the initial spin-up period have to load a saved state from the previous
     if init_state_file:
-        global_parms['INIT_STATE'] = [[init_state_file]]
+        g['INIT_STATE'] = [[init_state_file]]
         
-def write_global_parms_file(global_parms, temp_gpf):
-    """ Reads existing global_parms OrderedDict and writes out a new temporary VIC Global Parameter File 
-        temp_gpf for feeding into VIC 
+def write_global_parms_file(global_parm_dict, temp_gpf):
+    """ Reads existing global_parms OrderedDict and writes out a new temporary VIC Global Parameter File
+        temp_gpf for feeding into VIC
     """
+    g = global_parm_dict
     with open(temp_gpf, 'w') as f:
         writer = csv.writer(f, delimiter=' ')
-        for parm_name, parm_value in global_parms.items():
-            #print('write_global_parms_file: parm_name: {} parm_value: {}'.format(parm_name, parm_value))
-            num_parm_lines = len(global_parms[parm_name])
-            if parm_name == 'INIT_STATE' and not global_parms['INIT_STATE']:
+        for name, value in g.items():
+            #print('write_g_file: name: {} value: {}'.format(name, value))
+            num_parm_lines = len(g[name])
+            if name == 'INIT_STATE' and not g['INIT_STATE']:
                 pass
-            elif parm_name[0:8] == 'OUTFILE_':
+            elif name[0:8] == 'OUTFILE_':
                 line = []
                 line.append('OUTFILE')
-                for value in parm_value[0]:
+                for value in value[0]:
                     line.append(value)
                 writer.writerow(line)
-            elif parm_name[0:7] == 'OUTVAR_':
+            elif name[0:7] == 'OUTVAR_':
                 for line_num in range(num_parm_lines):
                     line = []
                     line.append('OUTVAR')
-                    for value in parm_value[line_num]:
+                    for value in value[line_num]:
                         line.append(value)
                         writer.writerow(line)
             elif num_parm_lines == 1:
                 line = []
-                line.append(parm_name)
-                for value in parm_value[0]:
+                line.append(name)
+                for value in value[0]:
                     line.append(value)
                 writer.writerow(line)
             elif num_parm_lines > 1:
                 for line_num in range(num_parm_lines):
                     line = []
-                    line.append(parm_name)
-                    for value in parm_value[line_num]:
+                    line.append(name)
+                    for value in value[line_num]:
                         line.append(value)
                     writer.writerow(line)
