@@ -319,34 +319,27 @@ def main():
     global_parms = get_global_parms(vic_global_file)
 
     # Get entire time range of coupled VIC-RGM run from the initial VIC global file
-    start_year = int(global_parms['STARTYEAR'][0][0])
-    start_month = int(global_parms['STARTMONTH'][0][0])
-    start_day = int(global_parms['STARTDAY'][0][0])
-    start_date = date(start_year, start_month, start_day)
-    end_year = int(global_parms['ENDYEAR'][0][0])
-    end_month = int(global_parms['ENDMONTH'][0][0])
-    end_day = int(global_parms['ENDDAY'][0][0])
-    end_date = date(end_year, end_month, end_day)
+    start_date = date(global_parms['STARTYEAR'], global_parms['STARTMONTH'], global_parms['STARTDATE'])
+    end_date = date(global_parms['ENDYEAR'], global_parms['ENDMONTH'], global_parms['ENDDATE'])
     # Set the initial year for the coupled VIC-RGM simulation
     year = start_date.year
     # Get the date that glacier accumulation is to start (at the end of VIC "spin-up")
-    glacier_accum_start_year = int(global_parms['GLACIER_ACCUM_START_YEAR'][0][0])
-    glacier_accum_start_month = int(global_parms['GLACIER_ACCUM_START_MONTH'][0][0])
-    glacier_accum_start_day = int(global_parms['GLACIER_ACCUM_START_DAY'][0][0])
-    glacier_accum_start_date = date(glacier_accum_start_year, glacier_accum_start_month, glacier_accum_start_day)
+    glacier_accum_start_date = date(global_parms['GLACIER_ACCUM_START_YEAR'],
+                                    global_parms['GLACIER_ACCUM_START_MONTH'],
+                                    global_parms['GLACIER_ACCUM_START_DAY'])
 
     # Initial VIC output state filename prefix is determined by STATENAME in the global file
-    state_filename_prefix = global_parms['STATENAME'][0][0]
+    state_filename_prefix = global_parms['STATENAME']
     # Numeric code indicating a glacier vegetation tile (HRU)
-    GLACIER_ID = global_parms['GLACIER_ID'][0]
+    GLACIER_ID = global_parms['GLACIER_ID']
 
     # Get VIC vegetation parameters and grid cell IDs from initial Vegetation Parameter File
-    veg_parm_file = global_parms['VEGPARAM'][0][0]
+    veg_parm_file = global_parms['VEGPARAM']
     veg_parms, cell_ids = get_veg_parms(veg_parm_file)
 
     # Get VIC snow/elevation band parameters from initial Snow Band File
-    num_snow_bands = int(global_parms['SNOW_BAND'][0][0])
-    snb_file = global_parms['SNOW_BAND'][0][1]
+    num_snow_bands, snb_file = global_parms['SNOW_BAND'].split()
+    num_snow_bands = int(num_snow_bands)
     snb_parms = get_snb_parms(snb_file, num_snow_bands)
 
     # Get list of elevation bands for each VIC grid cell
