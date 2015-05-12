@@ -110,7 +110,8 @@ def get_global_parms(global_parm_file):
             name, value = line.split(None, 1)
             value = value.strip()
 
-            # special case because there are multiple occurrences, not consecutiev
+            # special case because there are multiple occurrences,
+            # not consecutive
             if name == 'OUTFILE':
                 n_outfile_lines += 1
                 name = 'OUTFILE_' + str(n_outfile_lines)
@@ -126,9 +127,13 @@ def get_global_parms(global_parm_file):
             else:
                 g[name] = value
 
-            # We need to create a placeholder in this position for INIT_STATE if it doesn't exist in the initial
-            # global parameters file, to be used for all iterations after the first year
-            if name == 'OUTPUT_FORCE': # OUTPUT_FORCE should always immediately precede INIT_STATE in the global file
+            # We need to create a placeholder in this position for INIT_STATE if
+            # it doesn't exist in the initial global parameters file, to be used
+            # for all iterations after the first year
+            #
+            # OUTPUT_FORCE should always immediately precede INIT_STATE in the
+            # global file
+            if name == 'OUTPUT_FORCE': 
                 g['INIT_STATE'] = []
 
     return g
@@ -157,37 +162,30 @@ def update_global_parms(global_parm_dict, temp_vpf, temp_snb, num_snow_bands,
         g['INIT_STATE'] = [[init_state_file]]
         
 def write_global_parms_file(global_parm_dict, temp_gpf):
-    """ Reads existing global_parms OrderedDict and writes out a new temporary VIC Global Parameter File
-        temp_gpf for feeding into VIC
+    """ Reads existing global_parms OrderedDict and writes out a new temporary
+        VIC Global Parameter File temp_gpf for feeding into VIC
     """
     g = global_parm_dict
     with open(temp_gpf, 'w') as f:
-        writer = csv.writer(f, delimiter=' ')
         for name, value in g.items():
-            #print('write_g_file: name: {} value: {}'.format(name, value))
-            num_parm_lines = len(g[name])
+            # Don't output this key if it's not set
             if name == 'INIT_STATE' and not g['INIT_STATE']:
-                pass
-            elif name.startswith('OUTFILE_'):
-                line = []
-                line.append('OUTFILE')
-                for value in value[0]:
-                    line.append(value)
-                writer.writerow(line)
-            elif name.startswith('OUTVAR_'):
-                for line_num in range(num_parm_lines):
-                    line = ['OUTVAR']
-                    for value in value[line_num]:
-                        line.append(value)
-                        writer.writerow(line)
-            elif num_parm_lines == 1:
-                line = [name]
-                for value in value[0]:
-                    line.append(value)
-                writer.writerow(line)
-            elif num_parm_lines > 1:
-                for line_num in range(num_parm_lines):
-                    line = [name]
-                    for value in value[line_num]:
-                        line.append(value)
-                    writer.writerow(line)
+                continue
+            # We'll deal with these separately at the end
+            if name.startswith('OUTFILE') or name.startswith('OUTVAR'):
+                continue
+
+            # The main event; either write out a list as multiple lines
+            # or a scalar as one line
+            if type(value) == list:
+                for item in value:
+                    f.write("{} {}\n".format(name, item))
+            else:
+                f.write("{} {}\n".format(name, value))
+
+        # Special case for writing the hiearchical variables per output file
+        for i in range(1, int(g['N_OUTFILES']) + 1):
+            key = 'OUTFILE_{}'.format(i)
+            f.write("OUTFILE {}\n".format(g[key]))
+            for outvar in g['OUTVAR_{}'.format(i)]:
+                f.write("OUTVAR {}\n".format(outvar))
