@@ -2,78 +2,138 @@
     all of the settings that affect VIC at run time
 '''
 
-__all__ = ['get_global_parms', 'update_global_parms', 'write_global_parms_file']
+__all__ = ['get_global_parms', 'update_global_parms', 'write_global_parms_file', 'Global']
 
+from os.path import isdir, isfile, basename, dirname
 from collections import OrderedDict
+from datetime import date
 
-# James's assessment of proper typing in the global file
-# {'TIME_STEP': int,
-#  'SNOW_STEP': int,
-#  'STARTYEAR': int,
-#  'STARTMONTH': int,
-#  'STARTDAY': int,
-#  'STARTHOUR': int,
-#  'ENDYEAR': int,
-#  'ENDMONTH': int,
-#  'ENDDAY': int,
-#  'FULL_ENERGY': bool,
-#  'FROZEN_SOIL': bool,
-#  'NO_FLUX': bool,
-#  'DIST_PRCP': bool,
-#  'CORRPREC': bool,
-#  'MIN_WIND_SPEED': float,
-#  'PREC_EXPT': float,
-#  'GLACIER_ID': int,
-#  'GLACIER_ACCUM_START_YEAR': int,
-#  'GLACIER_ACCUM_START_MONTH': int,
-#  'GLACIER_ACCUM_START_DAY': int,
-#  'GLACIER_ACCUM_INTERVAL': int,
-#  'OUTPUT_FORCE': bool,
-#  'INIT_STATE': [], #??
-#  'STATENAME': str # filename
-#  'STATEYEAR': int,
-#  'STATEMONTH': int,
-#  'STATEDAY': int,
-#  'STATE_FORMAT': str # NETCDF|??|??,
-#  'GRID_DECIMAL': int #?,
-#  'WIND_H': int # ?,
-#  'MEASURE_H': int # ?,
-#  'ALMA_INPUT': bool,
-#  'FORCING1': str, # filename
-#  'FORCE_FORMAT': str # NETCDF|??|??,
-#  'FORCE_ENDIAN': str # LITTLE|BIG,
-#  'N_TYPES': int,
-#  'FORCE_TYPE': dict,
-#  'FORCE_DT': int,
-#  'FORCEYEAR': int,
-#  'FORCEMONTH': int,
-#  'FORCEDAY': int,
-#  'FORCEHOUR': int,
-#  'NLAYER': int,
-#  'NODES': int,
-#  'SOIL': str, # filename
-#  'BASEFLOW': str,
-#  'ARC_SOIL': bool,
-#  'VEGPARAM': str, # filename
-#  'VEGPARAM_LAI': bool,
-#  'LAI_SRC': str,
-#  'VEGLIB': str, # filename
-#  'ROOT_ZONES': int,
-#  'SNOW_BAND': (int, str ) #filename
-#  'RESULT_DIR': str, # dirname
-#  'OUT_STEP': int,
-#  'SKIPYEAR': int,
-#  'COMPRESS': bool,
-#  'OUTPUT_FORMAT': str, # NETCDF|??
-#  'ALMA_OUTPUT': bool,
-#  'PRT_HEADER': bool,
-#  'PRT_SNOW_BAND': bool,
-#  'NETCDF_ATTRIBUTE': dict,
-#  'N_OUTFILES': int,
-#  'OUTFILE_?': # list of outfiles
-#  'OUTFILE_N': (str (prefix), int)
-#  'OUTVAR_N': list, # of strings
-# }
+class Scalar(object):
+    def __init__(self, type_, value=None):
+        self.type_ = type_
+        self.value = value
+    def __set__(self, instance, value):
+        try:
+            self.value = self.type_(value)
+        except:
+            raise ValueError("Cannot convert '{}' to type {}".format(value, self.type_))
+    def __get__(self, instance, cls):
+        return self.value
+
+class Boolean(Scalar):
+    def __init__(self, value=None):
+        super().__init__(bool, value)
+    def __set__(self, instance, value):
+        # catch strings which represent 'Falsy' values
+        if value in ('FALSE', 'False'):
+            value = False
+        super().__set__(instance, value)
+
+class Filename(Scalar):
+    def __init__(self, value=None):
+        self.type_ = str
+    def __set__(self, instance, value):
+        if not isdir(dirname(value)):
+            raise ValueError("Cannot set parameter to a file in a non-existant directory: {}".format(dirname(value)))
+
+class Mapping(object):
+    def __init__(self):
+        self.dict_ = {}
+    def __set__(self, instance, value):
+        key, value = value.split(None, 1)
+        self.dict_[key] = value
+    def __get__(self, instance, cls):
+        return self.dict_
+
+class List(object):
+    def __init__(self):
+        self.value = []
+    def __set__(self, instance, value):
+        self.value.append(value)
+    def __get__(self, instance, cls):
+        return self.value
+
+class Global(object):
+    time_step = Scalar(int)
+    snow_step = Scalar(int)
+    startyear = Scalar(int)
+    startmonth = Scalar(int)
+    startday = Scalar(int)
+    starthour = Scalar(int)
+    endyear = Scalar(int)
+    endmonth = Scalar(int)
+    endday = Scalar(int)
+    full_energy = Boolean()
+    frozen_soil = Boolean()
+    no_flux = Boolean()
+    dist_prcp = Boolean()
+    corrprec = Boolean()
+    min_wind_speed = Scalar(float)
+    prec_expt = Scalar(float)
+    glacier_id = Scalar(int)
+    glacier_accum_start_year = Scalar(int)
+    glacier_accum_start_month = Scalar(int)
+    glacier_accum_start_day = Scalar(int)
+    glacier_accum_interval = Scalar(int)
+    output_force = Boolean()
+    init_state = Filename()
+    statename = Filename() # filename prefix
+    stateyear = Scalar(int)
+    statemonth = Scalar(int)
+    stateday = Scalar(int)
+    state_format = String() # netcdf|??|??,
+    grid_decimal = Scalar(int)
+    wind_h = Scalar(int)
+    measure_h = Scalar(int)
+    alma_input = Boolean()
+    forcing1 = Filename()
+    force_format = None # netcdf|??|??,
+    force_endian = None # little|big,
+    n_types = Scalar(int)
+    force_type = Mapping()
+    force_dt = Scalar(int)
+    forceyear = Scalar(int)
+    forcemonth = Scalar(int)
+    forceday = Scalar(int)
+    forcehour = Scalar(int)
+    nlayer = Scalar(int)
+    nodes = Scalar(int)
+    soil = Filename()
+    baseflow = String()
+    arc_soil = Boolean()
+    vegparam = Filename()
+    vegparam_lai = Boolean()
+    lai_src = String()
+    veglib = Filename()
+    root_zones = Scalar(int)
+    snow_band =(int, str)
+    result_dir = Filename() # dirname
+    out_step = Scalar(int)
+    skipyear = Scalar(int)
+    compress = Boolean()
+    output_format = None # netcdf|??
+    alma_output = Boolean()
+    prt_header = Boolean()
+    prt_snow_band = Boolean()
+    netcdf_attribute = Mapping()
+    n_outfiles = Scalar(int)
+    # outfile_? =# list of outfiles
+    #outfile_n =(str (prefix), int)
+    #outvar_n =list # of strings
+
+    @property
+    def startdate(self):
+        return date(self.startyear, self.startmonth, self.startday)
+
+    @property
+    def enddate(self):
+        return date(self.endyear, self.endmonth, self.endday)
+
+    @property
+    def glacier_accum_startdate(self):
+        return date(self.glacier_accum_start_year,
+                    self.glacier_accum_start_month,
+                    self.glacier_accum_start_day)
 
 # To have nested ordered defaultdicts
 class OrderedDefaultdict(OrderedDict):
