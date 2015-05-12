@@ -168,13 +168,13 @@ def write_global_parms_file(global_parm_dict, temp_gpf):
             num_parm_lines = len(g[name])
             if name == 'INIT_STATE' and not g['INIT_STATE']:
                 pass
-            elif name[0:8] == 'OUTFILE_':
+            elif name.startswith('OUTFILE_'):
                 line = []
                 line.append('OUTFILE')
                 for value in value[0]:
                     line.append(value)
                 writer.writerow(line)
-            elif name[0:7] == 'OUTVAR_':
+            elif name.startswith('OUTVAR_'):
                 for line_num in range(num_parm_lines):
                     line = []
                     line.append('OUTVAR')
