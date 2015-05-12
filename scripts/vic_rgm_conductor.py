@@ -16,6 +16,7 @@ import numpy as np
 import h5py
 
 from vegparams import VegParams
+from vic_globals import get_global_parms, update_global_parms, write_global_parms_file
 
 vic_full_path = '/home/mfischer/code/vic/vicNl'  # should this be a command line parameter?
 rgm_full_path = '/home/mfischer/code/rgm/rgm' # ditto?
@@ -23,28 +24,6 @@ temp_files_path = '/home/mfischer/vic_dev/out/testing/temp_out_files/' # ditto?
 # set it as default = os.env(tmp)
 
 BARE_SOIL_ID = '19'
-
-
-# To have nested ordered defaultdicts
-class OrderedDefaultdict(OrderedDict):
-    # from: http://stackoverflow.com/questions/4126348/how-do-i-rewrite-this-function-to-implement-ordereddict/4127426#4127426
-    def __init__(self, *args, **kwargs):
-        if not args:
-            self.default_factory = None
-        else:
-            if not (args[0] is None or isinstance(args[0], collections.Callable)):
-                raise TypeError('first argument must be callable or None')
-            self.default_factory = args[0]
-            args = args[1:]
-        super(OrderedDefaultdict, self).__init__(*args, **kwargs)
-    def __missing__ (self, key):
-        if self.default_factory is None:
-            raise KeyError(key)
-        self[key] = default = self.default_factory()
-        return default
-    def __reduce__(self):  # optional, for pickle support
-        args = (self.default_factory,) if self.default_factory else ()
-        return self.__class__, args, None, None, iter(self.items())
 
 class MyParser(argparse.ArgumentParser):
     def error(self, message):
@@ -193,93 +172,6 @@ def write_grid_to_gsa_file(grid, outfilename, num_cols_dem, num_rows_dem, dem_xm
         for row in grid:
             writer.writerow(row)
 
-def get_global_parms(global_parm_file):
-    """ Parses the initial VIC global parameters file created by the user with the settings for the entire VIC-RGM run """
-    global_parms = OrderedDefaultdict()
-    n_outfile_lines = 0
-    with open(global_parm_file, 'r') as f:
-        for line in f:
-            #print('line: {}'.format(line))
-            if not line.isspace() and line[0] is not '#':
-                split_line = line.split()
-                #print('columns: {}'.format(split_line))
-                parm_name = split_line[0]
-                if parm_name == 'OUTFILE': # special case because there are multiple occurrences, not consecutive
-                        n_outfile_lines += 1
-                        parm_name = 'OUTFILE_' + str(n_outfile_lines)
-                elif parm_name == 'OUTVAR': # special case because multiple OUTVAR lines follow each OUTFILE line
-                        parm_name = 'OUTVAR_' + str(n_outfile_lines)
-                try:
-                    if global_parms[parm_name]: # if we've already read one or more entries of this parm_name
-#                        print('parm {} exists already'.format(parm_name))
-                        global_parms[parm_name].append(split_line[1:])
-                except:
-                    global_parms[parm_name] = []
-                    global_parms[parm_name].append(split_line[1:])
-                    #print('global_parms[{}]: {}'.format(parm_name,global_parms[parm_name]))
-                # We need to create a placeholder in this position for INIT_STATE if it doesn't exist in the initial
-                # global parameters file, to be used for all iterations after the first year
-                if parm_name == 'OUTPUT_FORCE': # OUTPUT_FORCE should always immediately precede INIT_STATE in the global file
-                    global_parms['INIT_STATE'] = []
-    return global_parms
-
-def update_global_parms(global_parms, temp_vpf, temp_snb, num_snow_bands, start_date, end_date, init_state_file, state_date):
-    """ Updates the global_parms dict at the beginning of an annual iteration """
-    # Set start and end dates for the upcoming VIC run (should be one year long, except for the spin-up run)
-    global_parms['STARTYEAR'] = [[str(start_date.year)]]
-    global_parms['STARTMONTH'] = [[str(start_date.month)]]
-    global_parms['STARTDAY'] = [[str(start_date.day)]]
-    global_parms['ENDYEAR'] = [[str(end_date.year)]]
-    global_parms['ENDMONTH'] = [[str(end_date.month)]]
-    global_parms['ENDDAY'] = [[str(end_date.day)]]
-    # Set new output state file parameters for upcoming VIC run
-    global_parms['STATEYEAR'] = [[str(state_date.year)]]
-    global_parms['STATEMONTH'] = [[str(state_date.month)]]
-    global_parms['STATEDAY'] = [[str(state_date.day)]]
-    global_parms['VEGPARAM'] = [[temp_vpf]]
-    global_parms['SNOW_BAND'] = [[num_snow_bands, temp_snb]]
-    # All VIC iterations except for the initial spin-up period have to load a saved state from the previous
-    if init_state_file:
-        global_parms['INIT_STATE'] = [[init_state_file]]
-        
-def write_global_parms_file(global_parms, temp_gpf):
-    """ Reads existing global_parms OrderedDict and writes out a new temporary VIC Global Parameter File 
-        temp_gpf for feeding into VIC 
-    """
-    with open(temp_gpf, 'w') as f:
-        writer = csv.writer(f, delimiter=' ')
-        for parm_name, parm_value in global_parms.items():
-            #print('write_global_parms_file: parm_name: {} parm_value: {}'.format(parm_name, parm_value))
-            num_parm_lines = len(global_parms[parm_name])
-            if parm_name == 'INIT_STATE' and not global_parms['INIT_STATE']:
-                pass
-            elif parm_name[0:8] == 'OUTFILE_':
-                line = []
-                line.append('OUTFILE')
-                for value in parm_value[0]:
-                    line.append(value)
-                writer.writerow(line)
-            elif parm_name[0:7] == 'OUTVAR_':
-                for line_num in range(num_parm_lines):
-                    line = []
-                    line.append('OUTVAR')
-                    for value in parm_value[line_num]:
-                        line.append(value)
-                        writer.writerow(line)
-            elif num_parm_lines == 1:
-                line = []
-                line.append(parm_name)
-                for value in parm_value[0]:
-                    line.append(value)
-                writer.writerow(line)
-            elif num_parm_lines > 1:
-                for line_num in range(num_parm_lines):
-                    line = []
-                    line.append(parm_name)
-                    for value in parm_value[line_num]:
-                        line.append(value)
-                    writer.writerow(line)
-
 def get_veg_parms(veg_parm_file):
     """Reads in a Vegetation Parameter File and parses out VIC grid cell IDs,
        as well as an ordered dict of all vegetation parameters,
@@ -419,41 +311,35 @@ def main():
     print('\n\nVIC + RGM ... together at last!')
 
     # Parse command line parameters
-    vic_global_file, rgm_params_file, surf_dem_in_file, bed_dem_file, pixel_cell_map_file, \
-    init_glacier_mask_file, output_trace_files, glacier_root_parms_file, band_size = parse_input_parms()
+    vic_global_file, rgm_params_file, surf_dem_in_file, bed_dem_file, \
+        pixel_cell_map_file, init_glacier_mask_file, output_trace_files, \
+        glacier_root_parms_file, band_size = parse_input_parms()
 
     # Get all initial VIC global parameters from the global parameter file
     global_parms = get_global_parms(vic_global_file)
 
     # Get entire time range of coupled VIC-RGM run from the initial VIC global file
-    start_year = int(global_parms['STARTYEAR'][0][0])
-    start_month = int(global_parms['STARTMONTH'][0][0])
-    start_day = int(global_parms['STARTDAY'][0][0])
-    start_date = date(start_year, start_month, start_day)
-    end_year = int(global_parms['ENDYEAR'][0][0])
-    end_month = int(global_parms['ENDMONTH'][0][0])
-    end_day = int(global_parms['ENDDAY'][0][0])
-    end_date = date(end_year, end_month, end_day)
+    start_date = date(global_parms['STARTYEAR'], global_parms['STARTMONTH'], global_parms['STARTDATE'])
+    end_date = date(global_parms['ENDYEAR'], global_parms['ENDMONTH'], global_parms['ENDDATE'])
     # Set the initial year for the coupled VIC-RGM simulation
     year = start_date.year
     # Get the date that glacier accumulation is to start (at the end of VIC "spin-up")
-    glacier_accum_start_year = int(global_parms['GLACIER_ACCUM_START_YEAR'][0][0])
-    glacier_accum_start_month = int(global_parms['GLACIER_ACCUM_START_MONTH'][0][0])
-    glacier_accum_start_day = int(global_parms['GLACIER_ACCUM_START_DAY'][0][0])
-    glacier_accum_start_date = date(glacier_accum_start_year, glacier_accum_start_month, glacier_accum_start_day)
+    glacier_accum_start_date = date(global_parms['GLACIER_ACCUM_START_YEAR'],
+                                    global_parms['GLACIER_ACCUM_START_MONTH'],
+                                    global_parms['GLACIER_ACCUM_START_DAY'])
 
     # Initial VIC output state filename prefix is determined by STATENAME in the global file
-    state_filename_prefix = global_parms['STATENAME'][0][0]
+    state_filename_prefix = global_parms['STATENAME']
     # Numeric code indicating a glacier vegetation tile (HRU)
-    GLACIER_ID = global_parms['GLACIER_ID'][0]
+    GLACIER_ID = global_parms['GLACIER_ID']
 
     # Get VIC vegetation parameters and grid cell IDs from initial Vegetation Parameter File
-    veg_parm_file = global_parms['VEGPARAM'][0][0]
+    veg_parm_file = global_parms['VEGPARAM']
     veg_parms, cell_ids = get_veg_parms(veg_parm_file)
 
     # Get VIC snow/elevation band parameters from initial Snow Band File
-    num_snow_bands = int(global_parms['SNOW_BAND'][0][0])
-    snb_file = global_parms['SNOW_BAND'][0][1]
+    num_snow_bands, snb_file = global_parms['SNOW_BAND'].split()
+    num_snow_bands = int(num_snow_bands)
     snb_parms = get_snb_parms(snb_file, num_snow_bands)
 
     # Get list of elevation bands for each VIC grid cell
