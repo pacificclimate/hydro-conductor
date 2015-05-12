@@ -176,21 +176,18 @@ def write_global_parms_file(global_parm_dict, temp_gpf):
                 writer.writerow(line)
             elif name.startswith('OUTVAR_'):
                 for line_num in range(num_parm_lines):
-                    line = []
-                    line.append('OUTVAR')
+                    line = ['OUTVAR']
                     for value in value[line_num]:
                         line.append(value)
                         writer.writerow(line)
             elif num_parm_lines == 1:
-                line = []
-                line.append(name)
+                line = [name]
                 for value in value[0]:
                     line.append(value)
                 writer.writerow(line)
             elif num_parm_lines > 1:
                 for line_num in range(num_parm_lines):
-                    line = []
-                    line.append(name)
+                    line = [name]
                     for value in value[line_num]:
                         line.append(value)
                     writer.writerow(line)
