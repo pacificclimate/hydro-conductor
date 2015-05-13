@@ -19,31 +19,43 @@ class Scalar(object):
             raise ValueError("Cannot convert '{}' to type {}".format(value, self.type_))
     def __get__(self, instance, cls):
         return self.value
+    def __str__(self, instance, cls, name=''):
+        return '{} {}\n'.format(name.upper(), self.value)
 
 class Boolean(Scalar):
     def __init__(self, value=None):
         super().__init__(bool, value)
     def __set__(self, instance, value):
         # catch strings which represent 'Falsy' values
-        if value in ('FALSE', 'False'):
+        if value in ('FALSE', 'False', 'false', '0'):
             value = False
         super().__set__(instance, value)
+    def __str__(self, instance, cls, name=''):
+        value = 'TRUE' if self.value else 'FALSE'
+        return '{} {}\n'.format(name.upper(), value)
 
 class Filename(Scalar):
     def __init__(self, value=None):
         self.type_ = str
+        self.value = value
     def __set__(self, instance, value):
         if not isdir(dirname(value)):
             raise ValueError("Cannot set parameter to a file in a non-existant directory: {}".format(dirname(value)))
+        super().__set__(instance, value)
 
 class Mapping(object):
     def __init__(self):
         self.dict_ = {}
     def __set__(self, instance, value):
-        key, value = value.split(None, 1)
+        try:
+            key, value = value.split(None, 1)
+        except:
+            raise ValueError('Assigment to {} requires a key and value separated by whitespace'.format(self.__class__.__name__))
         self.dict_[key] = value
     def __get__(self, instance, cls):
         return self.dict_
+    def __str__(self, instance, cls, name=''):
+        return '\n'.join('{} {} {}'.format(name.upper(), k, v) for k, v in self.dict_.items())
 
 class List(object):
     def __init__(self):
@@ -52,8 +64,90 @@ class List(object):
         self.value.append(value)
     def __get__(self, instance, cls):
         return self.value
+    def __str__(self, instance, cls, name=''):
+        return '\n'.join('{} {}'.format(name.upper(), item) for item in self.value)
 
-class Global(object):
+class OutfileList(object):
+    def __init__(self):
+        self.value = OrderedDict()
+    def __set__(self, instance, value):
+        ''' Assume assignment will happen in order and just maintain
+            state along the way
+        '''
+        try:
+            filename, num_vars = value.split()
+            self.value[filename] = []
+        except ValueError: # append a variable
+            last_key = list(self.value.keys())[-1]
+            self.value[last_key].append(value)
+    def __get__(self, instance, cls):
+        return self.value
+    def __str__(self, instance, cls, name=None):
+        rv = ''
+        for filename, varlist in self.value.items():
+            rv += 'OUTFILE {} {}\n'.format(filename, len(varlist))
+            for var in varlist:
+                rv += 'OUTVAR {}\n'.format(var)
+        return rv
+
+class AttributeOrderDict(dict):
+    """Dict-like object used for recording attribute definition order.
+    """
+
+    def __init__(self, no_special_methods=True, no_callables=True):
+        self.member_order = []
+        self.no_special_methods = no_special_methods
+        self.no_callables = no_callables
+        super().__init__()
+
+    def __setitem__(self, key, value):
+        skip = False
+        # Don't allow setting more than once.
+        if key in self:
+            raise AttributeError(
+                'Attribute {} defined more than once.'.format(key))
+        # Skip callables if not wanted.
+        if self.no_callables:
+            if callable(value):
+                skip = True
+        # Skip special methods if not wanted.
+        if self.no_special_methods:
+            if key.startswith('__') and key.endswith('__'):
+                skip = True
+        # Skip properties
+        if isinstance(value, property):
+            skip = True
+        if not skip:
+            self.member_order.append(key)
+        super().__setitem__(key, value)
+
+
+class OrderedMeta(type):
+    """Meta class that helps to record attribute definition order.
+    """
+
+    @classmethod
+    def __prepare__(mcs, name, bases, **kwargs):
+        return AttributeOrderDict(**kwargs)
+
+    def __new__(mcs, name, bases, cdict, **kwargs):
+        cls = type.__new__(mcs, name, bases, cdict)
+        cls.member_order = cdict.member_order
+        cls._closed = True
+        return cls
+
+    # Needed to use up kwargs.
+    def __init__(cls, name, bases, cdict, **kwargs):
+        super().__init__(name, bases, cdict)
+
+    def __setattr__(cls, name, value):
+        # Later attribute additions go through here.
+        if getattr(cls, '_closed', False):
+            raise AttributeError(
+                'Cannot set attribute after class definition.')
+        super().__setattr__(name, value)
+    
+class Global(metaclass=OrderedMeta):
     time_step = Scalar(int)
     snow_step = Scalar(int)
     startyear = Scalar(int)
@@ -81,14 +175,14 @@ class Global(object):
     stateyear = Scalar(int)
     statemonth = Scalar(int)
     stateday = Scalar(int)
-    state_format = String() # netcdf|??|??,
+    #state_format = None # netcdf|??|??,
     grid_decimal = Scalar(int)
     wind_h = Scalar(int)
     measure_h = Scalar(int)
     alma_input = Boolean()
     forcing1 = Filename()
-    force_format = None # netcdf|??|??,
-    force_endian = None # little|big,
+    #force_format = None # netcdf|??|??,
+    #force_endian = None # little|big,
     n_types = Scalar(int)
     force_type = Mapping()
     force_dt = Scalar(int)
@@ -99,27 +193,25 @@ class Global(object):
     nlayer = Scalar(int)
     nodes = Scalar(int)
     soil = Filename()
-    baseflow = String()
+    baseflow = Scalar(str)
     arc_soil = Boolean()
     vegparam = Filename()
     vegparam_lai = Boolean()
-    lai_src = String()
+    lai_src = Scalar(str)
     veglib = Filename()
     root_zones = Scalar(int)
-    snow_band =(int, str)
+    #snow_band =(int, str)
     result_dir = Filename() # dirname
     out_step = Scalar(int)
     skipyear = Scalar(int)
     compress = Boolean()
-    output_format = None # netcdf|??
+    #output_format = None # netcdf|??
     alma_output = Boolean()
     prt_header = Boolean()
     prt_snow_band = Boolean()
     netcdf_attribute = Mapping()
     n_outfiles = Scalar(int)
-    # outfile_? =# list of outfiles
-    #outfile_n =(str (prefix), int)
-    #outvar_n =list # of strings
+    outfiles = OutfileList()
 
     @property
     def startdate(self):
@@ -130,10 +222,35 @@ class Global(object):
         return date(self.endyear, self.endmonth, self.endday)
 
     @property
+    def statedate(self):
+        return date(self.stateyear, self.statemonth, self.stateday)
+
+    @property
     def glacier_accum_startdate(self):
         return date(self.glacier_accum_start_year,
                     self.glacier_accum_start_month,
                     self.glacier_accum_start_day)
+
+    def __init__(self, filename):
+        with open(filename, 'r') as f:
+            for line in f:
+                if line.isspace() or line.startswith('#'):
+                    continue
+
+                name, value = line.split(None, 1)
+                name = name.lower()
+                value = value.strip()
+
+                if name in ('outfile', 'outvar'):
+                    name = 'outfiles'
+
+                setattr(self, name, value)
+
+    def __str__(self):
+        rv = ''
+        for member in self.member_order:
+            rv += self.__class__.__dict__[member].__str__(self, self.__class__, member)
+        return rv
 
 # To have nested ordered defaultdicts
 class OrderedDefaultdict(OrderedDict):
