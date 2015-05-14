@@ -143,6 +143,11 @@ class OrderedMeta(type):
         super().__setattr__(name, value)
     
 class Global(metaclass=OrderedMeta):
+    '''An object representation of the global parameter file for the
+       Variable Inflow and Capacity (VIC) hydrologic model. This object
+       contains attributes for everything that affects an invocation
+       of VIC.
+    '''
     time_step = Scalar(int)
     snow_step = Scalar(int)
     startyear = Scalar(int)
@@ -253,6 +258,9 @@ class Global(metaclass=OrderedMeta):
                 name = name.lower()
                 value = value.strip()
 
+                # This set of keys are "special". Use a different key that knows
+                # how to handle them. This a hack. Don't ever do something like
+                # this again.
                 if name in ('outfile', 'outvar'):
                     name = 'outfiles'
 
@@ -266,7 +274,8 @@ class Global(metaclass=OrderedMeta):
         return self.__class__.__dict__[name]
 
     def _str_member(self, member):
-        ''' Get the string representation of an object 
+        ''' Returns the string representation of an member as it would
+            be written in the VIC global file
         '''
         cls = self.__class__
         return cls.__dict__[member].__str__(self, cls, member)
