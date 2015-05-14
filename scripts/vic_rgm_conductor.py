@@ -3,7 +3,6 @@
 """ This script orchestrates a coupled Variable Infiltration Capacity (VIC) and Regional Glacier Model (RGM) run. """
 
 import argparse
-import bisect
 import csv
 import collections
 from collections import OrderedDict
@@ -15,6 +14,7 @@ import sys
 import numpy as np
 import h5py
 
+from snbparams import SnbParams
 from vegparams import VegParams
 from vic_globals import get_global_parms, update_global_parms, write_global_parms_file
 
@@ -173,12 +173,21 @@ def write_grid_to_gsa_file(grid, outfilename, num_cols_dem, num_rows_dem, dem_xm
             writer.writerow(row)
 
 def get_veg_parms(veg_parm_file):
-    """Reads in a Vegetation Parameter File and parses out VIC grid cell IDs,
-       as well as an ordered dict of all vegetation parameters,
-       grouped by elevation band index
+    """Reads in a Vegetation Parameter File (VPF) and parses out VIC grid cell IDs,
+       and creates and populates a VegParams object to store vegetation parameters
+       for referencing, modifying, and writing back out to a new VPF for subsequent VIC iterations.
     """
     vp = VegParams(veg_parm_file)
     return vp, vp.cell_ids
+
+def get_snb_parms(snb_parm_file, num_snow_bands, band_size):
+    """ Reads in a Snow Band Parameter File (SNB) and creates and populates a SnbParams object
+        which also keeps track of the addition or loss of elevation bands vis-a-vis glacier evolution.
+        The SnbParams object stores snow band (elevation) parameters for referencing, modifying, 
+        and writing back out to a new SNB for subsequent VIC iterations.
+    """
+    sp = SnbParams(snb_parm_file, num_snow_bands, band_size)
+    return sp
 
 def update_band_areas(cell_ids, cell_areas, band_map, num_snow_bands, band_size, pixel_to_cell_map,
                       surf_dem, num_rows_dem, num_cols_dem, glacier_mask):
@@ -203,12 +212,16 @@ def update_band_areas(cell_ids, cell_areas, band_map, num_snow_bands, band_size,
                 pixel_elev = surf_dem[row][col]
                 pixel_to_cell_map[row][col][1] = pixel_elev
                 for band_idx, band in enumerate(band_map[cell]):
+                    band_found = False
                     if int(pixel_elev) in range(band, band + band_size):
+                        band_found = True
                         band_areas[cell][band_idx] += 1
                         if glacier_mask[row][col]:
                             glacier_areas[cell][band_idx] += 1
                         break
-
+                if not band_found: # we have to introduce a new elevation band starting at int(pixel_elev - pixel_elev % band_size)
+                    snb_parms.create_band(cell, pixel_elev)
+                
     print('Area fractions of elevation bands within VIC cells: {}'.format(band_areas))
     print('Area fraction of glacier within VIC cells, per elevation band: {}'.format(glacier_areas))
     print('\n')
@@ -222,6 +235,8 @@ def update_band_areas(cell_ids, cell_areas, band_map, num_snow_bands, band_size,
             print('glacier_areas[{}][{}] = {}'.format(cell, band_idx, glacier_areas[cell][band_idx]))
             # This will be used to update the Snow Band File
             area_frac_bands[cell][band_idx] = float(band_areas[cell][band_idx]) / cell_areas[cell]
+            # TODO: replace above with a modification of the cell[band] within the SnbParams class object:
+            # snb_parms.update_area_frac(cell, band)
             if area_frac_bands[cell][band_idx] < 0:
                 print('update_band_areas(): Error: Calculated a negative band area fraction for cell {}, band {}. Exiting.\n'.format(cell, band))
                 sys.exit(0)
@@ -234,32 +249,6 @@ def update_band_areas(cell_ids, cell_areas, band_map, num_snow_bands, band_size,
             print('area_frac_glacier[{}][{}] = {}'.format(cell, band_idx, area_frac_glacier[cell][band_idx]))
             print('\n')
     return area_frac_bands, area_frac_glacier
-
-def get_snb_parms(snb_file, num_snow_bands):
-    """ Reads in a Snow Band File and outputs an ordered dict:
-    {'cell_id_0' : [area_frac_band_0,...,area_frac_band_N],[median_elev_band_0,...,median_elev_band_N],[Pfactor_band_0,...,Pfactor_band_N]], 'cell_id_1' : ..."""
-    snb_parms = OrderedDict()
-    with open(snb_file, 'r') as f:
-        for line in f:
-            #print('snb file line: {}'.format(line))
-            split_line = line.split()
-            num_columns = len(split_line)
-            cell_id = split_line[0]
-            if num_columns != 3*num_snow_bands + 1:
-                print('get_snb_parms(): Error: Number of columns ({}) in snow band file {} is incorrect for the given number of snow bands ({}) given in the global parameter file (should be 3 * num_snow_bands + 1). Exiting.\n'.format(num_columns, snb_file, num_snow_bands))
-                sys.exit(0)
-            snb_parms[cell_id] = [[float(x) for x in split_line[1 : num_snow_bands+1]],[int(x) for x in split_line[num_snow_bands+1 : 2*num_snow_bands+1]],[float(x) for x in split_line[2*num_snow_bands+1 : 3*num_snow_bands+1]]]
-    return snb_parms
-
-def create_band_map(snb_parms, band_size, cell_ids):
-    """ Takes a dict of Snow Band parameters and identifies and creates a list
-        of elevation bands for each grid cell of band_size width in meters
-    """
-    #TODO: create command line parameter to allow for extra bands to be specified as padding above/below existing ones, to allow for glacier growth(/slide?)
-    band_map = {}
-    for cell in cell_ids:
-        band_map[cell] = [ int(band - band % band_size) for band in snb_parms[cell][1] ]
-    return band_map
 
 def update_glacier_mask(sdem, bdem, num_rows_dem, num_cols_dem):
     """ Takes output Surface DEM from RGM and uses element-wise differencing 
@@ -286,25 +275,25 @@ def write_snb_parms_file(temp_snb, snb_parms, area_frac_bands):
     """
     print('write_snb_parms_file...')
     #NOTE: the following does not work for the list of lists that is snb_parms
+    with open(temp_snb, 'w') as f:
+         writer = csv.writer(f, delimiter=' ')
+         for cell in snb_parms: 
+             print('area_frac_bands[{}]: {}'.format(cell, area_frac_bands[cell]))
+             print('snb_parms[{}][1:3]: {}'.format(cell, snb_parms[cell][1:3]))                  
+             line = [ cell ] + area_frac_bands[cell] + snb_parms[cell][1:3]
+             writer.writerow(line)
     # with open(temp_snb, 'w') as f:
     #     writer = csv.writer(f, delimiter=' ')
-    #     for cell in snb_parms: 
-    #         print('area_frac_bands[{}]: {}'.format(cell, area_frac_bands[cell]))
-    #         print('snb_parms[{}][1:3]: {}'.format(cell, snb_parms[cell][1:3]))                  
-    #         line = [ cell, area_frac_bands[cell] ] + snb_parms[cell][1:3]
+    #     for cell in snb_parms:
+    #         line = []
+    #         line.append(cell)
+    #         for area_frac in area_frac_bands[cell]:
+    #             line.append(area_frac)
+    #         for band_frac in snb_parms[cell][1]:
+    #             line.append(band_frac) # append existing median elevations
+    #         for pfactor in snb_parms[cell][2]:
+    #             line.append(pfactor) # append existing Pfactor values
     #         writer.writerow(line)
-    with open(temp_snb, 'w') as f:
-        writer = csv.writer(f, delimiter=' ')
-        for cell in snb_parms:
-            line = []
-            line.append(cell)
-            for area_frac in area_frac_bands[cell]:
-                line.append(area_frac)
-            for band_frac in snb_parms[cell][1]:
-                line.append(band_frac) # append existing median elevations
-            for pfactor in snb_parms[cell][2]:
-                line.append(pfactor) # append existing Pfactor values
-            writer.writerow(line)
 
 # Main program
 def main():
@@ -340,10 +329,7 @@ def main():
     # Get VIC snow/elevation band parameters from initial Snow Band File
     num_snow_bands, snb_file = global_parms['SNOW_BAND'].split()
     num_snow_bands = int(num_snow_bands)
-    snb_parms = get_snb_parms(snb_file, num_snow_bands)
-
-    # Get list of elevation bands for each VIC grid cell
-    band_map = create_band_map(snb_parms, band_size, cell_ids)
+    snb_parms = get_snb_parms(snb_file, num_snow_bands, band_size)
 
     # The RGM will always output a DEM file of the same name (if running RGM for a single year at a time)
     rgm_surf_dem_out_file = temp_files_path + 's_out_00001.grd'
@@ -382,22 +368,22 @@ def main():
     # Apply the initial glacier mask and modify the band and glacier area fractions accordingly
     area_frac_bands, area_frac_glacier = update_band_areas(cell_ids, cell_areas, band_map, num_snow_bands, band_size, pixel_to_cell_map,
                       surf_dem_initial, num_rows_dem, num_cols_dem, glacier_mask)
-    input('')
+    
     # Calculate the initial residual (i.e. non-glacier) area fractions for all bands in all cells
     #residual_area_fracs = init_residual_area_fracs(cell_ids, veg_parms, snb_parms)
     veg_parms.init_residual_area_fracs(snb_parms)
-    input('')
+    
     # Update the vegetation parameters vis-a-vis the application of the initial glacier mask, and write to new temporary file temp_vpf
     #update_veg_parms(cell_ids, veg_parms, area_frac_bands, area_frac_glacier, residual_area_fracs)
     veg_parms.update(area_frac_bands, area_frac_glacier)
     temp_vpf = temp_files_path + 'vpf_temp_' + str(year) + '.txt'
     veg_parms.save(temp_vpf)
-    input('')
+    
     # Update snow band parameters vis-a-vis the application of the initial glacier mask, and write to new temporary file temp_snb
     update_snb_parms(snb_parms, area_frac_bands)
     temp_snb = temp_files_path + 'snb_temp_' + str(year) + '.txt'
     write_snb_parms_file(temp_snb, snb_parms, area_frac_bands)
-    input('')
+    
 
     # Run the coupled VIC-RGM model for the time range specified in the VIC global parameters file
     while year < end_date.year:
