@@ -283,6 +283,10 @@ class Global(metaclass=OrderedMeta):
     def __str__(self):
         return ''.join([ self._str_member(member) for member in self.member_order ])
 
+    def write(self, filename):
+        with open(filename, 'w') as f:
+            f.write(str(self))
+
 # To have nested ordered defaultdicts
 class OrderedDefaultdict(OrderedDict):
     # from: http://stackoverflow.com/questions/4126348/how-do-i-rewrite-this-function-to-implement-ordereddict/4127426#4127426
