@@ -246,11 +246,21 @@ class Global(metaclass=OrderedMeta):
 
                 setattr(self, name, value)
 
+    def _get_descriptor(self, name):
+        ''' descriptors have getters that return their contents rather
+            than the object itself. Use this if you *really* need the
+            object itself (only if you know what you are doing!)
+        '''
+        return self.__class__.__dict__[name]
+
+    def _str_member(self, member):
+        ''' Get the string representation of an object 
+        '''
+        cls = self.__class__
+        return cls.__dict__[member].__str__(self, cls, member)
+
     def __str__(self):
-        rv = ''
-        for member in self.member_order:
-            rv += self.__class__.__dict__[member].__str__(self, self.__class__, member)
-        return rv
+        return ''.join([ self._str_member(member) for member in self.member_order ])
 
 # To have nested ordered defaultdicts
 class OrderedDefaultdict(OrderedDict):
