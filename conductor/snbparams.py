@@ -57,15 +57,13 @@ class SnbParams(object):
         return band_idx
 
     def delete_band(self, cell_id, elevation):
-        """ Removes the band starting at elevation from the cell
+        """ Removes the band starting at elevation from the band_map and 
+            sets area_fracs and median_elevs to 0 pads
         """
         band_idx = self.cells[cell_id].band_map.index(elevation)
-        del self.cells[cell_id].area_fracs[band_idx]
-        del self.cells[cell_id].median_elevs[band_idx]
+        self.cells[cell_id].area_fracs[band_idx] = 0
+        self.cells[cell_id].median_elevs[band_idx] = 0
         del self.cells[cell_id].band_map[band_idx]
-
-    def update_area_frac(self, band):
-        pass
 
     def load(self, snb_file):
         """ Reads in a Snow Band Parameter File
