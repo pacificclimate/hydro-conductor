@@ -102,11 +102,6 @@ class AttributeOrderDict(dict):
 
     def __setitem__(self, key, value):
         skip = False
-        # Don't allow setting more than once.
-        if key in self:
-            raise AttributeError(
-                'Attribute {} defined more than once.'.format(key))
-        # Skip callables if not wanted.
         if self.no_callables:
             if callable(value):
                 skip = True
@@ -213,23 +208,40 @@ class Global(metaclass=OrderedMeta):
     n_outfiles = Scalar(int)
     outfiles = OutfileList()
 
+    # FIXME: Rewrite all of these *date setter/getters to all use the same logic
     @property
     def startdate(self):
         return date(self.startyear, self.startmonth, self.startday)
+
+    @startdate.setter
+    def startdate(self, value):
+        self.startyear, self.startmonth, self.startday = value.year, value.month, value.day
 
     @property
     def enddate(self):
         return date(self.endyear, self.endmonth, self.endday)
 
+    @enddate.setter
+    def enddate(self, value):
+        self.endyear, self.endmonth, self.endday = value.year, value.month, value.day
+
     @property
     def statedate(self):
         return date(self.stateyear, self.statemonth, self.stateday)
+
+    @statedate.setter
+    def statedate(self, value):
+        self.stateyear, self.statemonth, self.stateday = value.year, value.month, value.day
 
     @property
     def glacier_accum_startdate(self):
         return date(self.glacier_accum_start_year,
                     self.glacier_accum_start_month,
                     self.glacier_accum_start_day)
+
+    @glacier_accum_startdate.setter
+    def glacier_accum_startdate(self, value):
+        self.glacier_accum_startyear, self.glacier_accum_startmonth, self.glacier_accum_startday = value.year, value.month, value.day
 
     def __init__(self, filename):
         with open(filename, 'r') as f:
