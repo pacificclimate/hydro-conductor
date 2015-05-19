@@ -15,8 +15,8 @@ import sys
 import numpy as np
 import h5py
 
-from vegparams import VegParams
-from vic_globals import get_global_parms, update_global_parms, write_global_parms_file
+from conductor.vegparams import VegParams
+from conductor.vic_globals import get_global_parms, update_global_parms, write_global_parms_file
 
 vic_full_path = '/home/mfischer/code/vic/vicNl'  # should this be a command line parameter?
 rgm_full_path = '/home/mfischer/code/rgm/rgm' # ditto?
