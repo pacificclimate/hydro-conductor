@@ -18,7 +18,7 @@ import h5py
 from dateutil.relativedelta import relativedelta
 
 from conductor.vegparams import VegParams
-from conductor.vic_globals import get_global_parms, update_global_parms, write_global_parms_file
+from conductor.vic_globals import Global
 
 vic_full_path = '/home/mfischer/code/vic/vicNl'  # should this be a command line parameter?
 rgm_full_path = '/home/mfischer/code/rgm/rgm' # ditto?
