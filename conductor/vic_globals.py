@@ -2,7 +2,7 @@
     all of the settings that affect VIC at run time
 '''
 
-__all__ = ['get_global_parms', 'update_global_parms', 'write_global_parms_file', 'Global']
+__all__ = ['Global']
 
 from os.path import isdir, isfile, basename, dirname
 from collections import OrderedDict
