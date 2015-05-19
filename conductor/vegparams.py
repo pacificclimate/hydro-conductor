@@ -32,7 +32,7 @@ class VegParams(object):
 
     def __init__(self, veg_parm_file=None):
         self.cells = OrderedDict()
-        self.residual_area_fracs = {}
+        self.area_frac_non_glacier = {}
         if veg_parm_file:
             self.load(veg_parm_file)
 
@@ -95,46 +95,68 @@ class VegParams(object):
                         writer.writerow(line)
                         print(' '.join(map(str, line)))
 
-   def init_residual_area_fracs(self, snb_parms):
+    def init_non_glacier_area_fracs(self, snb_parms):
         """ Reads the initial snow band area fractions and glacier vegetation (HRU) 
-            tile area fractions and calculates the initial residual area fractions 
+            tile area fractions and calculates the initial non-glacier area fractions 
         """
-        print('VegParams.init_residual_area_fracs()...')
+        print('VegParams.init_non_glacier_area_fracs()...')
         for cell in self.cells:
             print('cell: {}'.format(cell))
-            self.residual_area_fracs[cell] = {}
-            for band in self.cells[cell]:
+            area_frac_non_glacier[cell] = {}
+            for band, band_idx in enumerate(self.cells[cell]):
                 print('band: {}'.format(band))
                 glacier_exists = False
                 for line_idx, line in enumerate(self.cells[cell][band]):
                     print('line: {}'.format(line))
                     if line[0] == self.glacier_id:
                         glacier_exists = True
-                        self.residual_area_fracs[cell][band] = snb_parms[cell][0][int(band)] - float(self.cells[cell][band][line_idx][1])
-                        print('Glacier exists in this band. residual_area_fracs[{}][{}] = {} - {} = {}'.format(cell, band, snb_parms[cell][0][int(band)], float(self.cells[cell][band][line_idx][1]), self.residual_area_fracs[cell][band]))
-                        if self.residual_area_fracs[cell][band] < 0:
-                            print('init_residual_area_fracs(): Error: Calculated a negative residual area fraction for cell {}, band {}. The sum of vegetation tile fraction areas for a given band in the Vegetation Parameter File must be equal to the area fraction for that band in the Snow Band File. Exiting.\n'.format(cell, band))
-                            sys.exit(0)
+                        area_frac_non_glacier[cell][band] = snb_parms.cells[cell].area_fracs[band_idx] - float(self.cells[cell][band][line_idx][1])
+                        print('Glacier exists in this band. area_frac_non_glacier[{}][{}] = {} - {} = {}'\
+                            .format(cell, band, snb_parms.cells[cell].area_fracs[band_idx], \
+                                float(self.cells[cell][band][line_idx][1], area_frac_non_glacier[cell][band_idx])))
                         break
-                if not glacier_exists:
-                    self.residual_area_fracs[cell][band] = snb_parms[cell][0][int(band)]
-                    print('No glacier in this band.  residual_area_fracs[{}][{}] = {}'.format(cell, band, self.residual_area_fracs[cell][band]))
+                    # add condition here for open ground and get initial A_open?
+                    # if line[0] == self.open_ground_id:
+                        #open_ground_exists = True
+                        #area_frac_open_ground[cell][band] = snb_parms.cells[cell].area_fracs[band_idx] - float(self.cells[cell][band][line_idx][1])
 
-    def update(self, area_frac_bands, area_frac_glacier):
+                if not glacier_exists:
+                    area_frac_non_glacier[cell][band] = snb_parms.cells[cell].area_fracs[band_idx]
+                    print('No glacier in this band.  area_frac_non_glacier[{}][{}] = {}'.format(cell, band, area_frac_non_glacier[cell][band_idx]))
+        return area_frac_non_glacier
+
+    def update(self, snb_parms, old_area_frac_glacier, new_area_frac_glacier, area_frac_non_glacier):
         """ Updates vegetation parameters for all VIC grid cells by applying calculated changes 
             in glacier area fractions across all elevation bands 
         """
         print('VegParams.update()...')
         for cell in self.cells:
             print('cell: {}'.format(cell))
-            for band in self.cells[cell]:
-                if area_frac_bands[cell][int(band)] > 0: # If we (still) have anything in this elevation band
-                    new_residual_area_frac = area_frac_bands[cell][int(band)] - area_frac_glacier[cell][int(band)]
-                    delta_residual = self.residual_area_fracs[cell][band] - new_residual_area_frac
+            for band, band_idx in enumerate(self.cells[cell]):
+                if snb_parms.cells[cell].area_fracs[band_idx] > 0: # If we (still) have anything in this elevation band
+                    if new_area_frac_glacier is not None:
+                        # TODO: need to handle case where a band has been created since last iteration, 
+                        # thus old_area_frac_glacier[cell][band_idx] will not exist.  
+                        # This should probably be within VegParams class, with a create_band() method like SnbParams has
+                        delta_glacier_area_frac = new_area_frac_glacier[cell][band_idx] - old_area_frac_glacier[cell][band_idx]
+                    # Update if there was a change in glacier area, or if this is the initialization phase
+                    if (delta_glacier_area_frac != 0) or (new_area_frac_glacier is None):
+                        if new_area_frac_glacier is None: # initialization case
+                            new_area_frac_glacier[cell][band_idx] = 0
+                        
+                        new_area_frac_non_glacier = snb_parms.cells[cell].area_fracs[band_idx] - new_area_frac_glacier[cell][band_idx]
+                        residual_area_frac = new_area_frac_non_glacier - area_frac_non_glacier[cell][band_idx]
+                        # Set area_frac_non_glacier[cell][band_idx] to new value for next iteration
+                        area_frac_non_glacier[cell][band_idx] = new_area_frac_non_glacier
+
+                        # Now need to apply changes to open ground area fraction
+
+
                     veg_types = [] # identify and temporarily store vegetation types (HRUs) currently existing within this band
                     bare_soil_exists = False # temporary boolean to identify if bare soil vegetation type (HRU) currently exists within this band
                     glacier_exists = False # temporary boolean to identify if glacier vegetation type (HRU) currently exists within this band 
-                    sum_previous_band_area_fracs = 0 # sum of band vegetation tile (HRU) area fractions in the last iteration
+                    #sum_previous_band_area_fracs = 0 # sum of band vegetation tile (HRU) area fractions in the last iteration
+      # TODO: change this to look at delta area_frac_glacier instead, not delta_residual
                     if delta_residual < 0: # glacier portion of this band has SHRUNK; update its area fraction and increase the bare soil component accordingly
                         print('\nGlacier portion of band {} has SHRUNK (delta_residual = {})'.format(band, delta_residual))
                         for line_idx, line in enumerate(self.cells[cell][band]): 

@@ -4,7 +4,8 @@
    which captures all the elevation band information
    for all VIC grid cells in a given model run.
    The format of the snow band file is one line per VIC cell:
-   cell_id_0 area_frac_band_0 ... area_frac_band_N median_elev_band_0 ... median_elev_band_N Pfactor_band_0 ... Pfactor_band_N
+   cell_id_0 area_frac_band_0 ... area_frac_band_N median_elev_band_0 ... median_elev_band_N
+   where N should be equal to num_snow_bands
 '''
 
 __all__ = ['get_snb_parms', 'create_band_map', 'update_snb_parms', 'write_snb_parms_file']

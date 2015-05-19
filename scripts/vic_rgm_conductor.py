@@ -344,17 +344,16 @@ def main():
     glacier_mask = np.loadtxt(init_glacier_mask_file, skiprows=5)
 
     # Apply the initial glacier mask and modify the band and glacier area fractions accordingly
-    # NOTE: the following will not work for initial case.  We need a special function as per whiteboard photo May 13
-    #area_frac_bands, area_frac_glacier = update_band_areas(cell_ids, cell_areas, snb_parms, num_snow_bands, band_size, pixel_to_cell_map,
-    #                  surf_dem_initial, num_rows_dem, num_cols_dem, glacier_mask)
+    # NOTE: the following needs to be updated to handle initial case + general case. See whiteboard May 14
+    old_area_frac_glacier = update_band_areas(cell_ids, cell_areas, snb_parms, num_snow_bands, band_size, pixel_to_cell_map,
+                      surf_dem_initial, num_rows_dem, num_cols_dem, glacier_mask)
     
-    # Calculate the initial residual (i.e. non-glacier) area fractions for all bands in all cells
-    # NOTE: similar to above. 
-    #veg_parms.init_residual_area_fracs(snb_parms)
+    # Calculate the initial non-glacier area fractions for all bands in all cells
+    area_frac_non_glacier = veg_parms.init_non_glacier_area_fracs(snb_parms)
     
     # Update the vegetation parameters vis-a-vis the application of the initial glacier mask, and write to new temporary file temp_vpf
     #update_veg_parms(cell_ids, veg_parms, area_frac_bands, area_frac_glacier, residual_area_fracs)
-    veg_parms.update(area_frac_bands, area_frac_glacier)
+    veg_parms.update(snb_parms, old_area_frac_glacier, None)
     temp_vpf = temp_files_path + 'vpf_temp_' + str(year) + '.txt'
     veg_parms.save(temp_vpf)
     
@@ -428,11 +427,13 @@ def main():
             write_grid_to_gsa_file(glacier_mask, glacier_mask_file)
         
         # 8. Update areas of each elevation band in each VIC grid cell, and calculate area fractions
-        area_frac_bands, area_frac_glacier = update_band_areas(cell_ids, cell_areas, snb_parms, num_snow_bands, band_size, pixel_to_cell_map, rgm_surf_dem_out, num_rows_dem, num_cols_dem, glacier_mask)
+        new_area_frac_glacier = update_band_areas(cell_ids, cell_areas, snb_parms, num_snow_bands, band_size, pixel_to_cell_map, rgm_surf_dem_out, num_rows_dem, num_cols_dem, glacier_mask)
 
         # 9. Update vegetation parameters and write to new temporary file temp_vpf
         #update_veg_parms(cell_ids, veg_parms, area_frac_bands, area_frac_glacier, residual_area_fracs)
-        veg_parms.update(area_frac_bands, area_frac_glacier, residual_area_fracs)
+        veg_parms.update(snb_parms, old_area_frac_glacier, new_area_frac_glacier, area_frac_non_glacier)
+        # Update old_area_frac_glacier to new_area_frac_glacier for next iteration
+        old_area_frac_glacier = new_area_frac_glacier
         temp_vpf = temp_files_path + 'vpf_temp_' + str(year) + '.txt'
         veg_parms.save(temp_vpf)
 
