@@ -11,9 +11,11 @@ from datetime import date, timedelta
 import os
 import subprocess
 import sys
+from warnings import warn
 
 import numpy as np
 import h5py
+from dateutil.relativedelta import relativedelta
 
 from conductor.vegparams import VegParams
 from conductor.vic_globals import get_global_parms, update_global_parms, write_global_parms_file
@@ -24,6 +26,9 @@ temp_files_path = '/home/mfischer/vic_dev/out/testing/temp_out_files/' # ditto?
 # set it as default = os.env(tmp)
 
 BARE_SOIL_ID = '19'
+
+one_year = relativedelta(years=+1)
+one_day = relativedelta(days=+1)
 
 class MyParser(argparse.ArgumentParser):
     def error(self, message):
@@ -305,6 +310,43 @@ def write_snb_parms_file(temp_snb, snb_parms, area_frac_bands):
             for pfactor in snb_parms[cell][2]:
                 line.append(pfactor) # append existing Pfactor values
             writer.writerow(line)
+
+def run_ranges(startdate, enddate, glacier_start):
+    '''Generator which yields date ranges (a 2-tuple) that represent
+       times at which to begin and end a VIC run.
+       startdate and enddate are the overall boundaries of the
+       simulation. glacier_start is a date some time after startdate
+       that *should* be aligned with the water year (this code mostly
+       assumes that that is the case).
+       arguments (1950/01/01, 1995/12/31, 1955/10/01) would yield a
+       sequence as follows:
+      (1950/01/01, 1956/09/30)
+      (1956/10/01, 1957/09/30)
+      (1957/10/01, 1958/09/30)
+      (1958/10/01, 1959/09/30)
+      ...
+      (1994/10/01, 1995/09/30)
+      Note that the sequence will and should end before the specified
+      end date, aligned with the water year.
+    '''
+    if not ((glacier_start.month, glacier_start.day) == (10, 1)):
+        warn("run_ranges assumes that glacier_start is aligned to the water year"
+             "(October 1 - September 30). You have configured glacier_start to"
+             "{}. Only do this if you *really* know what you're doing"\
+             .format(glacier_start.isoformat()))
+
+    # First iteration doesn't include glaciers and ends at the water year
+    t0 = startdate
+    tn = glacier_start - one_day + one_year
+    yield t0, tn
+    # Secord itration aligned to water year, include glaciers
+    # All subsequent iterations are aligned to water year and include glacier
+    while tn < enddate:
+        t0 = tn + one_day
+        tn = t0 - one_day + one_year
+        # don't let the simulation proceed beyond the enddate
+        tn = min(tn, enddate)
+        yield t0, tn
 
 # Main program
 def main():
