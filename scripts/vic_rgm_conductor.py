@@ -358,29 +358,22 @@ def main():
         glacier_root_parms_file, band_size = parse_input_parms()
 
     # Get all initial VIC global parameters from the global parameter file
-    global_parms = get_global_parms(vic_global_file)
+    global_parms = Global(vic_global_file)
 
-    # Get entire time range of coupled VIC-RGM run from the initial VIC global file
-    start_date = date(global_parms['STARTYEAR'], global_parms['STARTMONTH'], global_parms['STARTDATE'])
-    end_date = date(global_parms['ENDYEAR'], global_parms['ENDMONTH'], global_parms['ENDDATE'])
-    # Set the initial year for the coupled VIC-RGM simulation
-    year = start_date.year
-    # Get the date that glacier accumulation is to start (at the end of VIC "spin-up")
-    glacier_accum_start_date = date(global_parms['GLACIER_ACCUM_START_YEAR'],
-                                    global_parms['GLACIER_ACCUM_START_MONTH'],
-                                    global_parms['GLACIER_ACCUM_START_DAY'])
+    assert global_parms.state_format == 'NETCDF', \
+        "{} only supports NetCDF input statefile input as opposed "\
+        "to the specified {}. Please change change this in your "\
+        "global file {}".format(__name__, global_parms.state_format,
+                                vic_global_file)
 
     # Initial VIC output state filename prefix is determined by STATENAME in the global file
-    state_filename_prefix = global_parms['STATENAME']
-    # Numeric code indicating a glacier vegetation tile (HRU)
-    GLACIER_ID = global_parms['GLACIER_ID']
+    state_filename_prefix = global_parms.statename
 
     # Get VIC vegetation parameters and grid cell IDs from initial Vegetation Parameter File
-    veg_parm_file = global_parms['VEGPARAM']
-    veg_parms, cell_ids = get_veg_parms(veg_parm_file)
+    veg_parms, cell_ids = get_veg_parms(global_parms.vegparm)
 
     # Get VIC snow/elevation band parameters from initial Snow Band File
-    num_snow_bands, snb_file = global_parms['SNOW_BAND'].split()
+    num_snow_bands, snb_file = global_parms.snow_band.split()
     num_snow_bands = int(num_snow_bands)
     snb_parms = get_snb_parms(snb_file, num_snow_bands)
 
@@ -432,47 +425,40 @@ def main():
     # Update the vegetation parameters vis-a-vis the application of the initial glacier mask, and write to new temporary file temp_vpf
     #update_veg_parms(cell_ids, veg_parms, area_frac_bands, area_frac_glacier, residual_area_fracs)
     veg_parms.update(area_frac_bands, area_frac_glacier)
-    temp_vpf = temp_files_path + 'vpf_temp_' + str(year) + '.txt'
+    temp_vpf = temp_files_path + 'vpf_temp_' + global_parms.startdate.isoformat() + '.txt'
     veg_parms.save(temp_vpf)
     input('')
     # Update snow band parameters vis-a-vis the application of the initial glacier mask, and write to new temporary file temp_snb
     update_snb_parms(snb_parms, area_frac_bands)
-    temp_snb = temp_files_path + 'snb_temp_' + str(year) + '.txt'
+    temp_snb = temp_files_path + 'snb_temp_' + global_parms.startdate.isoformat() + '.txt'
     write_snb_parms_file(temp_snb, snb_parms, area_frac_bands)
     input('')
 
     # Run the coupled VIC-RGM model for the time range specified in the VIC global parameters file
-    while year < end_date.year:
-        print('\nRunning year: {}'.format(year))
+    time_iterator = run_ranges(global_parms.startdate,
+                               global_parms.enddate,
+                               global_parms.glacier_start)
+    for start, end in time_iterator:
+        print('\nRunning VIC from {} to {}'.format(start, end))
 
         # 1. Write / Update temporary Global Parameters File, temp_gpf
-        temp_gpf = temp_files_path + 'gpf_temp_' + str(year) + '.txt'
-        #update_global_parms(global_parms, temp_vpf, temp_snb, num_snow_bands, \
-        #    start_date, end_date, init_state_file, state_date)
-        if year == start_date.year:
-            # set global parameters for VIC "spin-up", from start_date.year to the end of the first glacier accumulation
-            init_state_file = None
-            temp_end_date = date(glacier_accum_start_date.year+1, glacier_accum_start_date.month, glacier_accum_start_date.day) - timedelta(days=1)
-            update_global_parms(global_parms, temp_vpf, temp_snb, num_snow_bands, \
-                start_date, temp_end_date, init_state_file, temp_end_date)
-            # Fast-forward year to what it will be when VIC finishes its spin-up
-            year = temp_end_date.year
-        else:
-            temp_start_date = date(year, glacier_accum_start_date.month, glacier_accum_start_date.day)
-            temp_end_date = date(year+1, glacier_accum_start_date.month, glacier_accum_start_date.day) - timedelta(days=1)
-            # set/create INIT_STATE parm as the last written VIC state_file (parm does not exist in the first read-in of global_parms)
-            init_state_file = state_filename_prefix + "_" + str(year-1) + str(temp_end_date.month) + str(temp_end_date.day)
-            update_global_parms(global_parms, temp_vpf, temp_snb, num_snow_bands, \
-                temp_start_date, temp_end_date, init_state_file, temp_end_date)
+        temp_gpf = temp_files_path + 'gpf_temp_{}.txt'.format(start.isoformat())
 
-        write_global_parms_file(global_parms, temp_gpf)
+        # set global parameters for this VIC run
+        global_parms.vegparm = temp_vpf
+        global_parms.snow_band = '{} {}'.format(temp_snb, num_snow_bands)
+        global_parms.startdate = start
+        global_parms.enddate = end
+        global_parms.statedate = end
+
+        global_parms.write(temp_gpf)
         print('invoking VIC with global parameter file {}'.format(temp_gpf))
 
         # 2. Run VIC for a year.  This will save VIC model state at the end of the year, along with a Glacier Mass Balance (GMB) polynomial for each cell
         subprocess.check_call([vic_full_path, "-g", temp_gpf], shell=False, stderr=subprocess.STDOUT)
 
         # 3. Open VIC NetCDF state file and get the most recent GMB polynomial for each grid cell being modeled
-        state_file = state_filename_prefix + "_" + str(temp_end_date.year) + str(temp_end_date.month) + str(temp_end_date.day)
+        state_file = state_filename_prefix + "_" + start.isoformat() ## FIXME
         print('opening VIC state file {}'.format(state_file))
         state = h5py.File(state_file, 'r+')
         gmb_polys = get_mass_balance_polynomials(state, state_file, cell_ids)
@@ -480,11 +466,10 @@ def main():
         # 4. Translate mass balances using grid cell GMB polynomials and current veg_parm_file into a 2D RGM mass balance grid (MBG)
         mass_balance_grid = mass_balances_to_rgm_grid(gmb_polys, pixel_to_cell_map, num_rows_dem, num_cols_dem, cell_ids)
         # write Mass Balance Grid to ASCII file to direct the RGM to use as input
-        mbg_file = temp_files_path + 'mass_balance_grid_' + str(year) + '.gsa'
+        mbg_file = temp_files_path + 'mass_balance_grid_' + start.isoformat() + '.gsa'
         write_grid_to_gsa_file(mass_balance_grid, mbg_file, num_cols_dem, num_rows_dem, dem_xmin, dem_xmax, dem_ymin, dem_ymax)
 
         # 5. Run RGM for one year, passing MBG, BDEM, SDEM
-        #subprocess.check_call([rgm_full_path, "-p", rgm_params_file, "-b", bed_dem_file, "-d", sdem_file, "-m", mbg_file, "-o", temp_files_path, "-s", "0", "-e", "0" ], shell=False, stderr=subprocess.STDOUT)
         subprocess.check_call([rgm_full_path, "-p", rgm_params_file, "-b", bed_dem_file, "-d", surf_dem_in_file, "-m", mbg_file, "-o", temp_files_path, "-s", "0", "-e", "0" ], shell=False, stderr=subprocess.STDOUT)
         # remove temporary files if not saving for offline inspection
         if not output_trace_files:
@@ -493,7 +478,7 @@ def main():
 
         # 6. Read in new Surface DEM file from RGM output
         rgm_surf_dem_out = np.loadtxt(rgm_surf_dem_out_file, skiprows=5)
-        temp_surf_dem_file = temp_files_path + 'rgm_surf_dem_out_' + str(year) + '.gsa'
+        temp_surf_dem_file = temp_files_path + 'rgm_surf_dem_out_' + start.isoformat() + '.gsa'
         os.rename(rgm_surf_dem_out_file, temp_surf_dem_file)
         # this will be fed back into RGM on next time step
         surf_dem_in_file = temp_surf_dem_file
@@ -501,7 +486,7 @@ def main():
         # 7. Update glacier mask
         glacier_mask = update_glacier_mask(rgm_surf_dem_out, bed_dem, num_rows_dem, num_cols_dem)
         if output_trace_files:
-            glacier_mask_file = temp_files_path + 'glacier_mask_' + str(year) + '.gsa'
+            glacier_mask_file = temp_files_path + 'glacier_mask_' + start.isoformat() + '.gsa'
             write_grid_to_gsa_file(glacier_mask, glacier_mask_file)
         
         # 8. Update areas of each elevation band in each VIC grid cell, and calculate area fractions
@@ -510,20 +495,21 @@ def main():
         # 9. Update vegetation parameters and write to new temporary file temp_vpf
         #update_veg_parms(cell_ids, veg_parms, area_frac_bands, area_frac_glacier, residual_area_fracs)
         veg_parms.update(area_frac_bands, area_frac_glacier, residual_area_fracs)
-        temp_vpf = temp_files_path + 'vpf_temp_' + str(year) + '.txt'
+        temp_vpf = temp_files_path + 'vpf_temp_' + start.isoformat() + '.txt'
         veg_parms.save(temp_vpf)
 
         # 10. Update snow band parameters and write to new temporary file temp_snb
         update_snb_parms(snb_parms, area_frac_bands)
-        temp_snb = temp_files_path + 'snb_temp_' + str(year) + '.txt'
+        temp_snb = temp_files_path + 'snb_temp_' + start.isoformat() + '.txt'
         write_snb_parms_file(temp_snb, snb_parms, area_frac_bands)
 
-        # 11 Update HRUs in VIC state file 
+        # 11 Update HRUs in VIC state file
             # don't forget to close the state file
-        
-        # Increment the year for the next loop iteration
-        year += 1
 
-# Main program invocation.  
+        # Get ready for the next loop
+        global_parms.init_state = "{}_{}.txt".format(global_parms.statename, end.strftime("%Y%m%d"))
+        global_parms.statedate = end
+
+# Main program invocation.
 if __name__ == '__main__':
     main()
