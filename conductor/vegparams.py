@@ -14,7 +14,7 @@
 from collections import OrderedDict
 import csv
 
-__all__ = ['VegParams']
+__all__ = ['VegParams', 'VegTypeParms', 'BandInfo']
 
 def leaves(d):
     '''Return the number of leaves in a multilevel dict
@@ -25,7 +25,19 @@ def leaves(d):
         return len(d)
     else:
         return 1
-                    
+
+class BandInfo(object):
+    def __init__(self, area_frac_glacier, area_frac_open_ground, veg_type, area_frac, root_zone_parms ):
+        self.area_frac_glacier = area_frac_glacier # this is per-band, and should have an initialization function, and gets updated during update()
+        self.area_frac_open_ground = area_frac_open_ground # this is per-band, and should have an initialization function, and gets updated during update()
+        self.veg_tile_parms = [ VegTileParms(veg_type, area_frac, root_zone_parms) ]
+
+class VegTileParms(object):
+    def __init__(self, veg_type, area_frac, root_zone_parms):
+        self.veg_type = veg_type
+        self.area_frac = area_frac
+        self.root_zone_parms = root_zone_parms
+                   
 class VegParams(object):
     glacier_id = '22'
     bare_soil_id ='19'
@@ -61,11 +73,15 @@ class VegParams(object):
         cell = OrderedDict()
         for _ in range(int(num_veg)):
             line = f.readline()
-            band_id = line.split()[-1]
+            split_line = line.split()
+            veg_type = split_line[0]
+            area_frac = split_line[1]
+            root_zone_parms = split_line[2:8]
+            band_id = split_line[8]
             try:
-                cell[band_id].append(line.split())
+                cell[band_id].veg_tile_parms.append(VegTileParms(veg_type, area_frac, root_zone_parms))
             except KeyError:
-                cell[band_id] = [ (line.split()) ]
+                cell[band_id] = BandInfo(None, None, veg_type, area_frac, root_zone_parms)
         return cell_id, cell
 
     def load(self, filename):
@@ -95,6 +111,7 @@ class VegParams(object):
                         writer.writerow(line)
                         print(' '.join(map(str, line)))
 
+#NOTE: it seems we only need to init and track glacier_area_frac for each band, and can deduce non_glacier_area_frac at each update
     def init_non_glacier_area_fracs(self, snb_parms):
         """ Reads the initial snow band area fractions and glacier vegetation (HRU) 
             tile area fractions and calculates the initial non-glacier area fractions 
