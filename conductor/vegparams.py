@@ -16,16 +16,6 @@ import csv
 
 __all__ = ['VegParams', 'VegTypeParms', 'BandInfo']
 
-def leaves(d):
-    '''Return the number of leaves in a multilevel dict
-    '''
-    if hasattr(d, 'values'):
-        return sum([leaves(value) for value in d.values()])
-    elif hasattr(d, '__len__'):
-        return len(d)
-    else:
-        return 1
-
 class BandInfo(object):
     def __init__(self, area_frac_glacier, area_frac_open_ground, veg_type, area_frac, root_zone_parms ):
         self.area_frac_glacier = area_frac_glacier # this is per-band, and should have an initialization function, and gets updated during update()
@@ -59,8 +49,13 @@ class VegParams(object):
         '''dictionary reporting the total number vegetation tiles over each
            cell. This number is the sum of all vegetation tiles in all bands.
         '''
-        # Count is two levels deep
-        return OrderedDict( (cell_id, leaves(cell)) for cell_id, cell in self.cells.items() )
+        count = OrderedDict()
+        for cell in self.cells:
+            count[cell] = 0
+            for band in self.cells[cell]:
+                for tile in self.cells[cell][band].veg_tile_parms:
+                    count[cell]+=1
+        return count
 
     @staticmethod
     def read_one_cell(f):
@@ -78,6 +73,12 @@ class VegParams(object):
             area_frac = split_line[1]
             root_zone_parms = split_line[2:8]
             band_id = split_line[8]
+            # TODO: if glacier_root_zone_parms or open_ground_zone_parms were provided at command line, 
+            # override root_zone_parms here:
+            #if veg_type is glacier_id and glacier_root_zone_parms:
+            #    root_zone_parms = glacier_root_zone_parms
+            #elif veg_type is open_ground and open_ground_zone_parms:
+            #    root_zone_parms = open_ground_zone_parms
             try:
                 cell[band_id].veg_tile_parms.append(VegTileParms(veg_type, area_frac, root_zone_parms))
             except KeyError:
@@ -107,7 +108,11 @@ class VegParams(object):
             for cell in self.cells:
                 writer.writerow([cell, self.num_veg_tiles[cell]])
                 for band in self.cells[cell]:
-                    for line in self.cells[cell][band]:
+                    for tile_idx, tile in enumerate(self.cells[cell][band].veg_tile_parms):
+                        line = [ self.cells[cell][band].veg_tile_parms[tile_idx].veg_type, \
+                            self.cells[cell][band].veg_tile_parms[tile_idx].area_frac ] \
+                            + self.cells[cell][band].veg_tile_parms[tile_idx].root_zone_parms \
+                            + [ band ]
                         writer.writerow(line)
                         print(' '.join(map(str, line)))
 
