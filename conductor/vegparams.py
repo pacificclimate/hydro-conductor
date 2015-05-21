@@ -1,10 +1,13 @@
 '''vegparams.py
 
    This module provides a single class for reading/writing the "Vegetation
-   Parameter File", a delightfully custom data serialization format.
+   Parameter File", a delightfully custom data serialization format, and
+   provides member functions to update the vegetation parameters at runtime
+   as per changes due to glacier evolution vis-a-vis RGM output.
+
    One can use the module as such:
 
-   >>> vp = VegParams(my_file)
+   >>> vp = VegParams(glacier_id, glacier_root_zone_parms, open_ground_id, open_ground_root_zone_parms)
 
    Then the following attributes will be accessible:
 
@@ -14,31 +17,34 @@
 from collections import OrderedDict
 import csv
 
-__all__ = ['VegParams', 'VegTileParms', 'BandInfo']
+__all__ = ['VegParams', 'VegTileParams', 'BandInfo']
 
 class BandInfo(object):
+    """ Class capturing vegetation parameters at the elevation band level
+    """
     def __init__(self, area_frac_glacier, area_frac_open_ground, area_frac_non_glacier, veg_type, area_frac, root_zone_parms ):
         self.area_frac_glacier = area_frac_glacier # this is per-band, and should have an initialization function, and gets updated during update()
         self.area_frac_non_glacier = area_frac_non_glacier
         self.area_frac_open_ground = area_frac_open_ground # this is per-band, and should have an initialization function, and gets updated during update()
-        self.veg_tile_parms = [ VegTileParms(veg_type, area_frac, root_zone_parms) ]
+        self.veg_tile_parms = [ VegTileParams(veg_type, area_frac, root_zone_parms) ]
 
-class VegTileParms(object):
+class VegTileParams(object):
+    """ Class capturing vegetation parameters at the single vegetation tile (HRU) level 
+        (of which there can be many per band)
+    """
     def __init__(self, veg_type, area_frac, root_zone_parms):
         self.veg_type = veg_type
         self.area_frac = area_frac
         self.root_zone_parms = root_zone_parms
                    
 class VegParams(object):
-    # NOTE: these 4 parameters should probably be set when a class object is instantiated, 
-    # as Markus has specified that open_ground_id be a global parameter and the glacier/open 
-    # ground root_zone_parms be options at invocation
-    glacier_id = '22'
-    open_ground_id ='19'
-    glacier_root_zone_parms = ''
-    open_ground_root_zone_parms = ''
-
-    def __init__(self, veg_parm_file=None):
+    """ Class capturing all vegetation parameters information needed in the coupled VIC-RGM model
+    """
+    def __init__(self, veg_parm_file, glacier_id, glacier_root_zone_parms, open_ground_id, open_ground_root_zone_parms):
+        self.glacier_id = glacier_id
+        self.open_ground_id = open_ground_id
+        self.glacier_root_zone_parms = glacier_root_zone_parms
+        self.open_ground_root_zone_parms = open_ground_root_zone_parms
         self.cells = OrderedDict()
         self.area_frac_non_glacier = {}
         if veg_parm_file:
@@ -79,14 +85,14 @@ class VegParams(object):
             area_frac = split_line[1]
             root_zone_parms = split_line[2:8]
             band_id = split_line[8]
-            # TODO: if glacier_root_zone_parms or open_ground_zone_parms were provided at command line, 
+            # If glacier_root_zone_parms or open_ground_root_zone_parms were provided at command line, 
             # override root_zone_parms here:
-            #if veg_type is glacier_id and glacier_root_zone_parms:
-            #    root_zone_parms = glacier_root_zone_parms
-            #elif veg_type is open_ground and open_ground_zone_parms:
-            #    root_zone_parms = open_ground_zone_parms
+            if self.glacier_root_zone_parms and (veg_type == glacier_id):
+                root_zone_parms = self.glacier_root_zone_parms
+            elif self.open_ground_root_zone_parms and (veg_type == open_ground_id):
+                root_zone_parms = self.open_ground_zone_parms
             try:
-                cell[band_id].veg_tile_parms.append(VegTileParms(veg_type, area_frac, root_zone_parms))
+                cell[band_id].veg_tile_parms.append(VegTileParams(veg_type, area_frac, root_zone_parms))
             except KeyError:
                 # TODO: check that it is OK to set these first two init parms to 0
                 cell[band_id] = BandInfo(0, 0, None, veg_type, area_frac, root_zone_parms)
@@ -124,7 +130,7 @@ class VegParams(object):
     def create_tile(self, cell_id, band_id, veg_type, area_frac, root_zone_parms):
         """ Creates a new vegetation tile of veg_type within a given cell and band in a VegParams object
         """
-        new_tile = VegTileParms(veg_type, area_frac, root_zone_parms)
+        new_tile = VegTileParams(veg_type, area_frac, root_zone_parms)
         # Append new_tile to existing list of tiles for this band, and sort the list ascending by veg_type
         self.cells[cell_id][band_id].veg_tile_parms.append(new_tile)
         self.cells[cell_id][band_id].veg_tile_parms.sort(key=lambda x: x.veg_type)
@@ -145,19 +151,22 @@ class VegParams(object):
         open_ground_updated = False
         # Iterate through all existing vegetation tiles in this band and update their area fractions
         for tile in self.cells[cell_id][band_id].veg_tile_parms:
+            # Update glacier tile, if it exists
             if self.cells[cell_id][band_id].veg_tile_parms[tile].veg_type == self.glacier_id:
                 # NOTE: we allow glacier area fractions of 0 for the purposes of VIC's shadow glacier requirements.
                 # However, by never deleting a glacier tile we may end up with shadow glaciers across many bands
                 # by the end of a run (even if glacier only appears in some bands "momentarily") 
                 self.cells[cell_id][band_id].veg_tile_parms[tile].area_frac = self.cells[cell_id][band_id].area_frac_glacier
                 glacier_updated = True
+            # Update open ground tile, if it exists
             elif self.cells[cell_id][band_id].veg_tile_parms[tile].veg_type == self.open_ground_id:
                 if self.cells[cell_id][band_id].area_frac_open_ground > 0:
                     self.cells[cell_id][band_id].veg_tile_parms[tile].area_frac = self.cells[cell_id][band_id].area_frac_open_ground
                 else: # remove the tile so it is not written to the veg parameters file
                     delete_tile(cell_id, band_id, self.open_ground_id)
                 open_ground_updated = True
-            else: # for all other vegetation types
+            # Update all other vegetation type tiles
+            else:
                 # Calculate change in tile area fraction & update
                 delta_area_tile = delta_area_vegetated * (self.cells[cell_id][band_id].veg_tile_parms[tile].area_frac / veg_scaling_divisor)
                 new_tile_area_frac = self.cells[cell_id][band_id].veg_tile_parms[tile].area_frac + delta_area_tile

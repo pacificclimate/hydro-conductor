@@ -23,8 +23,6 @@ rgm_full_path = '/home/mfischer/code/rgm/rgm' # ditto?
 temp_files_path = '/home/mfischer/vic_dev/out/testing/temp_out_files/' # ditto?
 # set it as default = os.env(tmp)
 
-BARE_SOIL_ID = '19'
-
 class MyParser(argparse.ArgumentParser):
     def error(self, message):
         sys.stderr.write('error: %s]n' % message)
@@ -41,8 +39,8 @@ def parse_input_parms():
     parser.add_argument('--pixel-map', action="store", dest="pixel_cell_map_file", type=str, help = 'file name and path of the RGM Pixel to VIC Grid Cell mapping file')
     parser.add_argument('--glacier-mask', action="store", dest="init_glacier_mask_file", type=str, help = 'file name and path of the file containing the initial glacier mask (GSA format)')
     parser.add_argument('--trace-files', action="store_true", default=False, dest="trace_files", help = 'write out persistent GSA format surface DEMs and glacier masks, and 2D mass balance grid files, on each time step for offline inspection')
-    parser.add_argument('--bare-soil-root', action="store", dest="open_ground_root_zone_file", type=str, default=None, help = 'file name and path of one-line text file containing 6 custom root parameters for the bare soil vegetation type / HRU (same format as a vegetation tile line in the vegetation parameters file).  Default: 0.10  1.00  0.10  0.00  0.10  0.00')
-    parser.add_argument('--glacier-root', action="store", dest="glacier_root_zone_file", type=str, default=None, help = 'file name and path of one-line text file containing 6 custom root parameters for the glacier vegetation type / HRU (same format as a vegetation tile line in the vegetation parameters file).  Default: 0.10  1.00  0.10  0.00  0.10  0.00')
+    parser.add_argument('--open-ground-root-zone', action="store", dest="open_ground_root_zone_file", type=str, default=None, help = 'file name and path of one-line text file containing 6 custom root parameters for the bare soil vegetation type / HRU (same format as a vegetation tile line in the vegetation parameters file).  Default: 0.10  1.00  0.10  0.00  0.10  0.00')
+    parser.add_argument('--glacier-root-zone', action="store", dest="glacier_root_zone_file", type=str, default=None, help = 'file name and path of one-line text file containing 6 custom root parameters for the glacier vegetation type / HRU (same format as a vegetation tile line in the vegetation parameters file).  Default: 0.10  1.00  0.10  0.00  0.10  0.00')
     parser.add_argument('--band-size', action="store", dest="band_size", type=int, default=100, help = 'vertical size of VIC elevation bands in metres (default = 100m)')
 
     if len(sys.argv) == 1:
@@ -60,16 +58,25 @@ def parse_input_parms():
     glacier_root_zone_file = options.glacier_root_zone_file
     band_size = options.band_size
 
-    if not open_ground_root_zone_file:
-        open_ground_root_zone_parms = '0.10  1.00  0.10  0.00  0.10  0.00'
+    if open_ground_root_zone_file:
+        open_ground_root_zone_parms = np.loadtxt(options.open_ground_root_zone_file)
+        if len(open_ground_root_zone_parms) != 6:
+            print('Open ground root zone parameters file is malformed. Expected 6 space-separated numeric values on a single line. Exiting.\n')
+            sys.exit(0)
     else:
-        open_ground_root_zone = np.loadtxt(options.open_ground_root_zone_file)
-    if not glacier_root_zone_file:
-        glacier_root_zone_parms = '0.10  1.00  0.10  0.00  0.10  0.00'
-    else:
-        glacier_root_zone_parms = np.loadtxt(options.glacier_root_zone_file)
+        open_ground_root_zone_parms = None
 
-    return vic_global_file, rgm_params_file, surf_dem_in_file, bed_dem_file, pixel_cell_map_file, init_glacier_mask_file, output_trace_files, glacier_root_zone_file, band_size
+    if glacier_root_zone_file:
+        glacier_root_zone_parms = np.loadtxt(options.glacier_root_zone_file)
+        if len(glacier_root_zone_parms) != 6:
+            print('Glacier root zone parameters file is malformed. Expected 6 space-separated numeric values on a single line. Exiting.\n')
+            sys.exit(0)
+    else:
+        glacier_root_zone_parms = None
+
+    return vic_global_file, rgm_params_file, surf_dem_in_file, bed_dem_file, \
+        pixel_cell_map_file, init_glacier_mask_file, output_trace_files, \
+        glacier_root_zone_parms, open_ground_root_zone_parms, band_size
 
 def read_gsa_headers(dem_file):
     """ Opens and reads the header metadata from a GSA Digital Elevation Map
@@ -172,12 +179,12 @@ def write_grid_to_gsa_file(grid, outfilename, num_cols_dem, num_rows_dem, dem_xm
         for row in grid:
             writer.writerow(row)
 
-def get_veg_parms(veg_parm_file):
+def get_veg_parms(veg_parm_file, glacier_id, glacier_root_zone_parms, open_ground_id, open_ground_root_zone_parms):
     """Reads in a Vegetation Parameter File (VPF) and parses out VIC grid cell IDs,
        and creates and populates a VegParams object to store vegetation parameters
        for referencing, modifying, and writing back out to a new VPF for subsequent VIC iterations.
     """
-    vp = VegParams(veg_parm_file)
+    vp = VegParams(veg_parm_file, GLACIER_ID, glacier_root_zone_parms, OPEN_GROUND_ID, open_ground_root_zone_parms)
     return vp, vp.cell_ids
 
 def get_snb_parms(snb_parm_file, num_snow_bands, band_size):
@@ -290,7 +297,7 @@ def main():
     # Parse command line parameters
     vic_global_file, rgm_params_file, surf_dem_in_file, bed_dem_file, \
         pixel_cell_map_file, init_glacier_mask_file, output_trace_files, \
-        glacier_root_zone_file, band_size = parse_input_parms()
+        glacier_root_zone_parms, open_ground_root_zone_parms, band_size = parse_input_parms()
 
     # Get all initial VIC global parameters from the global parameter file
     global_parms = get_global_parms(vic_global_file)
@@ -307,12 +314,23 @@ def main():
 
     # Initial VIC output state filename prefix is determined by STATENAME in the global file
     state_filename_prefix = global_parms['STATENAME']
+
     # Numeric code indicating a glacier vegetation tile (HRU)
-    GLACIER_ID = global_parms['GLACIER_ID']
+    try:
+        GLACIER_ID = global_parms['GLACIER_ID']
+    except KeyError:
+        GLACIER_ID = '22'
+        print('No value for GLACIER_ID was provided in the VIC global file. Assuming default value of {}.'.format(GLACIER_ID))
+     # Numeric code indicating an open ground vegetation tile (HRU)
+    try:
+        OPEN_GROUND_ID = global_parms['OPEN_GROUND_ID']
+    except KeyError:
+        OPEN_GROUND_ID = '19'
+        print('No value for OPEN_GROUND_ID was provided in the VIC global file. Assuming default value of {}.'.format(OPEN_GROUND_ID))
 
     # Get VIC vegetation parameters and grid cell IDs from initial Vegetation Parameter File
     veg_parm_file = global_parms['VEGPARAM']
-    veg_parms, cell_ids = get_veg_parms(veg_parm_file)
+    veg_parms, cell_ids = get_veg_parms(veg_parm_file, GLACIER_ID, glacier_root_zone_parms, OPEN_GROUND_ID, open_ground_root_zone_parms)
 
     # Get VIC snow/elevation band parameters from initial Snow Band File
     num_snow_bands, snb_file = global_parms['SNOW_BAND'].split()
@@ -359,7 +377,7 @@ def main():
                       surf_dem_initial, num_rows_dem, num_cols_dem, glacier_mask)
     
     # Calculate the initial non-glacier area fractions for all bands in all cells
-    area_frac_non_glacier = veg_parms.init_non_glacier_area_fracs(snb_parms)
+    #area_frac_non_glacier = veg_parms.init_non_glacier_area_fracs(snb_parms)
     
     # Update the vegetation parameters vis-a-vis the application of the initial glacier mask, and write to new temporary file temp_vpf
     #update_veg_parms(cell_ids, veg_parms, area_frac_bands, area_frac_glacier, residual_area_fracs)
