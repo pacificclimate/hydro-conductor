@@ -87,7 +87,7 @@ class SnbParams(object):
         with open(filename, 'w') as f:
              writer = csv.writer(f, delimiter=' ')
              for cell in self.cells:
-                if len(self.cells[cell].area_fracs) < self.num_snow_bands:
+#                if len(self.cells[cell].area_fracs) < self.num_snow_bands:
 
                 line = [cell] + self.cells[cell].area_fracs + self.cells[cell].median_elevs + self.cells[cell].pfactors
                 writer.writerow(line)
