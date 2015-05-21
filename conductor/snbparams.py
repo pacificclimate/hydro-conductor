@@ -43,25 +43,29 @@ class SnbParams(object):
                 self.cells[cell_id].band_map.append(int(elev - elev % self.band_size))
 
     def create_band(self, cell_id, elevation):
-        """ Creates a new elevation band for a cell with given median_elevation within the band_map
+        """ Creates a new elevation band for a cell with an initial median elevation
         """
         band_lower_bound = int(elevation - elevation % self.band_size)
         bisect.insort_left(self.cells[cell_id].band_map, band_lower_bound)
         band_idx = self.cells[cell_id].band_map.index(band_lower_bound)
-        # area_fracs for this band will already be represented by a pad of 0.0, and will get updated in update_area_frac()
-        # Replace a 0 pad value with a new temporary median elevation, or if no spaces are left raise an error
+        # area_fracs for this band will already be represented by a pad of 0.0, and will get updated in update_band_area_fracs()
+        # Replace a 0 pad value with an initial median elevation, or if no spaces are left raise an error
         try:
             self.cells[cell_id].median_elevs[band_idx] = elevation  
         except IndexError:
-            print('SnbParams::create_band: IndexError: Attempted to create a new elevation band at {}m (RGM output DEM pixel elevation at {}) in cell {} but ran out of available slots.  Increase 0 padding in the VIC Snow Band Parameters file and re-run. Exiting.\n'.format(band_lower_bound, median_elevation, cell_id))
+            print('SnbParams::create_band: IndexError: Attempted to create a new elevation band \
+                at {}m (RGM output DEM pixel elevation at {}) in cell {}, but ran out of available slots. \
+                Increase 0 padding in the VIC Snow Band Parameters file and re-run. Exiting.\
+                \n'.format(band_lower_bound, elevation, cell_id))
             sys.exit(0)
         return band_idx
 
-    def delete_band(self, cell_id, elevation):
-        """ Removes the band starting at elevation from the band_map and 
-            sets area_fracs and median_elevs to 0 pads
+    def delete_band(self, cell_id, band_lower_bound):
+        """ Removes the band starting at band_lower_bound from the band_map and 
+            sets area_fracs and median_elevs to 0 pads (VIC needs the number 
+            of band placeholders to remain constant)
         """
-        band_idx = self.cells[cell_id].band_map.index(elevation)
+        band_idx = self.cells[cell_id].band_map.index(band_lower_bound)
         self.cells[cell_id].area_fracs[band_idx] = 0
         self.cells[cell_id].median_elevs[band_idx] = 0
         del self.cells[cell_id].band_map[band_idx]

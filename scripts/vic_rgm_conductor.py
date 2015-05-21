@@ -226,10 +226,13 @@ def update_band_area_fracs(cell_ids, cell_areas, snb_parms, veg_parms, num_snow_
                     if glacier_mask[row][col]:
                         glacier_areas[cell][new_band_idx] += 1
                         break
-    # Update all band median elevations for all cells
+    # Update all band median elevations for all cells, delete unused bands
     for cell in cell_ids:
         for band_idx, band in enumerate(snb_parms.cells[cell].band_map):
             snb_parms.cells[cell].median_elev[band_idx] = np.median(all_pixel_elevs[cell][band_idx])
+            # if no entries exist for this band in all_pixel_elevs, delete the band
+            if not all_pixel_elevs[cell][band_idx]:
+                delete_band(band)
     # Update all band area fractions and glacier area fractions for all bands in all cells
     for cell in cell_ids:
         print('cell: {}'.format(cell))
