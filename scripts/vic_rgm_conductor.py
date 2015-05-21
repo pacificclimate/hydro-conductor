@@ -226,7 +226,7 @@ def update_band_area_fracs(cell_ids, cell_areas, snb_parms, veg_parms, num_snow_
                         if glacier_mask[row][col]:
                             glacier_areas[cell][band_idx] += 1
                         break
-                if not band_found: # we have to introduce a new elevation band starting at int(pixel_elev - pixel_elev % band_size)
+                if not band_found: # we have to introduce a new elevation band
                     new_band_idx = snb_parms.create_band(cell, pixel_elev)
                     all_pixel_elevs[cell][new_band_idx].append(pixel_elev)
                     band_areas[cell][new_band_idx] += 1
@@ -240,11 +240,10 @@ def update_band_area_fracs(cell_ids, cell_areas, snb_parms, veg_parms, num_snow_
             # if no entries exist for this band in all_pixel_elevs, delete the band
             if not all_pixel_elevs[cell][band_idx]:
                 delete_band(band)
-    # Update all band area fractions and glacier area fractions for all bands in all cells
+    # Update all band and glacier area fractions for all bands in all cells, and update snb_parms and veg_parms
     for cell in cell_ids:
-        print('cell: {}'.format(cell))
         for band_idx, band in enumerate(snb_parms.cells[cell].band_map):
-            # Update area fraction for this cell[band]
+            # Update area fraction for this cell[band] in the snb_parms
             new_band_area_frac = float(band_areas[cell][band_idx]) / cell_areas[cell]
             snb_parms.cells[cell].area_fracs[band_idx] = new_band_area_frac
             if snb_parms.cells[cell].area_fracs[band_idx] < 0:
@@ -276,7 +275,13 @@ def update_band_area_fracs(cell_ids, cell_areas, snb_parms, veg_parms, num_snow_
                 veg_parms.cells[cell][band_idx].area_frac_non_glacier = new_non_glacier_area_frac              
                 # Update all vegetation type tiles' area fractions for this band (and add/remove glacier / open ground tiles if needed)
                 veg_parms.update_tiles(cell, band, delta_area_vegetated, veg_scaling_divisor)
-
+                # Sanity check that glacier + non-glacier area fractions add up to band area fraction, within tolerance
+                sum_test = new_glacier_area_frac + new_non_glacier_area_frac
+                if not np.allclose([sum_test], [new_band_area_frac]): # default rtol=1e-5, atol=1e-8
+                    print('Error: update_band_area_fracs: cell {}, band {}: glacier area fraction {} + non-glacier area fraction {} = {} \
+                        is not equal to the band area fraction of {}'.format(cell, band, new_glacier_area_frac, new_non_glacier_area_frac, \
+                            sum_test, new_band_area_frac))
+                    sys.exit(0)
 
 def update_glacier_mask(sdem, bdem, num_rows_dem, num_cols_dem):
     """ Takes output Surface DEM from RGM and uses element-wise differencing 
@@ -375,20 +380,10 @@ def main():
     # NOTE: the following needs to be updated to handle initial case + general case. See whiteboard May 14
     update_band_area_fracs(cell_ids, cell_areas, snb_parms, veg_parms, num_snow_bands, band_size, pixel_to_cell_map,
                       surf_dem_initial, num_rows_dem, num_cols_dem, glacier_mask)
-    
-    # Calculate the initial non-glacier area fractions for all bands in all cells
-    #area_frac_non_glacier = veg_parms.init_non_glacier_area_fracs(snb_parms)
-    
-    # Update the vegetation parameters vis-a-vis the application of the initial glacier mask, and write to new temporary file temp_vpf
-    #update_veg_parms(cell_ids, veg_parms, area_frac_bands, area_frac_glacier, residual_area_fracs)
-    veg_parms.update(snb_parms, old_area_frac_glacier, None)
+    temp_snb = temp_files_path + 'snb_temp_' + str(year) + '.txt'
+    snb_parms.save(temp_snb)
     temp_vpf = temp_files_path + 'vpf_temp_' + str(year) + '.txt'
     veg_parms.save(temp_vpf)
-    
-    # Update snow band parameters vis-a-vis the application of the initial glacier mask, and write to new temporary file temp_snb
-    update_snb_parms(snb_parms, area_frac_bands)
-    temp_snb = temp_files_path + 'snb_temp_' + str(year) + '.txt'
-    write_snb_parms_file(temp_snb, snb_parms, area_frac_bands)
     
 
     # Run the coupled VIC-RGM model for the time range specified in the VIC global parameters file
@@ -454,21 +449,12 @@ def main():
             glacier_mask_file = temp_files_path + 'glacier_mask_' + str(year) + '.gsa'
             write_grid_to_gsa_file(glacier_mask, glacier_mask_file)
         
-        # 8. Update areas of each elevation band in each VIC grid cell, and calculate area fractions
+        # 8. Update areas of each elevation band in each VIC grid cell, and update snow band and vegetation parameters
         update_band_area_fracs(cell_ids, cell_areas, snb_parms, veg_parms, num_snow_bands, band_size, pixel_to_cell_map, rgm_surf_dem_out, num_rows_dem, num_cols_dem, glacier_mask)
-
-        # 9. Update vegetation parameters and write to new temporary file temp_vpf
-        #update_veg_parms(cell_ids, veg_parms, area_frac_bands, area_frac_glacier, residual_area_fracs)
-        veg_parms.update(snb_parms, old_area_frac_glacier, new_area_frac_glacier, area_frac_non_glacier)
-        # Update old_area_frac_glacier to new_area_frac_glacier for next iteration
-        old_area_frac_glacier = new_area_frac_glacier
+        temp_snb = temp_files_path + 'snb_temp_' + str(year) + '.txt'
+        snb_parms.save(temp_snb)
         temp_vpf = temp_files_path + 'vpf_temp_' + str(year) + '.txt'
         veg_parms.save(temp_vpf)
-
-        # 10. Update snow band parameters and write to new temporary file temp_snb
-        update_snb_parms(snb_parms, area_frac_bands)
-        temp_snb = temp_files_path + 'snb_temp_' + str(year) + '.txt'
-        write_snb_parms_file(temp_snb, snb_parms, area_frac_bands)
 
         # 11 Update HRUs in VIC state file 
             # don't forget to close the state file

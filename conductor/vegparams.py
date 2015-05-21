@@ -91,10 +91,10 @@ class VegParams(object):
                 root_zone_parms = self.glacier_root_zone_parms
             elif self.open_ground_root_zone_parms and (veg_type == open_ground_id):
                 root_zone_parms = self.open_ground_zone_parms
-            try:
+            try: # Create another vegetation tile for this band
                 cell[band_id].veg_tile_parms.append(VegTileParams(veg_type, area_frac, root_zone_parms))
             except KeyError:
-                # TODO: check that it is OK to set these first two init parms to 0
+                # Create the BandInfo object for this band, along with first vegetation tile
                 cell[band_id] = BandInfo(0, 0, None, veg_type, area_frac, root_zone_parms)
         return cell_id, cell
 
