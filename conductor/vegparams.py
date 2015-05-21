@@ -132,7 +132,10 @@ class VegParams(object):
     def delete_tile(self, cell_id, band_id, veg_type):
         """ Deletes a vegetation tile of veg_type within a given cell and band from a VegParams object
         """
-        pass
+        for tile_idx, tile in enumerate(self.cells[cell_id][band_id].veg_tile_parms):
+            if self.cells[cell_id][band_id].veg_tile_parms[tile_idx].veg_type == veg_type:
+                del self.cells[cell_id][band_id].veg_tile_parms[tile_idx]
+                break # there will only ever be one tile of any given vegetation type
 
     def update_tiles(cell_id, band_id, delta_area_vegetated, veg_scaling_divisor):
         """ Updates all vegetation tile area fractions within a band in a cell_id, 
