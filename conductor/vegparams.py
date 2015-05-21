@@ -137,24 +137,27 @@ class VegParams(object):
         """
         glacier_updated = False
         open_ground_updated = False
+        # Iterate through all existing vegetation tiles in this band and update their area fractions
         for tile in self.cells[cell_id][band_id].veg_tile_parms:
             if self.cells[cell_id][band_id].veg_tile_parms[tile].veg_type == self.glacier_id:
-                # we allow glacier area fractions of 0 for the purposes of VIC's shadow glacier requirements
-                # NOTE: by never deleting a glacier tile we may end up with shadow glaciers across many bands
+                # NOTE: we allow glacier area fractions of 0 for the purposes of VIC's shadow glacier requirements.
+                # However, by never deleting a glacier tile we may end up with shadow glaciers across many bands
                 # by the end of a run (even if glacier only appears in some bands "momentarily") 
                 self.cells[cell_id][band_id].veg_tile_parms[tile].area_frac = self.cells[cell_id][band_id].area_frac_glacier
                 glacier_updated = True
             elif self.cells[cell_id][band_id].veg_tile_parms[tile].veg_type == self.open_ground_id:
                 if self.cells[cell_id][band_id].area_frac_open_ground > 0:
                     self.cells[cell_id][band_id].veg_tile_parms[tile].area_frac = self.cells[cell_id][band_id].area_frac_open_ground
-                        # if this fails, create an open ground tile
                 else: # remove the tile so it is not written to the veg parameters file
                     delete_tile(cell_id, band_id, self.open_ground_id)
                 open_ground_updated = True
-            else:
-        #TODO: apply delta area calculation & update for all other vegetation types
-
-
+            else: # for all other vegetation types
+                # Calculate change in tile area fraction & update
+                delta_area_tile = delta_area_vegetated * (self.cells[cell_id][band_id].veg_tile_parms[tile].area_frac / veg_scaling_divisor)
+                new_tile_area_frac = self.cells[cell_id][band_id].veg_tile_parms[tile].area_frac + delta_area_tile
+                self.cells[cell_id][band_id].veg_tile_parms[tile].area_frac = new_tile_area_frac
+                if new_tile_area_frac <= 0: # vegetation tile has disappeared, never to return
+                    delete_tile(cell_id, band_id, self.cells[cell_id][band_id].veg_tile_parms[tile].veg_type)
         # If glacier grew into this band on this iteration we need to add a glacier tile
         if not glacier_updated and (self.cells[cell_id][band_id].area_frac_glacier > 0):
             create_tile(cell_id, band_id, self.glacier_id, self.cells[cell_id][band_id].area_frac_glacier, self.glacier_root_zone_parms)

@@ -192,7 +192,8 @@ def get_snb_parms(snb_parm_file, num_snow_bands, band_size):
 def update_band_area_fracs(cell_ids, cell_areas, snb_parms, veg_parms, num_snow_bands, band_size, pixel_to_cell_map,
                       surf_dem, num_rows_dem, num_cols_dem, glacier_mask):
     """ Calculates and updates the area fractions of elevation bands within VIC cells, and
-        area fraction of glacier within VIC cells (broken down by elevation band)
+        area fraction of glacier and open ground within VIC cells (broken down by elevation band).
+        Calls VegParams::update_tiles() to update all vegetation parameter tiles (or add/delete them as needed)
     """
     all_pixel_elevs = {} # temporarily store pixel elevations in bins by band so the median can be calculated
     band_areas = {} # temporary count of pixels, a proxy for area, within each band
@@ -263,7 +264,7 @@ def update_band_area_fracs(cell_ids, cell_areas, snb_parms, veg_parms, num_snow_
                 veg_parms.cells[cell][band_idx].area_frac_open_ground = new_open_ground_area_frac
                 # Update non-glacier area fraction for this band
                 veg_parms.cells[cell][band_idx].area_frac_non_glacier = new_non_glacier_area_frac              
-                # Update remaining vegetation type tiles' area fractions for this band (and add/remove glacier / open ground tiles if needed)
+                # Update all vegetation type tiles' area fractions for this band (and add/remove glacier / open ground tiles if needed)
                 veg_parms.update_tiles(cell, band, delta_area_vegetated, veg_scaling_divisor)
 
 
