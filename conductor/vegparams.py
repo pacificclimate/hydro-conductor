@@ -124,7 +124,10 @@ class VegParams(object):
     def create_tile(self, cell_id, band_id, veg_type, area_frac, root_zone_parms):
         """ Creates a new vegetation tile of veg_type within a given cell and band in a VegParams object
         """
-        pass
+        new_tile = VegTileParms(veg_type, area_frac, root_zone_parms)
+        # Append new_tile to existing list of tiles for this band, and sort the list ascending by veg_type
+        self.cells[cell_id][band_id].veg_tile_parms.append(new_tile)
+        self.cells[cell_id][band_id].veg_tile_parms.sort(key=lambda x: x.veg_type)
 
     def delete_tile(self, cell_id, band_id, veg_type):
         """ Deletes a vegetation tile of veg_type within a given cell and band from a VegParams object
