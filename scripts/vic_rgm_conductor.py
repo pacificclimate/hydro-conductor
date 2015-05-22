@@ -6,7 +6,6 @@ import argparse
 import csv
 import collections
 from collections import OrderedDict
-from datetime import date, timedelta
 import os
 import subprocess
 import sys
@@ -189,7 +188,7 @@ def get_veg_parms(veg_parm_file, glacier_id, glacier_root_zone_parms, open_groun
        and creates and populates a VegParams object to store vegetation parameters
        for referencing, modifying, and writing back out to a new VPF for subsequent VIC iterations.
     """
-    vp = VegParams(veg_parm_file, GLACIER_ID, glacier_root_zone_parms, OPEN_GROUND_ID, open_ground_root_zone_parms)
+    vp = VegParams(veg_parm_file, glacier_id, glacier_root_zone_parms, open_ground_id, open_ground_root_zone_parms)
     return vp, vp.cell_ids
 
 def get_snb_parms(snb_parm_file, num_snow_bands, band_size):
@@ -361,13 +360,17 @@ def main():
     if not global_parms.glacier_id:
         GLACIER_ID = '22'
         print('No value for GLACIER_ID was provided in the VIC global file. Assuming default value of {}.'.format(GLACIER_ID))
-     # Numeric code indicating an open ground vegetation tile (HRU)
+    else:
+        GLACIER_ID = global_parms.glacier_id
+    # Numeric code indicating an open ground vegetation tile (HRU)
     if not global_parms.open_ground_id:
         OPEN_GROUND_ID = '19'
         print('No value for OPEN_GROUND_ID was provided in the VIC global file. Assuming default value of {}.'.format(OPEN_GROUND_ID))
+    else:
+        OPEN_GROUND_ID = global_parms.open_ground_id
 
     # Get VIC vegetation parameters and grid cell IDs from initial Vegetation Parameter File
-    veg_parms, cell_ids = get_veg_parms(global_parms.vegparm, GLACIER_ID, glacier_root_zone_parms, OPEN_GROUND_ID, open_ground_root_zone_parms)
+    veg_parms, cell_ids = get_veg_parms(global_parms.vegparam, GLACIER_ID, glacier_root_zone_parms, OPEN_GROUND_ID, open_ground_root_zone_parms)
 
     # Get VIC snow/elevation band parameters from initial Snow Band File
     num_snow_bands, snb_file = global_parms.snow_band.split()
