@@ -10,18 +10,23 @@ from datetime import date, timedelta
 import os
 import subprocess
 import sys
+from warnings import warn
 
 import numpy as np
 import h5py
+from dateutil.relativedelta import relativedelta
 
-from snbparams import SnbParams
-from vegparams import VegParams
-from vic_globals import get_global_parms, update_global_parms, write_global_parms_file
+from conductor.snbparams import SnbParams
+from conductor.vegparams import VegParams
+from conductor.vic_globals import Global
 
 vic_full_path = '/home/mfischer/code/vic/vicNl'  # should this be a command line parameter?
 rgm_full_path = '/home/mfischer/code/rgm/rgm' # ditto?
 temp_files_path = '/home/mfischer/vic_dev/out/testing/temp_out_files/' # ditto?
 # set it as default = os.env(tmp)
+
+one_year = relativedelta(years=+1)
+one_day = relativedelta(days=+1)
 
 class MyParser(argparse.ArgumentParser):
     def error(self, message):
@@ -295,6 +300,43 @@ def update_glacier_mask(sdem, bdem, num_rows_dem, num_cols_dem):
     glacier_mask[diffs > 0] = 1
     return glacier_mask
 
+def run_ranges(startdate, enddate, glacier_start):
+    '''Generator which yields date ranges (a 2-tuple) that represent
+       times at which to begin and end a VIC run.
+       startdate and enddate are the overall boundaries of the
+       simulation. glacier_start is a date some time after startdate
+       that *should* be aligned with the water year (this code mostly
+       assumes that that is the case).
+       arguments (1950/01/01, 1995/12/31, 1955/10/01) would yield a
+       sequence as follows:
+      (1950/01/01, 1956/09/30)
+      (1956/10/01, 1957/09/30)
+      (1957/10/01, 1958/09/30)
+      (1958/10/01, 1959/09/30)
+      ...
+      (1994/10/01, 1995/09/30)
+      Note that the sequence will and should end before the specified
+      end date, aligned with the water year.
+    '''
+    if not ((glacier_start.month, glacier_start.day) == (10, 1)):
+        warn("run_ranges assumes that glacier_start is aligned to the water year"
+             "(October 1 - September 30). You have configured glacier_start to"
+             "{}. Only do this if you *really* know what you're doing"\
+             .format(glacier_start.isoformat()))
+
+    # First iteration doesn't include glaciers and ends at the water year
+    t0 = startdate
+    tn = glacier_start - one_day + one_year
+    yield t0, tn
+    # Secord itration aligned to water year, include glaciers
+    # All subsequent iterations are aligned to water year and include glacier
+    while tn < enddate:
+        t0 = tn + one_day
+        tn = t0 - one_day + one_year
+        # don't let the simulation proceed beyond the enddate
+        tn = min(tn, enddate)
+        yield t0, tn
+
 # Main program
 def main():
     print('\n\nVIC + RGM ... together at last!')
@@ -305,22 +347,17 @@ def main():
         glacier_root_zone_parms, open_ground_root_zone_parms, band_size = parse_input_parms()
 
     # Get all initial VIC global parameters from the global parameter file
-    global_parms = get_global_parms(vic_global_file)
+    global_parms = Global(vic_global_file)
 
-    # Get entire time range of coupled VIC-RGM run from the initial VIC global file
-    start_date = date(global_parms['STARTYEAR'], global_parms['STARTMONTH'], global_parms['STARTDATE'])
-    end_date = date(global_parms['ENDYEAR'], global_parms['ENDMONTH'], global_parms['ENDDATE'])
-    # Set the initial year for the coupled VIC-RGM simulation
-    year = start_date.year
-    # Get the date that glacier accumulation is to start (at the end of VIC "spin-up")
-    glacier_accum_start_date = date(global_parms['GLACIER_ACCUM_START_YEAR'],
-                                    global_parms['GLACIER_ACCUM_START_MONTH'],
-                                    global_parms['GLACIER_ACCUM_START_DAY'])
+    assert global_parms.state_format == 'NETCDF', \
+        "{} only supports NetCDF input statefile input as opposed "\
+        "to the specified {}. Please change change this in your "\
+        "global file {}".format(__name__, global_parms.state_format,
+                                vic_global_file)
 
     # Initial VIC output state filename prefix is determined by STATENAME in the global file
-    state_filename_prefix = global_parms['STATENAME']
+    state_filename_prefix = global_parms.statename
 
-    # Numeric code indicating a glacier vegetation tile (HRU)
     try:
         GLACIER_ID = global_parms['GLACIER_ID']
     except KeyError:
@@ -334,11 +371,11 @@ def main():
         print('No value for OPEN_GROUND_ID was provided in the VIC global file. Assuming default value of {}.'.format(OPEN_GROUND_ID))
 
     # Get VIC vegetation parameters and grid cell IDs from initial Vegetation Parameter File
-    veg_parm_file = global_parms['VEGPARAM']
+    veg_parms, cell_ids = get_veg_parms(global_parms.vegparm)
     veg_parms, cell_ids = get_veg_parms(veg_parm_file, GLACIER_ID, glacier_root_zone_parms, OPEN_GROUND_ID, open_ground_root_zone_parms)
 
     # Get VIC snow/elevation band parameters from initial Snow Band File
-    num_snow_bands, snb_file = global_parms['SNOW_BAND'].split()
+    num_snow_bands, snb_file = global_parms.snow_band.split()
     num_snow_bands = int(num_snow_bands)
     snb_parms = get_snb_parms(snb_file, num_snow_bands, band_size)
 
@@ -382,42 +419,36 @@ def main():
                       surf_dem_initial, num_rows_dem, num_cols_dem, glacier_mask)
     temp_snb = temp_files_path + 'snb_temp_' + str(year) + '.txt'
     snb_parms.save(temp_snb)
-    temp_vpf = temp_files_path + 'vpf_temp_' + str(year) + '.txt'
+    temp_vpf = temp_files_path + 'vpf_temp_' + global_parms.startdate.isoformat() + '.txt'
     veg_parms.save(temp_vpf)
     
+    temp_snb = temp_files_path + 'snb_temp_' + global_parms.startdate.isoformat() + '.txt'
 
     # Run the coupled VIC-RGM model for the time range specified in the VIC global parameters file
-    while year < end_date.year:
-        print('\nRunning year: {}'.format(year))
+    time_iterator = run_ranges(global_parms.startdate,
+                               global_parms.enddate,
+                               global_parms.glacier_start)
+    for start, end in time_iterator:
+        print('\nRunning VIC from {} to {}'.format(start, end))
 
         # 1. Write / Update temporary Global Parameters File, temp_gpf
-        temp_gpf = temp_files_path + 'gpf_temp_' + str(year) + '.txt'
-        #update_global_parms(global_parms, temp_vpf, temp_snb, num_snow_bands, \
-        #    start_date, end_date, init_state_file, state_date)
-        if year == start_date.year:
-            # set global parameters for VIC "spin-up", from start_date.year to the end of the first glacier accumulation
-            init_state_file = None
-            temp_end_date = date(glacier_accum_start_date.year+1, glacier_accum_start_date.month, glacier_accum_start_date.day) - timedelta(days=1)
-            update_global_parms(global_parms, temp_vpf, temp_snb, num_snow_bands, \
-                start_date, temp_end_date, init_state_file, temp_end_date)
-            # Fast-forward year to what it will be when VIC finishes its spin-up
-            year = temp_end_date.year
-        else:
-            temp_start_date = date(year, glacier_accum_start_date.month, glacier_accum_start_date.day)
-            temp_end_date = date(year+1, glacier_accum_start_date.month, glacier_accum_start_date.day) - timedelta(days=1)
-            # set/create INIT_STATE parm as the last written VIC state_file (parm does not exist in the first read-in of global_parms)
-            init_state_file = state_filename_prefix + "_" + str(year-1) + str(temp_end_date.month) + str(temp_end_date.day)
-            update_global_parms(global_parms, temp_vpf, temp_snb, num_snow_bands, \
-                temp_start_date, temp_end_date, init_state_file, temp_end_date)
+        temp_gpf = temp_files_path + 'gpf_temp_{}.txt'.format(start.isoformat())
 
-        write_global_parms_file(global_parms, temp_gpf)
+        # set global parameters for this VIC run
+        global_parms.vegparm = temp_vpf
+        global_parms.snow_band = '{} {}'.format(temp_snb, num_snow_bands)
+        global_parms.startdate = start
+        global_parms.enddate = end
+        global_parms.statedate = end
+
+        global_parms.write(temp_gpf)
         print('invoking VIC with global parameter file {}'.format(temp_gpf))
 
         # 2. Run VIC for a year.  This will save VIC model state at the end of the year, along with a Glacier Mass Balance (GMB) polynomial for each cell
         subprocess.check_call([vic_full_path, "-g", temp_gpf], shell=False, stderr=subprocess.STDOUT)
 
         # 3. Open VIC NetCDF state file and get the most recent GMB polynomial for each grid cell being modeled
-        state_file = state_filename_prefix + "_" + str(temp_end_date.year) + str(temp_end_date.month) + str(temp_end_date.day)
+        state_file = state_filename_prefix + "_" + start.isoformat() ## FIXME
         print('opening VIC state file {}'.format(state_file))
         state = h5py.File(state_file, 'r+')
         gmb_polys = get_mass_balance_polynomials(state, state_file, cell_ids)
@@ -425,11 +456,10 @@ def main():
         # 4. Translate mass balances using grid cell GMB polynomials and current veg_parm_file into a 2D RGM mass balance grid (MBG)
         mass_balance_grid = mass_balances_to_rgm_grid(gmb_polys, pixel_to_cell_map, num_rows_dem, num_cols_dem, cell_ids)
         # write Mass Balance Grid to ASCII file to direct the RGM to use as input
-        mbg_file = temp_files_path + 'mass_balance_grid_' + str(year) + '.gsa'
+        mbg_file = temp_files_path + 'mass_balance_grid_' + start.isoformat() + '.gsa'
         write_grid_to_gsa_file(mass_balance_grid, mbg_file, num_cols_dem, num_rows_dem, dem_xmin, dem_xmax, dem_ymin, dem_ymax)
 
         # 5. Run RGM for one year, passing MBG, BDEM, SDEM
-        #subprocess.check_call([rgm_full_path, "-p", rgm_params_file, "-b", bed_dem_file, "-d", sdem_file, "-m", mbg_file, "-o", temp_files_path, "-s", "0", "-e", "0" ], shell=False, stderr=subprocess.STDOUT)
         subprocess.check_call([rgm_full_path, "-p", rgm_params_file, "-b", bed_dem_file, "-d", surf_dem_in_file, "-m", mbg_file, "-o", temp_files_path, "-s", "0", "-e", "0" ], shell=False, stderr=subprocess.STDOUT)
         # remove temporary files if not saving for offline inspection
         if not output_trace_files:
@@ -438,7 +468,7 @@ def main():
 
         # 6. Read in new Surface DEM file from RGM output
         rgm_surf_dem_out = np.loadtxt(rgm_surf_dem_out_file, skiprows=5)
-        temp_surf_dem_file = temp_files_path + 'rgm_surf_dem_out_' + str(year) + '.gsa'
+        temp_surf_dem_file = temp_files_path + 'rgm_surf_dem_out_' + start.isoformat() + '.gsa'
         os.rename(rgm_surf_dem_out_file, temp_surf_dem_file)
         # this will be fed back into RGM on next time step
         surf_dem_in_file = temp_surf_dem_file
@@ -446,22 +476,24 @@ def main():
         # 7. Update glacier mask
         glacier_mask = update_glacier_mask(rgm_surf_dem_out, bed_dem, num_rows_dem, num_cols_dem)
         if output_trace_files:
-            glacier_mask_file = temp_files_path + 'glacier_mask_' + str(year) + '.gsa'
+            glacier_mask_file = temp_files_path + 'glacier_mask_' + start.isoformat() + '.gsa'
             write_grid_to_gsa_file(glacier_mask, glacier_mask_file)
         
         # 8. Update areas of each elevation band in each VIC grid cell, and update snow band and vegetation parameters
         update_band_area_fracs(cell_ids, cell_areas, snb_parms, veg_parms, num_snow_bands, band_size, pixel_to_cell_map, rgm_surf_dem_out, num_rows_dem, num_cols_dem, glacier_mask)
         temp_snb = temp_files_path + 'snb_temp_' + str(year) + '.txt'
         snb_parms.save(temp_snb)
-        temp_vpf = temp_files_path + 'vpf_temp_' + str(year) + '.txt'
+        temp_vpf = temp_files_path + 'vpf_temp_' + start.isoformat() + '.txt'
         veg_parms.save(temp_vpf)
 
-        # 11 Update HRUs in VIC state file 
+        temp_snb = temp_files_path + 'snb_temp_' + start.isoformat() + '.txt'
+        # 11 Update HRUs in VIC state file
             # don't forget to close the state file
-        
-        # Increment the year for the next loop iteration
-        year += 1
 
-# Main program invocation.  
+        # Get ready for the next loop
+        global_parms.init_state = "{}_{}.txt".format(global_parms.statename, end.strftime("%Y%m%d"))
+        global_parms.statedate = end
+
+# Main program invocation.
 if __name__ == '__main__':
     main()
