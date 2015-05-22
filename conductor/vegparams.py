@@ -95,7 +95,7 @@ class VegParams(object):
                         writer.writerow(line)
                         print(' '.join(map(str, line)))
 
-   def init_residual_area_fracs(self, snb_parms):
+    def init_residual_area_fracs(self, snb_parms):
         """ Reads the initial snow band area fractions and glacier vegetation (HRU) 
             tile area fractions and calculates the initial residual area fractions 
         """
