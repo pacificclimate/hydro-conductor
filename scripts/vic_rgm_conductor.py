@@ -358,21 +358,16 @@ def main():
     # Initial VIC output state filename prefix is determined by STATENAME in the global file
     state_filename_prefix = global_parms.statename
 
-    try:
-        GLACIER_ID = global_parms['GLACIER_ID']
-    except KeyError:
+    if not global_parms.glacier_id:
         GLACIER_ID = '22'
         print('No value for GLACIER_ID was provided in the VIC global file. Assuming default value of {}.'.format(GLACIER_ID))
      # Numeric code indicating an open ground vegetation tile (HRU)
-    try:
-        OPEN_GROUND_ID = global_parms['OPEN_GROUND_ID']
-    except KeyError:
+    if not global_parms.open_ground_id:
         OPEN_GROUND_ID = '19'
         print('No value for OPEN_GROUND_ID was provided in the VIC global file. Assuming default value of {}.'.format(OPEN_GROUND_ID))
 
     # Get VIC vegetation parameters and grid cell IDs from initial Vegetation Parameter File
-    veg_parms, cell_ids = get_veg_parms(global_parms.vegparm)
-    veg_parms, cell_ids = get_veg_parms(veg_parm_file, GLACIER_ID, glacier_root_zone_parms, OPEN_GROUND_ID, open_ground_root_zone_parms)
+    veg_parms, cell_ids = get_veg_parms(global_parms.vegparm, GLACIER_ID, glacier_root_zone_parms, OPEN_GROUND_ID, open_ground_root_zone_parms)
 
     # Get VIC snow/elevation band parameters from initial Snow Band File
     num_snow_bands, snb_file = global_parms.snow_band.split()
@@ -414,15 +409,13 @@ def main():
     glacier_mask = np.loadtxt(init_glacier_mask_file, skiprows=5)
 
     # Apply the initial glacier mask and modify the band and glacier area fractions accordingly
-    # NOTE: the following needs to be updated to handle initial case + general case. See whiteboard May 14
     update_band_area_fracs(cell_ids, cell_areas, snb_parms, veg_parms, num_snow_bands, band_size, pixel_to_cell_map,
                       surf_dem_initial, num_rows_dem, num_cols_dem, glacier_mask)
-    temp_snb = temp_files_path + 'snb_temp_' + str(year) + '.txt'
+    temp_snb = temp_files_path + 'snb_temp_' + global_parms.startdate.isoformat() + '.txt'
     snb_parms.save(temp_snb)
     temp_vpf = temp_files_path + 'vpf_temp_' + global_parms.startdate.isoformat() + '.txt'
     veg_parms.save(temp_vpf)
     
-    temp_snb = temp_files_path + 'snb_temp_' + global_parms.startdate.isoformat() + '.txt'
 
     # Run the coupled VIC-RGM model for the time range specified in the VIC global parameters file
     time_iterator = run_ranges(global_parms.startdate,
@@ -481,12 +474,11 @@ def main():
         
         # 8. Update areas of each elevation band in each VIC grid cell, and update snow band and vegetation parameters
         update_band_area_fracs(cell_ids, cell_areas, snb_parms, veg_parms, num_snow_bands, band_size, pixel_to_cell_map, rgm_surf_dem_out, num_rows_dem, num_cols_dem, glacier_mask)
-        temp_snb = temp_files_path + 'snb_temp_' + str(year) + '.txt'
+        temp_snb = temp_files_path + 'snb_temp_' + start.isoformat() + '.txt'
         snb_parms.save(temp_snb)
         temp_vpf = temp_files_path + 'vpf_temp_' + start.isoformat() + '.txt'
         veg_parms.save(temp_vpf)
 
-        temp_snb = temp_files_path + 'snb_temp_' + start.isoformat() + '.txt'
         # 11 Update HRUs in VIC state file
             # don't forget to close the state file
 

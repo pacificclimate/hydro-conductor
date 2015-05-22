@@ -164,6 +164,7 @@ class Global(metaclass=OrderedMeta):
     corrprec = Boolean()
     min_wind_speed = Scalar(float)
     prec_expt = Scalar(float)
+    open_ground_id = Scalar(int)
     glacier_id = Scalar(int)
     glacier_accum_start_year = Scalar(int)
     glacier_accum_start_month = Scalar(int)
