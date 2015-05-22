@@ -362,12 +362,14 @@ def main():
         print('No value for GLACIER_ID was provided in the VIC global file. Assuming default value of {}.'.format(GLACIER_ID))
     else:
         GLACIER_ID = global_parms.glacier_id
+    # TODO: reinstate the following commented-out code once OPEN_GROUND_ID is supported in VIC
     # Numeric code indicating an open ground vegetation tile (HRU)
-    if not global_parms.open_ground_id:
-        OPEN_GROUND_ID = '19'
-        print('No value for OPEN_GROUND_ID was provided in the VIC global file. Assuming default value of {}.'.format(OPEN_GROUND_ID))
-    else:
-        OPEN_GROUND_ID = global_parms.open_ground_id
+    # if not global_parms.open_ground_id:
+    #     OPEN_GROUND_ID = '19'
+    #     print('No value for OPEN_GROUND_ID was provided in the VIC global file. Assuming default value of {}.'.format(OPEN_GROUND_ID))
+    # else:
+    #     OPEN_GROUND_ID = global_parms.open_ground_id
+    OPEN_GROUND_ID = '19'
 
     # Get VIC vegetation parameters and grid cell IDs from initial Vegetation Parameter File
     veg_parms, cell_ids = get_veg_parms(global_parms.vegparam, GLACIER_ID, glacier_root_zone_parms, OPEN_GROUND_ID, open_ground_root_zone_parms)
@@ -418,12 +420,12 @@ def main():
     snb_parms.save(temp_snb)
     temp_vpf = temp_files_path + 'vpf_temp_' + global_parms.startdate.isoformat() + '.txt'
     veg_parms.save(temp_vpf)
-    
+
 
     # Run the coupled VIC-RGM model for the time range specified in the VIC global parameters file
     time_iterator = run_ranges(global_parms.startdate,
                                global_parms.enddate,
-                               global_parms.glacier_start)
+                               global_parms.glacier_accum_startdate)
     for start, end in time_iterator:
         print('\nRunning VIC from {} to {}'.format(start, end))
 
