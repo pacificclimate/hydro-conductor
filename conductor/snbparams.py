@@ -17,7 +17,7 @@ import numpy as np
 
 class SnbParams(object):
 
-    def __init__(self, num_snow_bands, band_size, snb_parm_file=None):
+    def __init__(self, snb_parm_file, num_snow_bands, band_size):
         self.num_snow_bands = num_snow_bands
         self.band_size = band_size
         self.cells = OrderedDict()
@@ -33,7 +33,7 @@ class SnbParams(object):
     def create_cell(self, cell_id, area_fracs, median_elevs):
         """ Creates an entry for a VIC grid cell from a set of area fractions, and median elevations
         """
-        self.cells[cell_id] = namedtuple('area_fracs', 'median_elevs', 'band_map')
+        self.cells[cell_id] = namedtuple('parms', 'area_fracs, median_elevs, band_map', verbose=False)
         self.cells[cell_id].area_fracs = area_fracs
         self.cells[cell_id].median_elevs = median_elevs
         self.cells[cell_id].band_map = [] # list of valid elevation bands
@@ -82,7 +82,7 @@ class SnbParams(object):
                 if num_columns != 3*self.num_snow_bands + 1:
                     print('SnbParams::load(): Error: Number of columns ({}) in snow band file {} is incorrect for the given number of snow bands ({}) given in the global parameter file (should be 3 * num_snow_bands + 1). Exiting.\n'.format(num_columns, snb_file, self.num_snow_bands))
                     sys.exit(0)
-                self.create_cell(cell_id, [float(x) for x in split_line[1 : self.num_snow_bands+1]],[int(x) for x in split_line[self.num_snow_bands+1 : 2*self.num_snow_bands+1]]])
+                self.create_cell(cell_id, [float(x) for x in split_line[1 : self.num_snow_bands+1]],[int(x) for x in split_line[self.num_snow_bands+1 : 2*self.num_snow_bands+1]])
 
     def save(self, filename):
         """ Writes current (updated) snow band parameters to a new temporary
