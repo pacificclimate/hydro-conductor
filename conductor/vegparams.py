@@ -69,7 +69,7 @@ class VegParams(object):
                     count[cell]+=1
         return count
 
-    @staticmethod
+#    @staticmethod
     def read_one_cell(f):
         '''read all data from one cell and advance the file pointer to the next
         '''
@@ -90,7 +90,7 @@ class VegParams(object):
             if self.glacier_root_zone_parms and (veg_type == glacier_id):
                 root_zone_parms = self.glacier_root_zone_parms
             elif self.open_ground_root_zone_parms and (veg_type == open_ground_id):
-                root_zone_parms = self.open_ground_zone_parms
+                root_zone_parms = self.open_ground_root_zone_parms
             try: # Create another vegetation tile for this band
                 cell[band_id].veg_tile_parms.append(VegTileParams(veg_type, area_frac, root_zone_parms))
             except KeyError:
