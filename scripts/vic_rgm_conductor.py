@@ -63,18 +63,22 @@ def parse_input_parms():
     band_size = options.band_size
 
     if open_ground_root_zone_file:
-        open_ground_root_zone_parms = np.loadtxt(options.open_ground_root_zone_file)
-        if len(open_ground_root_zone_parms) != 6:
-            print('Open ground root zone parameters file is malformed. Expected 6 space-separated numeric values on a single line. Exiting.\n')
-            sys.exit(0)
+        with open(open_ground_root_zone_file, 'r') as f:
+            line = f.readline()
+            open_ground_root_zone_parms = [float(x) for x in line.split()]
+            if len(open_ground_root_zone_parms) != 6:
+                print('Open ground root zone parameters file is malformed. Expected 6 space-separated numeric values on a single line. Exiting.\n')
+                sys.exit(0)
     else:
         open_ground_root_zone_parms = None
 
     if glacier_root_zone_file:
-        glacier_root_zone_parms = np.loadtxt(options.glacier_root_zone_file)
-        if len(glacier_root_zone_parms) != 6:
-            print('Glacier root zone parameters file is malformed. Expected 6 space-separated numeric values on a single line. Exiting.\n')
-            sys.exit(0)
+        with open(glacier_root_zone_file, 'r') as f:
+            line = f.readline()
+            glacier_root_zone_parms = [float(x) for x in line.split()]
+            if len(glacier_root_zone_parms) != 6:
+                print('Glacier root zone parameters file is malformed. Expected 6 space-separated numeric values on a single line. Exiting.\n')
+                sys.exit(0)
     else:
         glacier_root_zone_parms = None
 
@@ -183,22 +187,20 @@ def write_grid_to_gsa_file(grid, outfilename, num_cols_dem, num_rows_dem, dem_xm
         for row in grid:
             writer.writerow(row)
 
-def get_veg_parms(veg_parm_file, glacier_id, glacier_root_zone_parms, open_ground_id, open_ground_root_zone_parms):
-    """Reads in a Vegetation Parameter File (VPF) and parses out VIC grid cell IDs,
-       and creates and populates a VegParams object to store vegetation parameters
-       for referencing, modifying, and writing back out to a new VPF for subsequent VIC iterations.
-    """
-    vp = VegParams(veg_parm_file, glacier_id, glacier_root_zone_parms, open_ground_id, open_ground_root_zone_parms)
-    return vp, vp.cell_ids
-
 def get_snb_parms(snb_parm_file, num_snow_bands, band_size):
-    """ Reads in a Snow Band Parameter File (SNB) and creates and populates a SnbParams object
-        which also keeps track of the addition or loss of elevation bands vis-a-vis glacier evolution.
-        The SnbParams object stores snow band (elevation) parameters for referencing, modifying, 
-        and writing back out to a new SNB for subsequent VIC iterations.
+    """ Reads in a Snow Band Parameter File and returns the area fractions 
+            and median elevations for all bands
     """
-    sp = SnbParams(snb_parm_file, num_snow_bands, band_size)
-    return sp
+    area_fracs = {}
+    median_elevs = {}
+    with open(snb_file, 'r') as f:
+        for line in f:
+            split_line = line.split()
+            num_columns = len(split_line)
+            cell_id = split_line[0]
+            area_fracs[cell_id] = [float(x) for x in split_line[1 : self.num_snow_bands+1]]
+            median_elevs[cell_id] = [int(x) for x in split_line[self.num_snow_bands+1 : 2*self.num_snow_bands+1]]
+    return area_fracs, median_elevs
 
 def update_band_area_fracs(cell_ids, cell_areas, snb_parms, veg_parms, num_snow_bands, band_size, pixel_to_cell_map,
                       surf_dem, num_rows_dem, num_cols_dem, glacier_mask):
@@ -372,12 +374,17 @@ def main():
     OPEN_GROUND_ID = '19'
 
     # Get VIC vegetation parameters and grid cell IDs from initial Vegetation Parameter File
-    veg_parms, cell_ids = get_veg_parms(global_parms.vegparam, GLACIER_ID, glacier_root_zone_parms, OPEN_GROUND_ID, open_ground_root_zone_parms)
+    cells = vegparams.load_veg_parms(global_parms.vegparam, GLACIER_ID, OPEN_GROUND_ID, glacier_root_zone_parms, open_ground_root_zone_parms)
 
     # Get VIC snow/elevation band parameters from initial Snow Band File
     num_snow_bands, snb_file = global_parms.snow_band.split()
     num_snow_bands = int(num_snow_bands)
-    snb_parms = get_snb_parms(snb_file, num_snow_bands, band_size)
+    area_fracs, median_elevs = get_snb_parms(snb_file, num_snow_bands, band_size)
+    # Sanity check to make sure band area fractions in Snow Band File add up to sum of HRU area fractions in Vegetation Parameter File
+    #assert (area_fracs == [sums of HRU area fracs for all bands])
+    # Assign initial median band elevations
+    for cell in median_elevs:
+        cells[cell].bands.median_elev = median_elevs[cell]
 
     # The RGM will always output a DEM file of the same name (if running RGM for a single year at a time)
     rgm_surf_dem_out_file = temp_files_path + 's_out_00001.grd'
@@ -419,7 +426,7 @@ def main():
     temp_snb = temp_files_path + 'snb_temp_' + global_parms.startdate.isoformat() + '.txt'
     snb_parms.save(temp_snb)
     temp_vpf = temp_files_path + 'vpf_temp_' + global_parms.startdate.isoformat() + '.txt'
-    veg_parms.save(temp_vpf)
+    vegparams.save_veg_parms(cells, temp_vpf)
 
 
     # Run the coupled VIC-RGM model for the time range specified in the VIC global parameters file
