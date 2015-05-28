@@ -187,21 +187,6 @@ def write_grid_to_gsa_file(grid, outfilename, num_cols_dem, num_rows_dem, dem_xm
         for row in grid:
             writer.writerow(row)
 
-def get_snb_parms(snb_parm_file, num_snow_bands, band_size):
-    """ Reads in a Snow Band Parameter File and returns the area fractions 
-            and median elevations for all bands
-    """
-    area_fracs = {}
-    median_elevs = {}
-    with open(snb_file, 'r') as f:
-        for line in f:
-            split_line = line.split()
-            num_columns = len(split_line)
-            cell_id = split_line[0]
-            area_fracs[cell_id] = [float(x) for x in split_line[1 : self.num_snow_bands+1]]
-            median_elevs[cell_id] = [int(x) for x in split_line[self.num_snow_bands+1 : 2*self.num_snow_bands+1]]
-    return area_fracs, median_elevs
-
 def update_band_area_fracs(cell_ids, cell_areas, snb_parms, veg_parms, num_snow_bands, band_size, pixel_to_cell_map,
                       surf_dem, num_rows_dem, num_cols_dem, glacier_mask):
     """ Calculates and updates the area fractions of elevation bands within VIC cells, and
@@ -212,19 +197,19 @@ def update_band_area_fracs(cell_ids, cell_areas, snb_parms, veg_parms, num_snow_
     band_areas = {} # temporary count of pixels, a proxy for area, within each band
     glacier_areas = {} # temporary count of pixels landing within the glacier mask, a proxy for glacier area
     for cell in cell_ids:
-        all_pixel_elevs[cell] = [[] for x in range(num_snow_bands)]
-        band_areas[cell] = [0 for x in range(num_snow_bands)]
-        glacier_areas[cell] = [0 for x in range(num_snow_bands)]
+        all_pixel_elevs[cell] = [] * num_snow_bands
+        band_areas[cell] = [0] * num_snow_bands
+        glacier_areas[cell] = [0] * num_snow_bands
     for row in range(num_rows_dem):
         for col in range(num_cols_dem):
             cell = pixel_to_cell_map[row][col][0] # get the VIC cell this pixel belongs to
             if cell != 'NA':
                 # Use the RGM DEM output to update the pixel median elevation in the pixel_to_cell_map
-                pixel_elev = surf_dem[row][col]
+                pixel_elev = float(surf_dem[row][col])
                 pixel_to_cell_map[row][col][1] = pixel_elev
                 for band_idx, band in enumerate(snb_parms.cells[cell].band_map):
                     band_found = False
-                    if int(pixel_elev) in range(band, band + band_size):
+                    if (band < pixel_elev) and (pixel_elev < (band + band_size)):
                         band_found = True
                         # Gather all pixel_elev values to update the median_elev of this band later
                         all_pixel_elevs[cell][band_idx].append(pixel_elev)
@@ -376,15 +361,15 @@ def main():
     # Get VIC vegetation parameters and grid cell IDs from initial Vegetation Parameter File
     cells = vegparams.load_veg_parms(global_parms.vegparam, GLACIER_ID, OPEN_GROUND_ID, glacier_root_zone_parms, open_ground_root_zone_parms)
 
-    # Get VIC snow/elevation band parameters from initial Snow Band File
     num_snow_bands, snb_file = global_parms.snow_band.split()
     num_snow_bands = int(num_snow_bands)
-    area_fracs, median_elevs = get_snb_parms(snb_file, num_snow_bands, band_size)
-    # Sanity check to make sure band area fractions in Snow Band File add up to sum of HRU area fractions in Vegetation Parameter File
+    # Get VIC cells' band median elevations from initial Snow Band Parameters file, and generate band_map
+    band_map = load_snb_parms(cells, snb_file, num_snow_bands, band_size)
+    
+    # Do a sanity check to make sure band area fractions in Snow Band Parameters file add up to sum of HRU 
+    # area fractions in Vegetation Parameter File for each cell?
     #assert (area_fracs == [sums of HRU area fracs for all bands])
-    # Assign initial median band elevations
-    for cell in median_elevs:
-        cells[cell].bands.median_elev = median_elevs[cell]
+  
 
     # The RGM will always output a DEM file of the same name (if running RGM for a single year at a time)
     rgm_surf_dem_out_file = temp_files_path + 's_out_00001.grd'
