@@ -409,7 +409,7 @@ def main():
     update_band_area_fracs(cell_ids, cell_areas, snb_parms, veg_parms, num_snow_bands, band_size, pixel_to_cell_map,
                       surf_dem_initial, num_rows_dem, num_cols_dem, glacier_mask)
     temp_snb = temp_files_path + 'snb_temp_' + global_parms.startdate.isoformat() + '.txt'
-    snb_parms.save(temp_snb)
+    snbparams.save_snb_parms(cells, temp_snb, band_map)
     temp_vpf = temp_files_path + 'vpf_temp_' + global_parms.startdate.isoformat() + '.txt'
     vegparams.save_veg_parms(cells, temp_vpf)
 
@@ -472,9 +472,9 @@ def main():
         # 8. Update areas of each elevation band in each VIC grid cell, and update snow band and vegetation parameters
         update_band_area_fracs(cell_ids, cell_areas, snb_parms, veg_parms, num_snow_bands, band_size, pixel_to_cell_map, rgm_surf_dem_out, num_rows_dem, num_cols_dem, glacier_mask)
         temp_snb = temp_files_path + 'snb_temp_' + start.isoformat() + '.txt'
-        snb_parms.save(temp_snb)
+        snbparams.save_snb_parms(cells, temp_snb, band_map)
         temp_vpf = temp_files_path + 'vpf_temp_' + start.isoformat() + '.txt'
-        veg_parms.save(temp_vpf)
+        vegparams.save_veg_parms(cells, temp_vpf)
 
         # 11 Update HRUs in VIC state file
             # don't forget to close the state file
