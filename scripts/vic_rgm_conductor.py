@@ -187,7 +187,7 @@ def write_grid_to_gsa_file(grid, outfilename, num_cols_dem, num_rows_dem, dem_xm
         for row in grid:
             writer.writerow(row)
 
-def update_band_area_fracs(cell_ids, cell_areas, snb_parms, veg_parms, num_snow_bands, band_size, pixel_to_cell_map,
+def update_band_area_fracs(cells, cell_areas, snb_parms, veg_parms, num_snow_bands, band_size, pixel_to_cell_map,
                       surf_dem, num_rows_dem, num_cols_dem, glacier_mask):
     """ Calculates and updates the area fractions of elevation bands within VIC cells, and
         area fraction of glacier and open ground within VIC cells (broken down by elevation band).
@@ -196,7 +196,7 @@ def update_band_area_fracs(cell_ids, cell_areas, snb_parms, veg_parms, num_snow_
     all_pixel_elevs = {} # temporarily store pixel elevations in bins by band so the median can be calculated
     band_areas = {} # temporary count of pixels, a proxy for area, within each band
     glacier_areas = {} # temporary count of pixels landing within the glacier mask, a proxy for glacier area
-    for cell in cell_ids:
+    for cell in cells:
         all_pixel_elevs[cell] = [] * num_snow_bands
         band_areas[cell] = [0] * num_snow_bands
         glacier_areas[cell] = [0] * num_snow_bands
@@ -207,7 +207,7 @@ def update_band_area_fracs(cell_ids, cell_areas, snb_parms, veg_parms, num_snow_
                 # Use the RGM DEM output to update the pixel median elevation in the pixel_to_cell_map
                 pixel_elev = float(surf_dem[row][col])
                 pixel_to_cell_map[row][col][1] = pixel_elev
-                for band_idx, band in enumerate(snb_parms.cells[cell].band_map):
+                for band_idx, band in enumerate(band_map[cell]):
                     band_found = False
                     if (band < pixel_elev) and (pixel_elev < (band + band_size)):
                         band_found = True
@@ -224,6 +224,9 @@ def update_band_area_fracs(cell_ids, cell_areas, snb_parms, veg_parms, num_snow_
                     if glacier_mask[row][col]:
                         glacier_areas[cell][new_band_idx] += 1
                         break
+    # NOTE: should we check if any pixels with 0 elevation (RGM error?) are dropped 
+    # into a 0-pad (invalid / nonexistent) band?
+    
     # Update all band median elevations for all cells, delete unused bands
     for cell in cell_ids:
         for band_idx, band in enumerate(snb_parms.cells[cell].band_map):
@@ -406,7 +409,7 @@ def main():
     glacier_mask = np.loadtxt(init_glacier_mask_file, skiprows=5)
 
     # Apply the initial glacier mask and modify the band and glacier area fractions accordingly
-    update_band_area_fracs(cell_ids, cell_areas, snb_parms, veg_parms, num_snow_bands, band_size, pixel_to_cell_map,
+    update_band_area_fracs(cells, cell_areas, snb_parms, veg_parms, num_snow_bands, band_size, pixel_to_cell_map,
                       surf_dem_initial, num_rows_dem, num_cols_dem, glacier_mask)
     temp_snb = temp_files_path + 'snb_temp_' + global_parms.startdate.isoformat() + '.txt'
     snbparams.save_snb_parms(cells, temp_snb, band_map)
@@ -470,7 +473,7 @@ def main():
             write_grid_to_gsa_file(glacier_mask, glacier_mask_file)
         
         # 8. Update areas of each elevation band in each VIC grid cell, and update snow band and vegetation parameters
-        update_band_area_fracs(cell_ids, cell_areas, snb_parms, veg_parms, num_snow_bands, band_size, pixel_to_cell_map, rgm_surf_dem_out, num_rows_dem, num_cols_dem, glacier_mask)
+        update_band_area_fracs(cells, cell_areas, snb_parms, veg_parms, num_snow_bands, band_size, pixel_to_cell_map, rgm_surf_dem_out, num_rows_dem, num_cols_dem, glacier_mask)
         temp_snb = temp_files_path + 'snb_temp_' + start.isoformat() + '.txt'
         snbparams.save_snb_parms(cells, temp_snb, band_map)
         temp_vpf = temp_files_path + 'vpf_temp_' + start.isoformat() + '.txt'

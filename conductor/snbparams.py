@@ -1,10 +1,10 @@
 '''snbparams.py
 
-   This module represents the VIC "Snow Band File",
-   which captures all the elevation band information
-   for all VIC grid cells in a given model run.
+   This module provides functions for reading/writing the VIC "Snow Band File",
+   
    The format of the snow band file is one line per VIC cell:
    cell_id_0 area_frac_band_0 ... area_frac_band_N median_elev_band_0 ... median_elev_band_N
+   (and optionally, Pfactor_band_0 ... Pfactor_band_N  although VIC no longer uses these)
    where N should be equal to num_snow_bands
 '''
 
