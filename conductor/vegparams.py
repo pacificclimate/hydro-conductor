@@ -1,15 +1,13 @@
 '''vegparams.py
 
-   This module provides functions for reading/writing the "Vegetation
-   Parameter File", a delightfully custom data serialization format.
+   This module provides functions for reading/writing the VIC Vegetation
+   Parameter File, a delightfully custom data serialization format.
 
 '''
 
 from collections import OrderedDict
 import csv
-
-__all__ = ['HydroResponseUnit', 'Band']
-
+from cells import Band, HydroResponseUnit
 
 def load_veg_parms(veg_parm_file, glacier_id, open_ground_id, glacier_root_zone_parms=None, open_ground_root_zone_parms=None):
     """ Reads in VIC vegetation parameter file and creates and partially 

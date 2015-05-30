@@ -10,16 +10,18 @@
 
 __all__ = ['load_snb_parms', 'save_snb_parms']
 
-import bisect
 from collections import OrderedDict
 import csv
 
+from cells import Band, HydroResponseUnit
+
 def load_snb_parms(cells, snb_file, num_snow_bands, band_size):
     """ Reads in a Snow Band Parameter File and populates the median elevation
-        attribute for an existing set of VIC cells and creates a band map to
-        keep track of the lower bounds of each band and zero pads provided by 
-        the user in the file, to allow for glacier growth/slide into 
-        previously non-existent elevations (VIC requires the zero pads).
+        property for each band withing an existing set of VIC cells. Creates a 
+        band map to keep track of the lower bounds of each band (each spanning an
+        elevation of band_size) and any zero pads provided by the user in the 
+        Snow Band Parameter File (zero pads are required by VIC, to allow for glacier 
+        growth/slide into previously non-existent elevations between iterations).
     """
     with open(snb_file, 'r') as f:
         median_elevs = OrderedDict()
@@ -49,8 +51,8 @@ def load_snb_parms(cells, snb_file, num_snow_bands, band_size):
     return band_map
 
 def save_snb_parms(cells, filename, band_map):
-    """ Writes current (updated) snow band parameters to a new temporary
-        Snow Band File for feeding back into VIC
+    """ Assembles and writes updated snow band parameters to a new temporary
+        Snow Band Parameter File for feeding back into VIC in the next iteration.
     """
     with open(filename, 'w') as f:
          writer = csv.writer(f, delimiter=' ')
