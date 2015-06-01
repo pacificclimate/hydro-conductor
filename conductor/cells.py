@@ -39,14 +39,14 @@ class Band(object):
     def area_frac_open_ground(self):
         return sum([hru.area_frac for hru in self.hrus if hru.veg_type == self.open_ground_id])
 
-def create_band(cells, cell_id, elevation, band_size, glacier_id, open_ground_id):
+def create_band(cells, cell_id, elevation, band_size, band_map, glacier_id, open_ground_id):
     """ Creates a new elevation band of glacier vegetation type for a cell with an 
         initial median elevation.
         New bands can only occur on the upper end of the existing set, taking the
         place of zero pads that were provided in the Snow Band Parameters File.
     """
     band_lower_bound = int(elevation - elevation % band_size)
-    bisect.insort_left(cells[cell_id].band_map, band_lower_bound)
+    bisect.insort_left(band_map[cell_id], band_lower_bound)
     # Remove zero pad to right of new band. If none exists, throw an exception
     try:
         band_map[cell_id].remove(0)
@@ -62,7 +62,7 @@ def create_band(cells, cell_id, elevation, band_size, glacier_id, open_ground_id
     cells[cell_id][str(band_idx)] = Band(elevation, glacier_id, open_ground_id)
     return band_idx
 
-def delete_band(cells, cell_id, band_lower_bound):
+def delete_band(cells, cell_id, band_lower_bound, band_map):
     """ Removes the band starting at band_lower_bound from the given cell 
         and sets its position in band_map to a zero pad
     """
@@ -95,7 +95,7 @@ def delete_hru(cells, cell_id, band_id, veg_type):
             del cells[cell_id][band_id].hrus[hru_idx]
             break # there will only ever be one tile of any given vegetation type
 
-def update_area_fracs(cells, cell_areas, num_snow_bands, band_size, pixel_to_cell_map,
+def update_area_fracs(cells, cell_areas, num_snow_bands, band_size, band_map, pixel_to_cell_map,
                       surf_dem, num_rows_dem, num_cols_dem, glacier_mask, glacier_id, open_ground_id):
     """ Calculates and updates the area fractions of elevation bands within VIC cells, and
         area fraction of glacier and open ground within VIC cells (broken down by elevation band).
@@ -126,7 +126,7 @@ def update_area_fracs(cells, cell_areas, num_snow_bands, band_size, pixel_to_cel
                             glacier_areas[cell][band_idx] += 1
                         break
                 if not band_found: # we have to introduce a new elevation band
-                    new_band_idx = create_band(cells, cell, pixel_elev, band_size)
+                    new_band_idx = create_band(cells, cell, pixel_elev, band_size, band_map, glacier_id, open_ground_id)
                     all_pixel_elevs[cell][new_band_idx].append(pixel_elev)
                     band_areas[cell][new_band_idx] += 1
                     if glacier_mask[row][col]:
@@ -137,11 +137,11 @@ def update_area_fracs(cells, cell_areas, num_snow_bands, band_size, pixel_to_cel
 
     # Update all band median elevations for all cells, delete unused Bands
     for cell in cells:
-        for band_idx, band in enumerate(band_map[cell]):
+        for band_idx, band_lower_bound in enumerate(band_map[cell]):
             cells[cell][band_idx].median_elev = np.median(all_pixel_elevs[cell][band_idx])
             # if no entries exist for this band in all_pixel_elevs, delete the band
             if not all_pixel_elevs[cell][band_idx]:
-                delete_band(cells, cell, band)
+                delete_band(cells, cell, band_lower_bound, band_map)
 
     # Update all Band and HRU area fractions in all cells
     for cell in cells:

@@ -319,7 +319,7 @@ def main():
     glacier_mask = np.loadtxt(init_glacier_mask_file, skiprows=5)
 
     # Apply the initial glacier mask and modify the band and glacier area fractions accordingly
-    update_area_fracs(cells, cell_areas, num_snow_bands, band_size, pixel_to_cell_map,
+    update_area_fracs(cells, cell_areas, num_snow_bands, band_size, band_map, pixel_to_cell_map,
                       surf_dem_initial, num_rows_dem, num_cols_dem, glacier_mask)
     temp_snb = temp_files_path + 'snb_temp_' + global_parms.startdate.isoformat() + '.txt'
     snbparams.save_snb_parms(cells, temp_snb, band_map)
@@ -382,7 +382,7 @@ def main():
             write_grid_to_gsa_file(glacier_mask, glacier_mask_file)
         
         # 8. Update areas of each elevation band in each VIC grid cell, and update snow band and vegetation parameters
-        update_area_fracs(cells, cell_areas, num_snow_bands, band_size, pixel_to_cell_map, \
+        update_area_fracs(cells, cell_areas, num_snow_bands, band_size, band_map, pixel_to_cell_map, \
             rgm_surf_dem_out, num_rows_dem, num_cols_dem, glacier_mask)
         temp_snb = temp_files_path + 'snb_temp_' + start.isoformat() + '.txt'
         snbparams.save_snb_parms(cells, temp_snb, band_map)
