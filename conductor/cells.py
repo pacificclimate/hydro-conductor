@@ -13,7 +13,7 @@ class Band(object):
     """ Class capturing vegetation parameters at the elevation band level
     """
 # NOTE: can we make glacier_id and open_ground_id global and visible within this class?
-    def __init__(self, area_frac, median_elev, glacier_id, open_ground_id):
+    def __init__(self, median_elev, glacier_id, open_ground_id):
     #def __init__(self, area_frac, median_elev):
         self.median_elev = median_elev
         self.hrus = []
@@ -59,7 +59,7 @@ def create_band(cells, cell_id, elevation, band_size, glacier_id, open_ground_id
     # Get final index of Band after zero pad removed from band_map
     band_idx = band_map[cell_id].index(band_lower_bound)
     # Create an additional Band object in the cell with initial median elevation
-    cells[cell_id][str(band_idx)] = Band(None, elevation, glacier_id, open_ground_id)
+    cells[cell_id][str(band_idx)] = Band(elevation, glacier_id, open_ground_id)
     return band_idx
 
 def delete_band(cells, cell_id, band_lower_bound):
@@ -142,6 +142,7 @@ def update_area_fracs(cells, cell_areas, num_snow_bands, band_size, pixel_to_cel
             # if no entries exist for this band in all_pixel_elevs, delete the band
             if not all_pixel_elevs[cell][band_idx]:
                 delete_band(cells, cell, band)
+
     # Update all Band and HRU area fractions in all cells
     for cell in cells:
         for band_idx, band in enumerate(band_map[cell]):

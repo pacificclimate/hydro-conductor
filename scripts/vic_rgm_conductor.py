@@ -15,7 +15,7 @@ import numpy as np
 import h5py
 from dateutil.relativedelta import relativedelta
 
-from conductor.cells import Band, HydroResponseUnit, create_band, delete_band, delete_hru
+from conductor.cells import Band, HydroResponseUnit
 from conductor.snbparams import load_snb_parms, save_snb_parms
 from conductor.vegparams import load_veg_parms, save_veg_parms
 from conductor.vic_globals import Global
@@ -259,7 +259,7 @@ def main():
     state_filename_prefix = global_parms.statename
 
     if not global_parms.glacier_id:
-        GLACIER_ID = '22'
+        GLACIER_ID = 22
         print('No value for GLACIER_ID was provided in the VIC global file. Assuming default value of {}.'.format(GLACIER_ID))
     else:
         GLACIER_ID = global_parms.glacier_id
@@ -270,7 +270,7 @@ def main():
     #     print('No value for OPEN_GROUND_ID was provided in the VIC global file. Assuming default value of {}.'.format(OPEN_GROUND_ID))
     # else:
     #     OPEN_GROUND_ID = global_parms.open_ground_id
-    OPEN_GROUND_ID = '19'
+    OPEN_GROUND_ID = 19
 
     # Get VIC vegetation parameters and grid cell IDs from initial Vegetation Parameter File
     cells = vegparams.load_veg_parms(global_parms.vegparam, GLACIER_ID, OPEN_GROUND_ID, glacier_root_zone_parms, open_ground_root_zone_parms)
