@@ -56,7 +56,7 @@ def create_band(cells, cell_id, elevation, band_size, band_map, glacier_id, open
             Increase number of 0 pads in the VIC Snow Band Parameters file and re-run. Exiting.\
             \n'.format(band_lower_bound, elevation, cell_id))
         sys.exit(0)
-    # Get final index of Band after zero pad removed from band_map
+    # Get final index / id of Band after zero pad removed from band_map
     band_idx = band_map[cell_id].index(band_lower_bound)
     # Create an additional Band object in the cell with initial median elevation
     cells[cell_id][str(band_idx)] = Band(elevation, glacier_id, open_ground_id)
