@@ -5,8 +5,8 @@
 
     The initial breakdown of the first cell (ID '12345') is as follows, where
     pixels are labeled as O = open ground, T = tree, or G = glacier.  Elevation 
-    bands (starting at 2000m and incrementing by a band_size of 100m) spatially 
-    consist in this domain of concentric boxes of one pixel width, with 
+    bands (starting at 2000m and incrementing by a band_size of 100m) are spatially  
+    comprised in this domain of concentric boxes of one pixel width, with 
     the highest band / peak occupying the centre 4 pixels of the 8x8 grid 
     (as open ground sticking out above the glacier, shown by lowercase 'o's):
 
@@ -15,13 +15,29 @@
     O G G G G G O T 
     O G G o o G O T 
     O G G o o G O T 
-    O O O O O O O T 
-    O T T T T O O T 
+    O T O O O O O T 
+    O T T T O O O T 
     O T T T T T T T 
 
     Initial HRU area fractions are calculated by adding up the sum of pixels for
     each given HRU type within a band and dividing by 64 (e.g. band 0 has a tree
     area fraction of 12/64 = 0.1875).
+
+    The initial breakdown of the second cell (ID '23456') is as follows. Elevation 
+    bands (starting at 1900m and incrementing by a band_size of 100m) are spatially 
+    comprised in this domain of concentric boxes of one pixel width, with 
+    the highest band / peak occupying the centre 16 (4x4) pixels of the 8x8 grid 
+    (as a glacier plateau). This grid cell is located immediately to the right of 
+    cell '12345' (its leftmost pixels are adjacent to the rightmost pixels of '12345').
+
+    O O G G O O O O 
+    O T G G O O O O 
+    T T O G G G O T  
+    T T O G G G T T 
+    T T O G G O T T 
+    T T O O O O T T 
+    T T T O O O O T 
+    T T T O O T T T 
 
 '''
 
@@ -46,8 +62,8 @@ test_median_elevs_simple = [2035, 2172, 2241, 2315]
 test_median_elevs = {'12345': [2035, 2172, 2241, 2315],
                     '23456': [1921, 2045, 2164]} 
 # initial band map of lower elevation bounds for all existing (valid) bands
-test_band_map = {'12345': [2000, 2100, 2200, 2300, 0], 
-                '23456': [1900, 2000, 2100, 0, 0]}
+test_band_map = {'12345': [2000, 2100, 2200, 2300, 0], # allows for glacier growth at top
+                '23456': [0, 1900, 2000, 2100, 0]} # allows for glacier growth at top, and revelation of lower band at bottom
 
 # Just for single cell unit tests:
 test_area_fracs_simple = [0.1875, 0.25, # Band 0 (11, 19)
@@ -58,7 +74,9 @@ test_area_fracs = {'12345': [0.1875, 0.25, # Band 0 (11, 19)
                     0.0625, 0.125, 0.125, # Band 1 (11, 19, 22)
                     0.0625, 0.125, # Band 2 (19, 22)
                     0.0625], # Band 3 (19)
-                '23456': [1]} #TO BE FILLED IN
+                '23456': [0.25, 0.15625, 0.03125, # Band 0 (11, 19, 22)
+                    0.15625, 0.125, 0.03125, # Band 1 (11, 19, 22)
+                    0.125, 0.125]} # Band 2 (19, 22)
 
 test_veg_types = [11, 19, 22]
 
@@ -236,12 +254,12 @@ def test_cells_dynamic():
     assert cells[cell_ids[0]][new_band_id].area_frac_non_glacier == 0
     assert cells[cell_ids[0]][new_band_id].area_frac_open_ground == 0
 
-    ## Simulate an attempt to grow the glacier into a new elevation Band 5 (no 0 pad available)
+    ## 5. Simulate an attempt to grow the glacier into a new elevation Band 5 (no 0 pad available)
     pixel_elev = 2550
     with pytest.raises(NameError):
         new_band_idx = create_band(cells, cell_ids[0], pixel_elev, band_size, test_band_map, GLACIER_ID, OPEN_GROUND_ID)
 
-    ## 5. Simulate glacier recession completely out of elevation Band 4 (i.e. delete the Band)
+    ## 6. Simulate glacier recession completely out of elevation Band 4 (i.e. delete the Band)
     new_glacier_area_frac = 0
     delete_band(cells, cell_ids[0], 2400, test_band_map)
     # Confirm that there are 4 Bands in total for this cell
@@ -250,6 +268,44 @@ def test_cells_dynamic():
     assert test_band_map[cell_ids[0]][4] == 0
     # For consistency over whole domain, adjust Band 3 to compensate (this is normally taken care of by update of band_areas):
     cells[cell_ids[0]]['3'].hrus[0].area_frac += 0.015625
-
-    ## 6. Confirm that all Band area fractions for this cell still sum to 1
+    # Confirm that all Band area fractions for this cell still sum to 1
     assert sum(cells[cell_ids[0]][band].area_frac for band in cells[cell_ids[0]]) == 1
+
+    ## 7. Simulate glacier recession from the lowest existing band, to reveal a yet 
+    # lower elevation band.  This is done in cell '23456', created here:
+    cells[cell_ids[1]] = OrderedDict()
+    # Band 0:
+    cells[cell_ids[1]]['0'] = Band(test_median_elevs[cell_ids[1]][0], GLACIER_ID, OPEN_GROUND_ID)
+    # Tree HRU:
+    cells[cell_ids[1]]['0'].hrus.append(HydroResponseUnit(test_veg_types[0], test_area_fracs[cell_ids[1]][0], test_root_zone_parms[0]))
+    # Open ground HRU:
+    cells[cell_ids[1]]['0'].hrus.append(HydroResponseUnit(test_veg_types[1], test_area_fracs[cell_ids[1]][1], test_root_zone_parms[1]))
+    # Glacier HRU:
+    cells[cell_ids[1]]['0'].hrus.append(HydroResponseUnit(test_veg_types[2], test_area_fracs[cell_ids[1]][2], test_root_zone_parms[2]))
+
+    # Band 1:
+    cells[cell_ids[1]]['1'] = Band(test_median_elevs[cell_ids[1]][1], GLACIER_ID, OPEN_GROUND_ID)
+    # Tree HRU:
+    cells[cell_ids[1]]['1'].hrus.append(HydroResponseUnit(test_veg_types[0], test_area_fracs[cell_ids[1]][3], test_root_zone_parms[0]))
+    # Open ground HRU:
+    cells[cell_ids[1]]['1'].hrus.append(HydroResponseUnit(test_veg_types[1], test_area_fracs[cell_ids[1]][4], test_root_zone_parms[1]))
+    # Glacier HRU:
+    cells[cell_ids[1]]['1'].hrus.append(HydroResponseUnit(test_veg_types[2], test_area_fracs[cell_ids[1]][5], test_root_zone_parms[2]))
+
+    # Band 2:
+    cells[cell_ids[1]]['2'] = Band(test_median_elevs[cell_ids[1]][2], GLACIER_ID, OPEN_GROUND_ID)
+    # Open ground HRU:
+    cells[cell_ids[1]]['2'].hrus.append(HydroResponseUnit(test_veg_types[1], test_area_fracs[cell_ids[1]][5], test_root_zone_parms[1]))
+    # Glacier HRU:
+    cells[cell_ids[1]]['2'].hrus.append(HydroResponseUnit(test_veg_types[2], test_area_fracs[cell_ids[1]][6], test_root_zone_parms[2]))
+
+    pixel_elev = 1855
+    #with pytest.raises(NameError):
+    new_band_idx = create_band(cells, cell_ids[1], pixel_elev, band_size, test_band_map, GLACIER_ID, OPEN_GROUND_ID)
+    # NOTE: this is not complete.  Have to get advice from Markus on how to handle/sort
+    # new bands created below the existing ones (i.e. what should it be labeled if '0' is
+    # already taken?)
+    assert new_band_idx == 0
+    assert len(test_band_map[cell_ids[1]]) == 5
+    assert test_band_map[cell_ids[1]][0] == 1800
+    assert test_band_map[cell_ids[1]][-1] == 0
