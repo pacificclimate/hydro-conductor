@@ -13,7 +13,7 @@ __all__ = ['load_snb_parms', 'save_snb_parms']
 from collections import OrderedDict
 import csv
 
-from cells import Band, HydroResponseUnit
+from conductor.cells import Band, HydroResponseUnit
 
 def load_snb_parms(cells, snb_file, num_snow_bands, band_size):
     """ Reads in a Snow Band Parameter File and populates the median elevation
