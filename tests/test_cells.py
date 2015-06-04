@@ -259,11 +259,11 @@ def test_cells_dynamic():
 
     ## 5. Simulate an attempt to grow the glacier into a new elevation Band 5 (no 0 pad available)
     pixel_elev = 2550
-    with pytest.raises(NameError):
+    with pytest.raises(LookupError):
         new_band_idx = create_band(cells, cell_ids[0], pixel_elev, band_size, test_band_map, GLACIER_ID, OPEN_GROUND_ID)
 
     ## 6. Simulate glacier recession completely out of elevation Band 4 (i.e. delete the Band)
-    new_glacier_area_frac = 0
+    new_glacier_area_frac = 0 # not used
     delete_band(cells, cell_ids[0], 2400, test_band_map)
     # Confirm that there are 4 Bands in total for this cell
     assert len(cells[cell_ids[0]]) == 4
@@ -274,8 +274,13 @@ def test_cells_dynamic():
     # Confirm that all Band area fractions for this cell still sum to 1
     assert sum(cells[cell_ids[0]][band].area_frac for band in cells[cell_ids[0]]) == 1
 
-    ## 7. Simulate glacier recession from the lowest existing band, to reveal a yet 
-    # lower elevation band.  This is done in cell '23456', created here:
+    ## 7. Simulate glacier recession from the lowest existing band, to reveal
+    # a yet lower elevation band, where no 0 pad exists to allow for it (should fail)
+    pixel_elev = 1957
+    with pytest.raises(LookupError):
+        new_band_idx = create_band(cells, cell_ids[0], pixel_elev, band_size, test_band_map, GLACIER_ID, OPEN_GROUND_ID)
+
+    ## 8. The same test in cell '23456' (created here), where there is at least one 0 pad at bottom and top
     cells[cell_ids[1]] = OrderedDict()
     # Band 0:
     cells[cell_ids[1]]['1'] = Band(test_median_elevs[cell_ids[1]][0], GLACIER_ID, OPEN_GROUND_ID)
@@ -303,7 +308,6 @@ def test_cells_dynamic():
     cells[cell_ids[1]]['3'].hrus.append(HydroResponseUnit(test_veg_types[2], test_area_fracs[cell_ids[1]][6], test_root_zone_parms[2]))
 
     pixel_elev = 1855
-    #with pytest.raises(NameError):
     new_band_idx = create_band(cells, cell_ids[1], pixel_elev, band_size, test_band_map, GLACIER_ID, OPEN_GROUND_ID)
 
     # Confirm that the new band was correctly placed in the first slot of the band_map for this cell
