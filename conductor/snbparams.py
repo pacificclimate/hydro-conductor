@@ -27,18 +27,19 @@ def load_snb_parms(cells, snb_file, num_snow_bands, band_size):
         median_elevs = OrderedDict()
         band_map = OrderedDict()
         for line in f:
-            #print('snb file line: {}'.format(line))
             split_line = line.split()
             cell_id = split_line[0]
             num_columns = len(split_line)
             # Should have the cell_id followed by num_snow_bands columns 
             # for each of area fractions, median elevations, and optionally, Pfactors:
             if num_columns % num_snow_bands != 1:
-                print('SnbParams::load(): Error: Number of columns ({}) in snow band file {} \
-                    is incorrect for the given number of snow bands ({}) given in the global \
-                    parameter file (should be a multiple of num_snow_bands, plus 1). \
-                    Exiting.\n'.format(num_columns, snb_file, num_snow_bands))
-                sys.exit(0)
+                raise Exception(
+                        'Number of columns ({}) in snow band file {} is '
+                        'incorrect for the given number of snow bands ({}) '
+                        'given in the global parameter file (should be a '
+                        'multiple of num_snow_bands, plus 1).'
+                        .format(num_columns, snb_file, num_snow_bands)
+                )
             median_elevs[cell_id] = [int(x) for x in split_line[num_snow_bands+1 : 2*num_snow_bands+1]]
     # Create and populate the band_map for keeping track of existing and zero-pad bands
     # (which could be converted to real bands during execution) and set the median_elevation 

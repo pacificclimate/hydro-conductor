@@ -259,7 +259,7 @@ def test_cells_dynamic():
 
     ## 5. Simulate an attempt to grow the glacier into a new elevation Band 5 (no 0 pad available)
     pixel_elev = 2550
-    with pytest.raises(NameError):
+    with pytest.raises(Exception):
         new_band_idx = create_band(cells, cell_ids[0], pixel_elev, band_size, test_band_map, GLACIER_ID, OPEN_GROUND_ID)
 
     ## 6. Simulate glacier recession completely out of elevation Band 4 (i.e. delete the Band)
