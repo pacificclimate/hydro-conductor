@@ -8,16 +8,19 @@
     bands (starting at 2000m and incrementing by a band_size of 100m) are spatially  
     comprised in this domain of concentric boxes of one pixel width, with 
     the highest band / peak occupying the centre 4 pixels of the 8x8 grid 
-    (as open ground sticking out above the glacier, shown by lowercase 'o's):
+    (as open ground sticking out above the glacier, shown by lowercase 'o's).
 
-    O O O O O O O O
-    O G G G G G O O
-    O G G G G G O T 
-    O G G o o G O T 
-    O G G o o G O T 
-    O T O O O O O T 
-    O T T T O O O T 
-    O T T T T T T T 
+    cell '12345'
+    Spatial layout      Glacier mask
+
+    O O O O O O O O     0 0 0 0 0 0 0 0
+    O G G G G G O O     0 1 1 1 1 1 0 0 
+    O G G G G G O T     0 1 1 1 1 1 0 0 
+    O G G o o G O T     0 1 1 0 0 1 0 0 
+    O G G o o G O T     0 1 1 0 0 1 0 0 
+    O T O O O O O T     0 0 0 0 0 0 0 0 
+    O T T T O O O T     0 0 0 0 0 0 0 0 
+    O T T T T T T T     0 0 0 0 0 0 0 0 
 
     Initial HRU area fractions are calculated by adding up the sum of pixels for
     each given HRU type within a band and dividing by 64 (e.g. band 0 has a tree
@@ -30,14 +33,14 @@
     (as a glacier plateau). This grid cell is located immediately to the right of 
     cell '12345' (its leftmost pixels are adjacent to the rightmost pixels of '12345').
 
-    O O G G O O O O 
-    O T G G O O O O 
-    T T O G G G O T  
-    T T O G G G T T 
-    T T O G G O T T 
-    T T O O O O T T 
-    T T T O O O O T 
-    T T T O O T T T 
+    O O G G O O O O     0 0 1 1 0 0 0 0      
+    O T G G O O O O     0 0 1 1 0 0 0 0 
+    T T O G G G O T     0 0 0 1 1 1 0 0 
+    T T O G G G T T     0 0 0 1 1 1 0 0 
+    T T O G G O T T     0 0 0 1 1 0 0 0 
+    T T O O O O T T     0 0 0 0 0 0 0 0 
+    T T T O O O O T     0 0 0 0 0 0 0 0 
+    T T T O O T T T     0 0 0 0 0 0 0 0 
 
 '''
 
@@ -275,37 +278,45 @@ def test_cells_dynamic():
     # lower elevation band.  This is done in cell '23456', created here:
     cells[cell_ids[1]] = OrderedDict()
     # Band 0:
-    cells[cell_ids[1]]['0'] = Band(test_median_elevs[cell_ids[1]][0], GLACIER_ID, OPEN_GROUND_ID)
+    cells[cell_ids[1]]['1'] = Band(test_median_elevs[cell_ids[1]][0], GLACIER_ID, OPEN_GROUND_ID)
     # Tree HRU:
-    cells[cell_ids[1]]['0'].hrus.append(HydroResponseUnit(test_veg_types[0], test_area_fracs[cell_ids[1]][0], test_root_zone_parms[0]))
+    cells[cell_ids[1]]['1'].hrus.append(HydroResponseUnit(test_veg_types[0], test_area_fracs[cell_ids[1]][0], test_root_zone_parms[0]))
     # Open ground HRU:
-    cells[cell_ids[1]]['0'].hrus.append(HydroResponseUnit(test_veg_types[1], test_area_fracs[cell_ids[1]][1], test_root_zone_parms[1]))
+    cells[cell_ids[1]]['1'].hrus.append(HydroResponseUnit(test_veg_types[1], test_area_fracs[cell_ids[1]][1], test_root_zone_parms[1]))
     # Glacier HRU:
-    cells[cell_ids[1]]['0'].hrus.append(HydroResponseUnit(test_veg_types[2], test_area_fracs[cell_ids[1]][2], test_root_zone_parms[2]))
+    cells[cell_ids[1]]['1'].hrus.append(HydroResponseUnit(test_veg_types[2], test_area_fracs[cell_ids[1]][2], test_root_zone_parms[2]))
 
     # Band 1:
-    cells[cell_ids[1]]['1'] = Band(test_median_elevs[cell_ids[1]][1], GLACIER_ID, OPEN_GROUND_ID)
+    cells[cell_ids[1]]['2'] = Band(test_median_elevs[cell_ids[1]][1], GLACIER_ID, OPEN_GROUND_ID)
     # Tree HRU:
-    cells[cell_ids[1]]['1'].hrus.append(HydroResponseUnit(test_veg_types[0], test_area_fracs[cell_ids[1]][3], test_root_zone_parms[0]))
+    cells[cell_ids[1]]['2'].hrus.append(HydroResponseUnit(test_veg_types[0], test_area_fracs[cell_ids[1]][3], test_root_zone_parms[0]))
     # Open ground HRU:
-    cells[cell_ids[1]]['1'].hrus.append(HydroResponseUnit(test_veg_types[1], test_area_fracs[cell_ids[1]][4], test_root_zone_parms[1]))
+    cells[cell_ids[1]]['2'].hrus.append(HydroResponseUnit(test_veg_types[1], test_area_fracs[cell_ids[1]][4], test_root_zone_parms[1]))
     # Glacier HRU:
-    cells[cell_ids[1]]['1'].hrus.append(HydroResponseUnit(test_veg_types[2], test_area_fracs[cell_ids[1]][5], test_root_zone_parms[2]))
+    cells[cell_ids[1]]['2'].hrus.append(HydroResponseUnit(test_veg_types[2], test_area_fracs[cell_ids[1]][5], test_root_zone_parms[2]))
 
     # Band 2:
-    cells[cell_ids[1]]['2'] = Band(test_median_elevs[cell_ids[1]][2], GLACIER_ID, OPEN_GROUND_ID)
+    cells[cell_ids[1]]['3'] = Band(test_median_elevs[cell_ids[1]][2], GLACIER_ID, OPEN_GROUND_ID)
     # Open ground HRU:
-    cells[cell_ids[1]]['2'].hrus.append(HydroResponseUnit(test_veg_types[1], test_area_fracs[cell_ids[1]][5], test_root_zone_parms[1]))
+    cells[cell_ids[1]]['3'].hrus.append(HydroResponseUnit(test_veg_types[1], test_area_fracs[cell_ids[1]][5], test_root_zone_parms[1]))
     # Glacier HRU:
-    cells[cell_ids[1]]['2'].hrus.append(HydroResponseUnit(test_veg_types[2], test_area_fracs[cell_ids[1]][6], test_root_zone_parms[2]))
+    cells[cell_ids[1]]['3'].hrus.append(HydroResponseUnit(test_veg_types[2], test_area_fracs[cell_ids[1]][6], test_root_zone_parms[2]))
 
     pixel_elev = 1855
     #with pytest.raises(NameError):
     new_band_idx = create_band(cells, cell_ids[1], pixel_elev, band_size, test_band_map, GLACIER_ID, OPEN_GROUND_ID)
-    # NOTE: this is not complete.  Have to get advice from Markus on how to handle/sort
-    # new bands created below the existing ones (i.e. what should it be labeled if '0' is
-    # already taken?)
+
+    # Confirm that the new band was correctly placed in the first slot of the band_map for this cell
     assert new_band_idx == 0
-    assert len(test_band_map[cell_ids[1]]) == 5
     assert test_band_map[cell_ids[1]][0] == 1800
+    # Confirm that there are still 5 entries for the band_map for this cell
+    assert len(test_band_map[cell_ids[1]]) == 5
+    # Confirm that there is a zero pad remaining on the upper end of the band_map for this cell
     assert test_band_map[cell_ids[1]][-1] == 0
+    # Confirm that there is only one 0 entry left in the band_map for this cell
+    assert test_band_map[cell_ids[1]].count(0) == 1
+    # Confirm that there are 4 valid Bands in total for this cell
+    assert len(cells[cell_ids[1]]) == 4
+
+def test_update_area_fracs():
+    pass

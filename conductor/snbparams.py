@@ -40,13 +40,14 @@ def load_snb_parms(cells, snb_file, num_snow_bands, band_size):
                     Exiting.\n'.format(num_columns, snb_file, num_snow_bands))
                 sys.exit(0)
             median_elevs[cell_id] = [int(x) for x in split_line[num_snow_bands+1 : 2*num_snow_bands+1]]
-    # Create and populate the band_map for keeping track of existing and zero-pad bands,
-    # and set the median_elevation property for each existing band
+    # Create and populate the band_map for keeping track of existing and zero-pad bands
+    # (which could be converted to real bands during execution) and set the median_elevation 
+    # property for each existing band
     for cell in cells:
         band_map[cell] = []
         for band_idx, elev in enumerate(median_elevs[cell]):
             band_map[cell].append(int(elev - elev % band_size))
-            if elev > 0: # there is no Band object within the cell for zero pad elevations
+            if elev > 0: # there is no existing Band object within the cell for zero pad elevations
                 cells[cell][str(band_idx)].median_elev = elev
     return band_map
 

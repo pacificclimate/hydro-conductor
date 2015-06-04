@@ -47,11 +47,16 @@ def create_band(cells, cell_id, elevation, band_size, band_map, glacier_id, open
     """
     band_lower_bound = int(elevation - elevation % band_size)
     bisect.insort_left(band_map[cell_id], band_lower_bound)
-    # Remove zero pad to right of new band. If none exists, throw an exception
-    try:
-        band_map[cell_id].remove(0)
-    except ValueError:
-        print('create_band: ValueError: Attempted to create a new elevation band at {}m \
+    # Remove zero pad to left or right of new band. If none exists, throw an exception
+
+### experimental code to handle possibility of lower end band creation:
+    band_idx = band_map[cell_id].index(band_lower_bound)
+    if(0 in band_map[cell_id][0:band_idx+1]): # this was appended to the lower end of valid bands
+        band_map[cell_id].remove(0) # removes a 0 left of the new entry
+    elif(0 in band_map[cell_id][band_idx+1:band_idx+2]): # this was appended to the upper end of valid bands
+        band_map[cell_id].remove(0) # removes the first 0 right of the new entry
+    else: # there's no zero pad available for this new band
+        print('create_band: Attempted to create a new elevation band at {}m \
             (RGM output DEM pixel elevation at {}) in cell {}, but ran out of available slots. \
             Increase number of 0 pads in the VIC Snow Band Parameters file and re-run. Exiting.\
             \n'.format(band_lower_bound, elevation, cell_id))
