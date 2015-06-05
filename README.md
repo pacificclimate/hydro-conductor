@@ -33,7 +33,7 @@ $ python ./setup.py develop
 
 ## How to run the tests
 
-We haven't yet written any tests, but once we do, do this:
+We have a `pytest` config file in the repo at `pytest.cfg`. `pytest` should automatically discover all of our tests (but feel free to reconfigure through `pytest.cfg` or `py.test`'s command line arguments.
 
 * Install [`pytest`](http://pytest.org/latest/)
 
@@ -44,5 +44,5 @@ $ pip install pytest
 * Run `pytest`
 
 ```bash
-$ py.test tests/
+$ py.test
 ```
