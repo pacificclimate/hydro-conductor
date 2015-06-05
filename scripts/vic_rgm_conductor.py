@@ -259,13 +259,13 @@ def main():
     # Initial VIC output state filename prefix is determined by STATENAME in the global file
     state_filename_prefix = global_parms.statename
 
-    if global_parms.glacier_id is not None:
+    if global_parms.glacier_id is None:
         print('No value for GLACIER_ID was provided in the VIC global file. Assuming default value of {}.'.format(Band.glacier_id))
     else:
         Band.glacier_id = global_parms.glacier_id
     # FIXME: reinstate the following commented-out code once OPEN_GROUND_ID is supported in VIC
     # Numeric code indicating an open ground vegetation tile (HRU)
-    # if global_parms.open_ground_id is not None:
+    # if global_parms.open_ground_id is None:
     #     print('No value for OPEN_GROUND_ID was provided in the VIC global file. Assuming default value of {}.'.format(Band.open_ground_id))
     # else:
     #     Band.open_ground_id = global_parms.open_ground_id
