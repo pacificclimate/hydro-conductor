@@ -50,8 +50,8 @@ from collections import OrderedDict
 
 from conductor.cells import *
 
-OPEN_GROUND_ID = 19
-GLACIER_ID = 22
+GLACIER_ID = Band.glacier_id
+OPEN_GROUND_ID = Band.open_ground_id
 
 cell_ids = ['12345', '23456']
 
@@ -88,7 +88,7 @@ test_root_zone_parms = [[0.10, 0.60, 0.20, 0.25, 1.70, 0.15], # 11
                         [0.1, 1.0, 0.1, 0.0, 0.1, 0.0]] # 22
 
 def test_band_simple():
-    my_band = Band(test_median_elevs_simple[0], GLACIER_ID, OPEN_GROUND_ID)
+    my_band = Band(test_median_elevs_simple[0])
 
     assert my_band.median_elev == test_median_elevs_simple[0]
     assert my_band.area_frac == 0
@@ -106,7 +106,7 @@ def test_hru_simple():
     assert my_hru.root_zone_parms == test_root_zone_parms[2]
 
 def test_band_typical():
-    my_band = Band(test_median_elevs_simple[0], GLACIER_ID, OPEN_GROUND_ID)
+    my_band = Band(test_median_elevs_simple[0])
 
     # Create and populate three HRUs in this Band...
     # Tree HRU:
@@ -137,7 +137,7 @@ def test_cells_simple():
 
     # Create a cell with 4 Bands ('0', '1', '2', '3')
     cells[cell_ids[0]] = OrderedDict()
-    cells[cell_ids[0]]['0'] = Band(test_median_elevs[cell_ids[0]][0], GLACIER_ID, OPEN_GROUND_ID)
+    cells[cell_ids[0]]['0'] = Band(test_median_elevs[cell_ids[0]][0])
     # Create and populate three HRUs in this Band...
     # Tree HRU:
     cells[cell_ids[0]]['0'].hrus.append(HydroResponseUnit(test_veg_types[0], test_area_fracs_simple[0], test_root_zone_parms[0]))
@@ -146,15 +146,15 @@ def test_cells_simple():
     # Glacier HRU:
     cells[cell_ids[0]]['0'].hrus.append(HydroResponseUnit(test_veg_types[2], test_area_fracs_simple[2], test_root_zone_parms[2]))
 
-    cells[cell_ids[0]]['1'] = Band(test_median_elevs[cell_ids[0]][1], GLACIER_ID, OPEN_GROUND_ID)
-    cells[cell_ids[0]]['2'] = Band(test_median_elevs[cell_ids[0]][2], GLACIER_ID, OPEN_GROUND_ID)
-    cells[cell_ids[0]]['3'] = Band(test_median_elevs[cell_ids[0]][3], GLACIER_ID, OPEN_GROUND_ID)
+    cells[cell_ids[0]]['1'] = Band(test_median_elevs[cell_ids[0]][1])
+    cells[cell_ids[0]]['2'] = Band(test_median_elevs[cell_ids[0]][2])
+    cells[cell_ids[0]]['3'] = Band(test_median_elevs[cell_ids[0]][3])
 
     # Create another cell with 3 Bands
     cells[cell_ids[1]] = OrderedDict()
-    cells[cell_ids[1]]['0'] = Band(test_median_elevs[cell_ids[1]][0], GLACIER_ID, OPEN_GROUND_ID)
-    cells[cell_ids[1]]['1'] = Band(test_median_elevs[cell_ids[1]][1], GLACIER_ID, OPEN_GROUND_ID)
-    cells[cell_ids[1]]['2'] = Band(test_median_elevs[cell_ids[1]][2], GLACIER_ID, OPEN_GROUND_ID)
+    cells[cell_ids[1]]['0'] = Band(test_median_elevs[cell_ids[1]][0])
+    cells[cell_ids[1]]['1'] = Band(test_median_elevs[cell_ids[1]][1])
+    cells[cell_ids[1]]['2'] = Band(test_median_elevs[cell_ids[1]][2])
 
     # Test that the correct number of Bands was instantiated for a cell
     assert len(cells[cell_ids[0]]) == 4
@@ -176,14 +176,14 @@ def test_cells_dynamic():
     # Create a cell with 3 Bands
     cells[cell_ids[0]] = OrderedDict()
     # Band 0:
-    cells[cell_ids[0]]['0'] = Band(test_median_elevs[cell_ids[0]][0], GLACIER_ID, OPEN_GROUND_ID)
+    cells[cell_ids[0]]['0'] = Band(test_median_elevs[cell_ids[0]][0])
     # Tree HRU:
     cells[cell_ids[0]]['0'].hrus.append(HydroResponseUnit(test_veg_types[0], test_area_fracs[cell_ids[0]][0], test_root_zone_parms[0]))
     # Open ground HRU:
     cells[cell_ids[0]]['0'].hrus.append(HydroResponseUnit(test_veg_types[1], test_area_fracs[cell_ids[0]][1], test_root_zone_parms[1]))
 
     # Band 1:
-    cells[cell_ids[0]]['1'] = Band(test_median_elevs[cell_ids[0]][1], GLACIER_ID, OPEN_GROUND_ID)
+    cells[cell_ids[0]]['1'] = Band(test_median_elevs[cell_ids[0]][1])
     # Tree HRU:
     cells[cell_ids[0]]['1'].hrus.append(HydroResponseUnit(test_veg_types[0], test_area_fracs[cell_ids[0]][2], test_root_zone_parms[0]))
     # Open ground HRU:
@@ -192,14 +192,14 @@ def test_cells_dynamic():
     cells[cell_ids[0]]['1'].hrus.append(HydroResponseUnit(test_veg_types[2], test_area_fracs[cell_ids[0]][4], test_root_zone_parms[2]))
 
     # Band 2:
-    cells[cell_ids[0]]['2'] = Band(test_median_elevs[cell_ids[0]][2], GLACIER_ID, OPEN_GROUND_ID)
+    cells[cell_ids[0]]['2'] = Band(test_median_elevs[cell_ids[0]][2])
     # Open ground HRU:
     cells[cell_ids[0]]['2'].hrus.append(HydroResponseUnit(test_veg_types[1], test_area_fracs[cell_ids[0]][5], test_root_zone_parms[1]))
     # Glacier HRU:
     cells[cell_ids[0]]['2'].hrus.append(HydroResponseUnit(test_veg_types[2], test_area_fracs[cell_ids[0]][6], test_root_zone_parms[2]))
 
     # Band 3:
-    cells[cell_ids[0]]['3'] = Band(test_median_elevs[cell_ids[0]][3], GLACIER_ID, OPEN_GROUND_ID)
+    cells[cell_ids[0]]['3'] = Band(test_median_elevs[cell_ids[0]][3])
     # Open ground HRU:
     cells[cell_ids[0]]['3'].hrus.append(HydroResponseUnit(test_veg_types[1], test_area_fracs[cell_ids[0]][7], test_root_zone_parms[1]))
 
@@ -236,7 +236,7 @@ def test_cells_dynamic():
     cells[cell_ids[0]]['3'].hrus[0].area_frac -= 0.015625
     # New Band's initial (single toy pixel) median elevation:
     pixel_elev = 2450
-    new_band_idx = create_band(cells, cell_ids[0], pixel_elev, band_size, test_band_map, GLACIER_ID, OPEN_GROUND_ID)
+    new_band_idx = create_band(cells, cell_ids[0], pixel_elev, band_size, test_band_map)
     new_band_id = str(new_band_idx) # this is true because we only ever append to upper end of band_map
 #    print('new_band_id: {}'.format(new_band_id))
 #    print('band_map: {}'.format(test_band_map))
@@ -260,7 +260,7 @@ def test_cells_dynamic():
     ## 5. Simulate an attempt to grow the glacier into a new elevation Band 5 (no 0 pad available)
     pixel_elev = 2550
     with pytest.raises(Exception):
-        new_band_idx = create_band(cells, cell_ids[0], pixel_elev, band_size, test_band_map, GLACIER_ID, OPEN_GROUND_ID)
+        new_band_idx = create_band(cells, cell_ids[0], pixel_elev, band_size, test_band_map)
 
     ## 6. Simulate glacier recession completely out of elevation Band 4 (i.e. delete the Band)
     new_glacier_area_frac = 0
@@ -278,7 +278,7 @@ def test_cells_dynamic():
     # lower elevation band.  This is done in cell '23456', created here:
     cells[cell_ids[1]] = OrderedDict()
     # Band 0:
-    cells[cell_ids[1]]['1'] = Band(test_median_elevs[cell_ids[1]][0], GLACIER_ID, OPEN_GROUND_ID)
+    cells[cell_ids[1]]['1'] = Band(test_median_elevs[cell_ids[1]][0])
     # Tree HRU:
     cells[cell_ids[1]]['1'].hrus.append(HydroResponseUnit(test_veg_types[0], test_area_fracs[cell_ids[1]][0], test_root_zone_parms[0]))
     # Open ground HRU:
@@ -287,7 +287,7 @@ def test_cells_dynamic():
     cells[cell_ids[1]]['1'].hrus.append(HydroResponseUnit(test_veg_types[2], test_area_fracs[cell_ids[1]][2], test_root_zone_parms[2]))
 
     # Band 1:
-    cells[cell_ids[1]]['2'] = Band(test_median_elevs[cell_ids[1]][1], GLACIER_ID, OPEN_GROUND_ID)
+    cells[cell_ids[1]]['2'] = Band(test_median_elevs[cell_ids[1]][1])
     # Tree HRU:
     cells[cell_ids[1]]['2'].hrus.append(HydroResponseUnit(test_veg_types[0], test_area_fracs[cell_ids[1]][3], test_root_zone_parms[0]))
     # Open ground HRU:
@@ -296,7 +296,7 @@ def test_cells_dynamic():
     cells[cell_ids[1]]['2'].hrus.append(HydroResponseUnit(test_veg_types[2], test_area_fracs[cell_ids[1]][5], test_root_zone_parms[2]))
 
     # Band 2:
-    cells[cell_ids[1]]['3'] = Band(test_median_elevs[cell_ids[1]][2], GLACIER_ID, OPEN_GROUND_ID)
+    cells[cell_ids[1]]['3'] = Band(test_median_elevs[cell_ids[1]][2])
     # Open ground HRU:
     cells[cell_ids[1]]['3'].hrus.append(HydroResponseUnit(test_veg_types[1], test_area_fracs[cell_ids[1]][5], test_root_zone_parms[1]))
     # Glacier HRU:
@@ -304,7 +304,7 @@ def test_cells_dynamic():
 
     pixel_elev = 1855
     #with pytest.raises(NameError):
-    new_band_idx = create_band(cells, cell_ids[1], pixel_elev, band_size, test_band_map, GLACIER_ID, OPEN_GROUND_ID)
+    new_band_idx = create_band(cells, cell_ids[1], pixel_elev, band_size, test_band_map)
 
     # Confirm that the new band was correctly placed in the first slot of the band_map for this cell
     assert new_band_idx == 0

@@ -12,16 +12,26 @@ import bisect
 class Band(object):
     """ Class capturing vegetation parameters at the elevation band level
     """
-# NOTE: can we make glacier_id and open_ground_id global and visible within this class?
-    def __init__(self, median_elev, glacier_id, open_ground_id):
-    #def __init__(self, area_frac, median_elev):
+    # glacier_id and open_ground_id are defined on a *per-run* basis. On one
+    # hand, we want to contain these magic numbers within this class, but OTOH
+    # it's more overhead than we would want to maintain the value for *every
+    # instance* We'll define them statically in the class, and allow
+    # applications to set them in the *unlikely* circumstances with which they
+    # would be changed E.g.
+    # Band.glacier_id = 10
+    # my_band_instance = Band()
+    # my_band_instance.area_frac_glacier # uses 10 for the comparison value
+    glacier_id = 22
+    open_ground_id = 19
+
+    def __init__(self, median_elev):
         self.median_elev = median_elev
         self.hrus = []
-        self.glacier_id = glacier_id
-        self.open_ground_id = open_ground_id
+
     @property
     def num_hrus(self):
         return len(self.hrus)
+
     @property
     def area_frac(self): 
         """ The Band area fraction, equal to the sum of HRU area fractions within this band, 
@@ -29,17 +39,20 @@ class Band(object):
             Snow Band Parameters file
         """
         return sum([hru.area_frac for hru in self.hrus])
+
     @property
     def area_frac_glacier(self):
         return sum([hru.area_frac for hru in self.hrus if hru.veg_type == self.glacier_id])
+
     @property
     def area_frac_non_glacier(self):
         return self.area_frac - self.area_frac_glacier
+
     @property
     def area_frac_open_ground(self):
         return sum([hru.area_frac for hru in self.hrus if hru.veg_type == self.open_ground_id])
 
-def create_band(cells, cell_id, elevation, band_size, band_map, glacier_id, open_ground_id):
+def create_band(cells, cell_id, elevation, band_size, band_map):
     """ Creates a new elevation band of glacier vegetation type for a cell with an 
         initial median elevation.
         New bands can only occur on the upper end of the existing set, taking the
@@ -67,7 +80,7 @@ def create_band(cells, cell_id, elevation, band_size, band_map, glacier_id, open
     # Get final index / id of Band after zero pad removed from band_map
     band_idx = band_map[cell_id].index(band_lower_bound)
     # Create an additional Band object in the cell with initial median elevation
-    cells[cell_id][str(band_idx)] = Band(elevation, glacier_id, open_ground_id)
+    cells[cell_id][str(band_idx)] = Band(elevation)
     return band_idx
 
 def delete_band(cells, cell_id, band_lower_bound, band_map):
@@ -134,7 +147,7 @@ def update_area_fracs(cells, cell_areas, num_snow_bands, band_size, band_map, pi
                             glacier_areas[cell][band_idx] += 1
                         break
                 if not band_found: # we have to introduce a new elevation band
-                    new_band_idx = create_band(cells, cell, pixel_elev, band_size, band_map, glacier_id, open_ground_id)
+                    new_band_idx = create_band(cells, cell, pixel_elev, band_size, band_map)
                     all_pixel_elevs[cell][new_band_idx].append(pixel_elev)
                     band_areas[cell][new_band_idx] += 1
                     if glacier_mask[row][col]:

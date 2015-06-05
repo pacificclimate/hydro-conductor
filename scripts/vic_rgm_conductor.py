@@ -259,22 +259,19 @@ def main():
     # Initial VIC output state filename prefix is determined by STATENAME in the global file
     state_filename_prefix = global_parms.statename
 
-    if not global_parms.glacier_id:
-        GLACIER_ID = 22
-        print('No value for GLACIER_ID was provided in the VIC global file. Assuming default value of {}.'.format(GLACIER_ID))
+    if global_parms.glacier_id is not None:
+        print('No value for GLACIER_ID was provided in the VIC global file. Assuming default value of {}.'.format(Band.glacier_id))
     else:
-        GLACIER_ID = global_parms.glacier_id
+        Band.glacier_id = global_parms.glacier_id
     # FIXME: reinstate the following commented-out code once OPEN_GROUND_ID is supported in VIC
     # Numeric code indicating an open ground vegetation tile (HRU)
-    # if not global_parms.open_ground_id:
-    #     OPEN_GROUND_ID = '19'
-    #     print('No value for OPEN_GROUND_ID was provided in the VIC global file. Assuming default value of {}.'.format(OPEN_GROUND_ID))
+    # if global_parms.open_ground_id is not None:
+    #     print('No value for OPEN_GROUND_ID was provided in the VIC global file. Assuming default value of {}.'.format(Band.open_ground_id))
     # else:
-    #     OPEN_GROUND_ID = global_parms.open_ground_id
-    OPEN_GROUND_ID = 19
+    #     Band.open_ground_id = global_parms.open_ground_id
 
     # Get VIC vegetation parameters and grid cell IDs from initial Vegetation Parameter File
-    cells = vegparams.load_veg_parms(global_parms.vegparam, GLACIER_ID, OPEN_GROUND_ID, glacier_root_zone_parms, open_ground_root_zone_parms)
+    cells = vegparams.load_veg_parms(global_parms.vegparam, Band.glacier_id, Band.open_ground_id, glacier_root_zone_parms, open_ground_root_zone_parms)
 
     num_snow_bands, snb_file = global_parms.snow_band.split()
     num_snow_bands = int(num_snow_bands)

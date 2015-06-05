@@ -52,7 +52,7 @@ def load_veg_parms(veg_parm_file, glacier_id, open_ground_id, glacier_root_zone_
                 cell[band_id].hrus.append(HydroResponseUnit(veg_type, area_frac, root_zone_parms))
             except KeyError:
                 # Create the BandInfo object for this band, along with first vegetation tile
-                cell[band_id] = Band(area_frac, None, glacier_id, open_ground_id)
+                cell[band_id] = Band(area_frac, None)
                 cell[band_id].hrus.append(HydroResponseUnit(veg_type, area_frac, root_zone_parms))
         return cell_id, cell
     
