@@ -336,7 +336,7 @@ def main():
 
         # set global parameters for this VIC run
         global_parms.vegparm = temp_vpf
-        global_parms.snow_band = '{} {}'.format(temp_snb, num_snow_bands)
+        global_parms.snow_band = '{} {}'.format(num_snow_bands, temp_snb)
         global_parms.startdate = start
         global_parms.enddate = end
         global_parms.statedate = end

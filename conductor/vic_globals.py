@@ -55,7 +55,7 @@ class Mapping(object):
     def __get__(self, instance, cls):
         return self.dict_
     def __str__(self, instance, cls, name=''):
-        return '\n'.join('{} {} {}'.format(name.upper(), k, v) for k, v in self.dict_.items())
+        return '\n'.join('{} {} {}'.format(name.upper(), k, v) for k, v in self.dict_.items()) + '\n'
 
 class List(object):
     def __init__(self):
@@ -65,7 +65,7 @@ class List(object):
     def __get__(self, instance, cls):
         return self.value
     def __str__(self, instance, cls, name=''):
-        return '\n'.join('{} {}'.format(name.upper(), item) for item in self.value)
+        return '\n'.join('{} {}'.format(name.upper(), item) for item in self.value) + '\n'
 
 class OutfileList(object):
     def __init__(self):
