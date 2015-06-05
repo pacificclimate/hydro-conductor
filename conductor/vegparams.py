@@ -7,7 +7,7 @@
 
 from collections import OrderedDict
 import csv
-from cells import Band, HydroResponseUnit
+from conductor.cells import Band, HydroResponseUnit
 
 def load_veg_parms(veg_parm_file, glacier_id, open_ground_id, glacier_root_zone_parms=None, open_ground_root_zone_parms=None):
     """ Reads in VIC vegetation parameter file and creates and partially 

@@ -48,17 +48,22 @@ def create_band(cells, cell_id, elevation, band_size, band_map, glacier_id, open
     band_lower_bound = int(elevation - elevation % band_size)
     bisect.insort_left(band_map[cell_id], band_lower_bound)
     # Remove zero pad to left or right of new band. If none exists, throw an exception
+
+### experimental code to handle possibility of lower end band creation:
+### FIXME: Refactor this
     band_idx = band_map[cell_id].index(band_lower_bound)
     if(0 in band_map[cell_id][0:band_idx+1]): # this was appended to the lower end of valid bands
         band_map[cell_id].remove(0) # removes a 0 left of the new entry
     elif(0 in band_map[cell_id][band_idx+1:band_idx+2]): # this was appended to the upper end of valid bands
         del band_map[cell_id][band_idx+1] # removes the first 0 right of the new entry
     else: # there's no zero pad available for this new band
-        raise LookupError ('create_band: Attempted to create a new elevation band at {}m \
-            (RGM output DEM pixel elevation at {}) in cell {}, but ran out of available slots. \
-            Increase number of 0 pads in the VIC Snow Band Parameters file and re-run. Exiting.\
-            \n'.format(band_lower_bound, elevation, cell_id))
-        sys.exit(0)
+        raise Exception(
+                'Attempted to create a new elevation band at {}m '
+                '(RGM output DEM pixel elevation at {}) in cell {}, but ran out '
+                'of available slots. Increase number of 0 pads in the VIC Snow '
+                'Band Parameters file and re-run.'
+            .format(band_lower_bound, elevation, cell_id)
+        )
     # Get final index / id of Band after zero pad removed from band_map
     band_idx = band_map[cell_id].index(band_lower_bound)
     # Create an additional Band object in the cell with initial median elevation
@@ -156,8 +161,10 @@ def update_area_fracs(cells, cell_areas, num_snow_bands, band_size, band_map, pi
             # If the glacier HRU area fraction has changed for this band then we need to update all area fractions
             if new_glacier_area_frac != cells[cell][band_idx].area_frac_glacier:
                 if new_glacier_area_frac < 0:
-                    print('update_band_area_fracs(): Error: Calculated a negative glacier area fraction for cell {}, band {}. Exiting.\n'.format(cell, band))
-                    sys.exit(0)
+                    raise Exception(
+                            'Calculated a negative glacier area fraction for '
+                            'cell {}, band {}'.format(cell, band)
+                    )
                 # Calculate new non-glacier area fraction for this band
                 new_non_glacier_area_frac = new_band_area_frac - new_glacier_area_frac
                 # Calculate new_residual area fraction
@@ -204,7 +211,11 @@ def update_area_fracs(cells, cell_areas, num_snow_bands, band_size, band_map, pi
                 # Sanity check that glacier + non-glacier area fractions add up to Band's total area fraction, within tolerance
                 sum_test = new_glacier_area_frac + new_non_glacier_area_frac
                 if not np.allclose([sum_test], [new_band_area_frac]): # default rtol=1e-5, atol=1e-8
-                    print('Error: update_band_area_fracs: cell {}, band {}: glacier area fraction {} + non-glacier area fraction {} = {} \
-                        is not equal to the band area fraction of {}'.format(cell, band, new_glacier_area_frac, new_non_glacier_area_frac, \
-                            sum_test, new_band_area_frac))
-                    sys.exit(0)
+                    raise Exception(
+                            'cell {}, band {}: glacier area fraction {} + '
+                            'non-glacier area fraction {} = {} is not equal to '
+                            'the band area fraction of {}'
+                            .format(cell, band, new_glacier_area_frac,
+                                    new_non_glacier_area_frac, sum_test,
+                                    new_band_area_frac)
+                    )

@@ -249,23 +249,22 @@ class Global(metaclass=OrderedMeta):
     def glacier_accum_startdate(self, value):
         self.glacier_accum_startyear, self.glacier_accum_startmonth, self.glacier_accum_startday = value.year, value.month, value.day
 
-    def __init__(self, filename):
-        with open(filename, 'r') as f:
-            for line in f:
-                if line.isspace() or line.startswith('#'):
-                    continue
+    def __init__(self, input_stream):
+        for line in input_stream:
+            if line.isspace() or line.startswith('#'):
+                continue
 
-                name, value = line.split(None, 1)
-                name = name.lower()
-                value = value.strip()
+            name, value = line.split(None, 1)
+            name = name.lower()
+            value = value.strip()
 
-                # This set of keys are "special". Use a different key that knows
-                # how to handle them. This a hack. Don't ever do something like
-                # this again.
-                if name in ('outfile', 'outvar'):
-                    name = 'outfiles'
+            # This set of keys are "special". Use a different key that knows
+            # how to handle them. This a hack. Don't ever do something like
+            # this again.
+            if name in ('outfile', 'outvar'):
+                name = 'outfiles'
 
-                setattr(self, name, value)
+            setattr(self, name, value)
 
     def _get_descriptor(self, name):
         ''' descriptors have getters that return their contents rather
