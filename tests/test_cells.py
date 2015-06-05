@@ -277,7 +277,7 @@ def test_cells_dynamic():
     ## 7. Simulate glacier recession from the lowest existing band, to reveal
     # a yet lower elevation band, where no 0 pad exists to allow for it (should fail)
     pixel_elev = 1957
-    with pytest.raises(LookupError):
+    with pytest.raises(Exception):
         new_band_idx = create_band(cells, cell_ids[0], pixel_elev, band_size, test_band_map, GLACIER_ID, OPEN_GROUND_ID)
 
     ## 8. The same test in cell '23456' (created here), where there is at least one 0 pad at bottom and top
