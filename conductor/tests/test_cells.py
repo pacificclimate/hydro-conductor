@@ -209,7 +209,7 @@ def test_cells_dynamic():
     cells[cell_ids[0]]['2'].hrus[1].area_frac = new_glacier_area_frac
     # open ground HRU is now gone:
     new_open_ground_area_frac = 0 # not used
-    delete_hru(cells, cell_ids[0], '2', OPEN_GROUND_ID)
+    cells[cell_ids[0]]['2'].delete_hru(OPEN_GROUND_ID)
     # Check that there is only one HRU left in this band
     assert cells[cell_ids[0]]['2'].num_hrus == 1    # NOTE: was band_ids[3]?
 
@@ -217,11 +217,11 @@ def test_cells_dynamic():
     new_glacier_area_frac = 0.0625 # 4/64 pixels in toy problem domain. 4/4 in Band 3  
     # open ground HRU is now gone:
     new_open_ground_area_frac = 0
-    delete_hru(cells, cell_ids[0], '3', OPEN_GROUND_ID)
+    cells[cell_ids[0]]['3'].delete_hru(OPEN_GROUND_ID)
     # Confirm that there are (temporarily) no HRUs in this band
     assert cells[cell_ids[0]]['3'].num_hrus == 0
     # create new glacier HRU:
-    create_hru(cells, cell_ids[0], '3', GLACIER_ID, new_glacier_area_frac, test_root_zone_parms[2])
+    cells[cell_ids[0]]['3'].create_hru(GLACIER_ID, new_glacier_area_frac, test_root_zone_parms[2])
     # assign area fraction to this new glacier HRU:
     cells[cell_ids[0]]['3'].hrus[0].area_frac = new_glacier_area_frac
     # Check that there is only the one glacier HRU in this band
@@ -245,7 +245,7 @@ def test_cells_dynamic():
     # Test that band_map stayed the same length (num_snow_bands = 5 in this case)
     assert len(test_band_map[cell_ids[0]]) == 5
     # Create the corresponding new glacier HRU
-    create_hru(cells, cell_ids[0], new_band_id, GLACIER_ID, new_glacier_area_frac, test_root_zone_parms[2])
+    cells[cell_ids[0]][new_band_id].create_hru(GLACIER_ID, new_glacier_area_frac, test_root_zone_parms[2])
     # Check out this new HRU
     assert cells[cell_ids[0]][new_band_id].num_hrus == 1
     assert cells[cell_ids[0]][new_band_id].hrus[0].veg_type == GLACIER_ID

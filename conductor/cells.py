@@ -52,6 +52,23 @@ class Band(object):
     def area_frac_open_ground(self):
         return sum([hru.area_frac for hru in self.hrus if hru.veg_type == self.open_ground_id])
 
+    def create_hru(self, veg_type, area_frac, root_zone_parms):
+        """ Creates a new HRU of veg_type within a given cell and Band
+        """
+        new_hru = HydroResponseUnit(veg_type, area_frac, root_zone_parms)
+        # Append new_hru to existing list of HRUs for this band, and re-sort the list ascending by veg_type
+        self.hrus.append(new_hru)
+        self.hrus.sort(key=lambda x: x.veg_type)
+
+    def delete_hru(self, veg_type):
+        """ Deletes an HRU of veg_type within the Band
+        """
+        for i, hru in enumerate(self.hrus):
+            if hru.veg_type == veg_type:
+                del self.hrus[i]
+                return # there *should* only ever be one tile of any given vegetation type
+
+    
 def create_band(cells, cell_id, elevation, band_size, band_map):
     """ Creates a new elevation band of glacier vegetation type for a cell with an 
         initial median elevation.
@@ -99,22 +116,6 @@ class HydroResponseUnit(object):
         self.veg_type = veg_type
         self.area_frac = area_frac
         self.root_zone_parms = root_zone_parms
-
-def create_hru(cells, cell_id, band_id, veg_type, area_frac, root_zone_parms):
-    """ Creates a new HRU of veg_type within a given cell and Band
-    """
-    new_hru = HydroResponseUnit(veg_type, area_frac, root_zone_parms)
-    # Append new_hru to existing list of HRUs for this band, and re-sort the list ascending by veg_type
-    cells[cell_id][band_id].hrus.append(new_hru)
-    cells[cell_id][band_id].hrus.sort(key=lambda x: x.veg_type)
-
-def delete_hru(cells, cell_id, band_id, veg_type):
-    """ Deletes an HRU of veg_type within a given cell and Band
-    """
-    for hru_idx, hru in enumerate(cells[cell_id][band_id].hrus):
-        if hru.veg_type == veg_type:
-            del cells[cell_id][band_id].hrus[hru_idx]
-            break # there will only ever be one tile of any given vegetation type
 
 def update_area_fracs(cells, cell_areas, num_snow_bands, band_size, band_map, pixel_to_cell_map,
                       surf_dem, num_rows_dem, num_cols_dem, glacier_mask, glacier_id, open_ground_id):
@@ -202,7 +203,7 @@ def update_area_fracs(cells, cell_areas, num_snow_bands, band_size, band_map, pi
                         open_ground_found = True
                         # If open ground area fraction was reduced to 0, we delete the HRU
                         if new_open_ground_area_frac == 0:
-                            delete_hru(cells, cell, band_idx, open_ground_id)
+                            band.delete_hru(open_ground_id)
                         else:
                             cells[cell][band_idx].hrus[hru_idx].area_frac = new_open_ground_area_frac
                     else:
@@ -210,16 +211,17 @@ def update_area_fracs(cells, cell_areas, num_snow_bands, band_size, band_map, pi
                         delta_area_hru = delta_area_vegetated * (cells[cell][band_idx].hrus[hru_idx].area_frac / veg_scaling_divisor)
                         new_hru_area_frac = cells[cell][band_id].hrus[hru_idx].area_frac + delta_area_hru
                         if new_hru_area_frac <= 0: # HRU has disappeared, never to return (only open ground can come back in its place)
-                            delete_hru(cell, band_idx, cells[cell][band_idx].hrus[hru_idx])
+                            veg_type = cells[cell][band_idx].hrus[hru_idx]
+                            band.delete_hru(veg_type)
                         else:
                             cells[cell][band_idx].hrus[hru_idx].area_frac = new_hru_area_frac
                 # Create glacier HRU if it didn't already exist, if we have a non-zero new_glacier_area_frac. 
                 # If glacier area fraction was reduced to 0, we leave the "shadow glacier" HRU in place for VIC
                 if not glacier_found and (new_glacier_area_frac > 0):
-                    create_hru(cells, cell, band, glacier_id, new_glacier_area_frac, glacier_root_zone_parms)
+                    band.create_hru(glacier_id, new_glacier_area_frac, glacier_root_zone_parms)
                 # If open ground was exposed in this band we need to add an open ground HRU
                 if not open_ground_found and (new_open_ground_area_frac > 0):
-                    create_hru(cells, cell, band, open_ground_id, new_open_ground_area_frac, open_ground_root_zone_parms)
+                    band.create_hru(open_ground_id, new_open_ground_area_frac, open_ground_root_zone_parms)
 
                 # Sanity check that glacier + non-glacier area fractions add up to Band's total area fraction, within tolerance
                 sum_test = new_glacier_area_frac + new_non_glacier_area_frac
