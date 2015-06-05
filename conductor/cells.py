@@ -8,6 +8,41 @@
 '''
 
 import bisect
+from collections import deque
+
+class PaddedDeque(deque):
+    def __init__(self, *args, left_padding=0):
+        self.left_padding = left_padding
+        super().__init__(*args)
+
+    @property
+    def right_padding(self):
+        return self.maxlen - len(self) - self.left_padding
+
+    def append(self, x):
+        if len(self) == self.maxlen or self.right_padding == 0:
+            raise IndexError("Cannot append to item to full PaddedDeque")
+        super().append(x)
+
+    def appendleft(self, x):
+        if len(self) == self.maxlen or self.left_padding == 0:
+            raise IndexError("Cannot append to item to full PaddedDeque")
+        self.left_padding -= 1
+        super().appendleft(x)
+
+    def popleft(self):
+        rv = super().popleft()
+        self.left_padding += 1
+        return rv
+
+    def __getitem__(self, i):
+        return super().__getitem__(i - self.left_padding)
+
+    def __iter__(self):
+        yield from ([None] * self.left_padding)
+        yield from super().__iter__()
+        yield from ([None] * self.right_padding)
+
 
 class Band(object):
     """ Class capturing vegetation parameters at the elevation band level
@@ -67,6 +102,24 @@ class Band(object):
             if hru.veg_type == veg_type:
                 del self.hrus[i]
                 return # there *should* only ever be one tile of any given vegetation type
+
+def band_index(band_zs, z):
+    '''Return the index 
+    '''
+    # band_zs = [ 0, 1900, 2000, 2100, 0 ]
+    # z = 701
+    # strip zeros
+    band_zs = [ elev for elev in band_zs if elev > 0 ]
+    for i, band_max in enumerate(band_zs):
+        if z < band_max:
+            return i
+    raise IndexError("Elevation {} is not contained by bands which are bound by "
+                     "the interval ({}-{})".format(min(band_zs), max(band_zs)))
+
+
+def grow_band(band_zs, z, band_size=100):
+    # band_zs = [0, 1900, 2000, 2100, 0]
+    pass
 
     
 def create_band(cells, cell_id, elevation, band_size, band_map):
