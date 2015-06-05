@@ -58,16 +58,8 @@ def save_snb_parms(cells, filename, band_map):
     """
     with open(filename, 'w') as f:
          writer = csv.writer(f, delimiter=' ')
-         for cell in cells:
-            line = [cell]
-            for band_idx, band in enumerate(band_map[cell]):
-                if band_map[cell][band_idx] != 0:
-                    line.append(cells[cell][str(band_idx)].area_frac)
-                else:
-                    line.append(0)  
-            for band_idx, band in enumerate(band_map[cell]):
-                if band_map[cell][band_idx] != 0:
-                    line.append(cells[cell][str(band_idx)].median_elev)
-                else:
-                    line.append(0)
+         for cell_id, cell in cells.items():
+            area_fracs = [ band.area_frac if map_value else 0 for map_value, band in zip(band_map, cell) ]
+            elevations = [ band.median_elev if map_value else 0 for map_value, band in zip(band_map, cell) ]
+            line = [cell_id] + area_fracs + elevations
             writer.writerow(line)
