@@ -247,7 +247,8 @@ def main():
         glacier_root_zone_parms, open_ground_root_zone_parms, band_size = parse_input_parms()
 
     # Get all initial VIC global parameters from the global parameter file
-    global_parms = Global(vic_global_file)
+    with open(vic_global_file, 'r') as f:
+        global_parms = Global(f)
 
     assert global_parms.state_format == 'NETCDF', \
         "{} only supports NetCDF input statefile input as opposed "\

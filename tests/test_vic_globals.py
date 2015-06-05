@@ -83,6 +83,6 @@ def test_list():
     f.x = 8
     assert f.x == ["Something", 1.0, 8]
 
-def test_global_init():
-    g = Global('/tmp/glb_peyto_base_save_state.txt')
+def test_global_init(sample_global_file_string):
+    g = Global(sample_global_file_string)
     print(str(g))

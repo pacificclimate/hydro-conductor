@@ -1,0 +1,118 @@
+# Sample Global Parameters file for VIC run
+# Blank lines ...
+
+# ... and lines starting with '#' are skipped
+
+########################################################################
+# Simulation Parameters
+########################################################################
+TIME_STEP	24
+SNOW_STEP	1
+STARTYEAR	1960
+STARTMONTH	1
+STARTDAY	1
+STARTHOUR	0
+ENDYEAR         1995
+ENDMONTH	12
+ENDDAY		31
+FULL_ENERGY	FALSE
+FROZEN_SOIL	FALSE
+NO_FLUX	FALSE
+DIST_PRCP	FALSE
+CORRPREC	FALSE
+MIN_WIND_SPEED	0.1
+PREC_EXPT	0.6
+GLACIER_ID	2
+GLACIER_ACCUM_START_YEAR	1965
+GLACIER_ACCUM_START_MONTH	10
+GLACIER_ACCUM_START_DAY		1
+GLACIER_ACCUM_INTERVAL		1
+
+########################################################################
+# State Files and Parameters
+########################################################################
+STATEYEAR	1995
+STATEMONTH	12
+STATEDAY	31
+STATE_FORMAT	NETCDF
+
+########################################################################
+# Forcing Files and Parameters
+########################################################################
+GRID_DECIMAL	5
+WIND_H		10
+MEASURE_H	2
+ALMA_INPUT	FALSE
+###		Forcing file number 1 (Required)
+FORCING1	./forcings_v2_1950-2006.nc
+FORCE_FORMAT	NETCDF
+FORCE_ENDIAN	LITTLE
+N_TYPES		4
+FORCE_TYPE	PREC	UNSIGNED	40
+FORCE_TYPE	TMAX	SIGNED	100
+FORCE_TYPE	TMIN	SIGNED	100
+FORCE_TYPE	WIND	SIGNED	100
+FORCE_DT	24
+FORCEYEAR	1950
+FORCEMONTH	1
+FORCEDAY	1
+FORCEHOUR	0
+###		Forcing file number 2 (Optional)
+
+########################################################################
+# Land Surface Files and Parameters
+########################################################################
+NLAYER		3
+NODES		5
+SOIL		./spp_peyto_base.txt
+BASEFLOW	ARNO
+ARC_SOIL	FALSE
+VEGPARAM	./vpf_peyto_100m.txt
+VEGPARAM_LAI	FALSE
+LAI_SRC	LAI_FROM_VEGLIB
+VEGLIB		./vlbc_eosd_2000_v4.txt
+ROOT_ZONES	3
+SNOW_BAND 	13	./snb_peyto_100m.txt
+
+########################################################################
+# Output Files and Parameters
+########################################################################
+RESULT_DIR	./
+OUT_STEP	0
+SKIPYEAR	0
+COMPRESS	FALSE
+OUTPUT_FORMAT	ASCII
+ALMA_OUTPUT	FALSE
+PRT_HEADER	TRUE
+PRT_SNOW_BAND	FALSE
+
+########################################################################
+# NetCDF global attributes to be written out
+########################################################################
+NETCDF_ATTRIBUTE	institution	Pacific Climate Impacts Consortium (PCIC), Victoria, BC, www.pacificclimate.org
+NETCDF_ATTRIBUTE	contact	mschnorb@uvic.ca
+NETCDF_ATTRIBUTE	contact2	Markus Schnorbus
+NETCDF_ATTRIBUTE	references	http://www.pacificclimate.org
+
+########################################################################
+# Output Variables
+#
+# Format:
+#
+#    N_OUTFILES     <n_outfiles>
+#
+#    OUTFILE     <prefix>     <nvars>
+#    OUTVAR      <varnam>     [<format>     <type>     <multiplier>]
+#    OUTVAR      <varnam>     [<format>     <type>     <multiplier>]
+#    OUTVAR      <varnam>     [<format>     <type>     <multiplier>]
+#
+########################################################################
+N_OUTFILES     2
+
+OUTFILE    cell    2
+OUTVAR     OUT_PREC
+OUTVAR     OUT_RAINF
+
+OUTFILE    bands    3
+OUTVAR     OUT_SWE_BAND
+OUTVAR     OUT_GLAC_ACCUM_BAND
