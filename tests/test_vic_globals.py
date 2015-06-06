@@ -83,6 +83,14 @@ def test_list():
     f.x = 8
     assert f.x == ["Something", 1.0, 8]
 
-def test_global_init(sample_global_file_string):
-    g = Global(sample_global_file_string)
+def test_global_init():
+    g = Global('/home/mfischer/code/hydro-conductor/tests/testdata/glb_peyto_base_save_state.txt')
     print(str(g))
+
+def test_force_types():
+    g = Global('/home/mfischer/code/hydro-conductor/tests/testdata/glb_peyto_base_save_state.txt')
+    force_type = g._str_member('force_type')
+    force_dt = g._str_member('force_dt')
+
+    # This test fails because the \n is missing at the very end
+    assert force_type == 'FORCE_TYPE SHORTWAVE SHORTWAVE\nFORCE_TYPE LONGWAVE LONGWAVE\nFORCE_TYPE AIR_TEMP AIR_TEMP\nFORCE_TYPE PRESSURE PRESSURE\nFORCE_TYPE DENSITY DENSITY\nFORCE_TYPE VP VP\nFORCE_TYPE WIND WIND\nFORCE_TYPE PREC PREC\n'

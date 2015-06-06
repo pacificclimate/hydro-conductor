@@ -6,7 +6,7 @@
     within the OrderedDict of VIC cells. 
 
 '''
-
+from collections import OrderedDict
 import bisect
 
 class Band(object):
@@ -67,15 +67,22 @@ def create_band(cells, cell_id, elevation, band_size, band_map, glacier_id, open
     # Get final index / id of Band after zero pad removed from band_map
     band_idx = band_map[cell_id].index(band_lower_bound)
     # Create an additional Band object in the cell with initial median elevation
+    #cell[str(band_idx)] = Band(elevation, glacier_id, open_ground_id)
     cells[cell_id][str(band_idx)] = Band(elevation, glacier_id, open_ground_id)
+
+    # Re-sort the cells OrderedDict NOT WORKING
+    # cells = OrderedDict(sorted(cells.items(), key=lambda t: t[0]))
+    # for band in cells[cell_id]:
+    #     print('infunc: {}'.format(band))
+
     return band_idx
 
-def delete_band(cells, cell_id, band_lower_bound, band_map):
+def delete_band(cell, cell_id, band_lower_bound, band_map):
     """ Removes the band starting at band_lower_bound from the given cell 
         and sets its position in band_map to a zero pad
     """
     band_idx = band_map[cell_id].index(band_lower_bound)
-    del cells[cell_id][str(band_idx)]
+    del cell[str(band_idx)]
     band_map[cell_id][band_idx] = 0
 
 class HydroResponseUnit(object):
@@ -87,20 +94,23 @@ class HydroResponseUnit(object):
         self.area_frac = area_frac
         self.root_zone_parms = root_zone_parms
 
-def create_hru(cells, cell_id, band_id, veg_type, area_frac, root_zone_parms):
+def create_hru(cell, band_id, veg_type, area_frac, root_zone_parms):
     """ Creates a new HRU of veg_type within a given cell and Band
     """
+    #TODO: make this a member function of Band
+    # just pass in cells[cell_id][band_id] and operate on it
     new_hru = HydroResponseUnit(veg_type, area_frac, root_zone_parms)
     # Append new_hru to existing list of HRUs for this band, and re-sort the list ascending by veg_type
-    cells[cell_id][band_id].hrus.append(new_hru)
-    cells[cell_id][band_id].hrus.sort(key=lambda x: x.veg_type)
+    cell[band_id].hrus.append(new_hru)
+    cell[band_id].hrus.sort(key=lambda x: x.veg_type) # assumes small # of HRUs
 
-def delete_hru(cells, cell_id, band_id, veg_type):
+def delete_hru(cell, band_id, veg_type):
     """ Deletes an HRU of veg_type within a given cell and Band
     """
-    for hru_idx, hru in enumerate(cells[cell_id][band_id].hrus):
+    #TODO: make this a member function of Band
+    for hru_idx, hru in enumerate(cell[band_id].hrus):
         if hru.veg_type == veg_type:
-            del cells[cell_id][band_id].hrus[hru_idx]
+            del cell[band_id].hrus[hru_idx]
             break # there will only ever be one tile of any given vegetation type
 
 def update_area_fracs(cells, cell_areas, num_snow_bands, band_size, band_map, pixel_to_cell_map,
@@ -134,7 +144,7 @@ def update_area_fracs(cells, cell_areas, num_snow_bands, band_size, band_map, pi
                             glacier_areas[cell][band_idx] += 1
                         break
                 if not band_found: # we have to introduce a new elevation band
-                    new_band_idx = create_band(cells, cell, pixel_elev, band_size, band_map, glacier_id, open_ground_id)
+                    new_band_idx = create_band(cells[cell], cell, pixel_elev, band_size, band_map, glacier_id, open_ground_id)
                     all_pixel_elevs[cell][new_band_idx].append(pixel_elev)
                     band_areas[cell][new_band_idx] += 1
                     if glacier_mask[row][col]:
@@ -143,21 +153,24 @@ def update_area_fracs(cells, cell_areas, num_snow_bands, band_size, band_map, pi
     # NOTE: should we check if any pixels with 0 elevation (RGM error?) are dropped 
     # into a 0-pad (invalid / nonexistent) band (since band_map will have 0 pads)?
 
+    # given valid bands starting at sea level: 0 100 200 300... 
+    # what does VIC do in this case?  how should conductor handle it? --use None/NaN
+
     # Update all band median elevations for all cells, delete unused Bands
     for cell in cells:
         for band_idx, band_lower_bound in enumerate(band_map[cell]):
             cells[cell][band_idx].median_elev = np.median(all_pixel_elevs[cell][band_idx])
             # if no entries exist for this band in all_pixel_elevs, delete the band
             if not all_pixel_elevs[cell][band_idx]:
-                delete_band(cells, cell, band_lower_bound, band_map)
+                delete_band(cells[cell], cell, band_lower_bound, band_map)
 
     # Update all Band and HRU area fractions in all cells
     for cell in cells:
         for band_idx, band in enumerate(band_map[cell]):
             band_idx = str(band_idx)
             # Update area fraction for this Band
-            new_band_area_frac = float(band_areas[cell][band_idx]) / cell_areas[cell]
-            new_glacier_area_frac = float(glacier_areas[cell][band_idx]) / cell_areas[cell]
+            new_band_area_frac = band_areas[cell][band_idx] / cell_areas[cell]
+            new_glacier_area_frac = glacier_areas[cell][band_idx] / cell_areas[cell]
             # If the glacier HRU area fraction has changed for this band then we need to update all area fractions
             if new_glacier_area_frac != cells[cell][band_idx].area_frac_glacier:
                 if new_glacier_area_frac < 0:
@@ -196,17 +209,17 @@ def update_area_fracs(cells, cell_areas, num_snow_bands, band_size, band_map, pi
                         # Calculate change in HRU area fraction & update
                         delta_area_hru = delta_area_vegetated * (cells[cell][band_idx].hrus[hru_idx].area_frac / veg_scaling_divisor)
                         new_hru_area_frac = cells[cell][band_id].hrus[hru_idx].area_frac + delta_area_hru
-                        if new_hru_area_frac <= 0: # HRU has disappeared, never to return (only open ground can come back in its place)
+                        if new_hru_area_frac == 0: # HRU has disappeared, never to return (only open ground can come back in its place)
                             delete_hru(cell, band_idx, cells[cell][band_idx].hrus[hru_idx])
                         else:
                             cells[cell][band_idx].hrus[hru_idx].area_frac = new_hru_area_frac
                 # Create glacier HRU if it didn't already exist, if we have a non-zero new_glacier_area_frac. 
                 # If glacier area fraction was reduced to 0, we leave the "shadow glacier" HRU in place for VIC
                 if not glacier_found and (new_glacier_area_frac > 0):
-                    create_hru(cells, cell, band, glacier_id, new_glacier_area_frac, glacier_root_zone_parms)
+                    create_hru(cells[cell], band, glacier_id, new_glacier_area_frac, glacier_root_zone_parms)
                 # If open ground was exposed in this band we need to add an open ground HRU
                 if not open_ground_found and (new_open_ground_area_frac > 0):
-                    create_hru(cells, cell, band, open_ground_id, new_open_ground_area_frac, open_ground_root_zone_parms)
+                    create_hru(cells[cell], band, open_ground_id, new_open_ground_area_frac, open_ground_root_zone_parms)
 
                 # Sanity check that glacier + non-glacier area fractions add up to Band's total area fraction, within tolerance
                 sum_test = new_glacier_area_frac + new_non_glacier_area_frac

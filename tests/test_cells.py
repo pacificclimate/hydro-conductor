@@ -209,7 +209,7 @@ def test_cells_dynamic():
     cells[cell_ids[0]]['2'].hrus[1].area_frac = new_glacier_area_frac
     # open ground HRU is now gone:
     new_open_ground_area_frac = 0 # not used
-    delete_hru(cells, cell_ids[0], '2', OPEN_GROUND_ID)
+    delete_hru(cells[cell_ids[0]], '2', OPEN_GROUND_ID)
     # Check that there is only one HRU left in this band
     assert cells[cell_ids[0]]['2'].num_hrus == 1    # NOTE: was band_ids[3]?
 
@@ -217,11 +217,11 @@ def test_cells_dynamic():
     new_glacier_area_frac = 0.0625 # 4/64 pixels in toy problem domain. 4/4 in Band 3  
     # open ground HRU is now gone:
     new_open_ground_area_frac = 0
-    delete_hru(cells, cell_ids[0], '3', OPEN_GROUND_ID)
+    delete_hru(cells[cell_ids[0]], '3', OPEN_GROUND_ID)
     # Confirm that there are (temporarily) no HRUs in this band
     assert cells[cell_ids[0]]['3'].num_hrus == 0
     # create new glacier HRU:
-    create_hru(cells, cell_ids[0], '3', GLACIER_ID, new_glacier_area_frac, test_root_zone_parms[2])
+    create_hru(cells[cell_ids[0]], '3', GLACIER_ID, new_glacier_area_frac, test_root_zone_parms[2])
     # assign area fraction to this new glacier HRU:
     cells[cell_ids[0]]['3'].hrus[0].area_frac = new_glacier_area_frac
     # Check that there is only the one glacier HRU in this band
@@ -236,6 +236,7 @@ def test_cells_dynamic():
     cells[cell_ids[0]]['3'].hrus[0].area_frac -= 0.015625
     # New Band's initial (single toy pixel) median elevation:
     pixel_elev = 2450
+#    new_band_idx = create_band(cells[cell_ids[0]], cell_ids[0], pixel_elev, band_size, test_band_map, GLACIER_ID, OPEN_GROUND_ID)
     new_band_idx = create_band(cells, cell_ids[0], pixel_elev, band_size, test_band_map, GLACIER_ID, OPEN_GROUND_ID)
     new_band_id = str(new_band_idx) # this is true because we only ever append to upper end of band_map
 #    print('new_band_id: {}'.format(new_band_id))
@@ -245,7 +246,7 @@ def test_cells_dynamic():
     # Test that band_map stayed the same length (num_snow_bands = 5 in this case)
     assert len(test_band_map[cell_ids[0]]) == 5
     # Create the corresponding new glacier HRU
-    create_hru(cells, cell_ids[0], new_band_id, GLACIER_ID, new_glacier_area_frac, test_root_zone_parms[2])
+    create_hru(cells[cell_ids[0]], new_band_id, GLACIER_ID, new_glacier_area_frac, test_root_zone_parms[2])
     # Check out this new HRU
     assert cells[cell_ids[0]][new_band_id].num_hrus == 1
     assert cells[cell_ids[0]][new_band_id].hrus[0].veg_type == GLACIER_ID
@@ -260,11 +261,12 @@ def test_cells_dynamic():
     ## 5. Simulate an attempt to grow the glacier into a new elevation Band 5 (no 0 pad available)
     pixel_elev = 2550
     with pytest.raises(Exception):
+#        new_band_idx = create_band(cells[cell_ids[0]], cell_ids[0], pixel_elev, band_size, test_band_map, GLACIER_ID, OPEN_GROUND_ID)
         new_band_idx = create_band(cells, cell_ids[0], pixel_elev, band_size, test_band_map, GLACIER_ID, OPEN_GROUND_ID)
 
     ## 6. Simulate glacier recession completely out of elevation Band 4 (i.e. delete the Band)
     new_glacier_area_frac = 0 # not used
-    delete_band(cells, cell_ids[0], 2400, test_band_map)
+    delete_band(cells[cell_ids[0]], cell_ids[0], 2400, test_band_map)
     # Confirm that there are 4 Bands in total for this cell
     assert len(cells[cell_ids[0]]) == 4
     # Confirm that the entry for this former valid band is set to 0 in band_map
@@ -278,9 +280,10 @@ def test_cells_dynamic():
     # a yet lower elevation band, where no 0 pad exists to allow for it (should fail)
     pixel_elev = 1957
     with pytest.raises(Exception):
+#        new_band_idx = create_band(cells[cell_ids[0]], cell_ids[0], pixel_elev, band_size, test_band_map, GLACIER_ID, OPEN_GROUND_ID)
         new_band_idx = create_band(cells, cell_ids[0], pixel_elev, band_size, test_band_map, GLACIER_ID, OPEN_GROUND_ID)
 
-    ## 8. The same test in cell '23456' (created here), where there is at least one 0 pad at bottom and top
+    ## 8. The same test, but in cell '23456' (created here), where there is at least one 0 pad at bottom and top
     cells[cell_ids[1]] = OrderedDict()
     # Band 0:
     cells[cell_ids[1]]['1'] = Band(test_median_elevs[cell_ids[1]][0], GLACIER_ID, OPEN_GROUND_ID)
@@ -308,6 +311,7 @@ def test_cells_dynamic():
     cells[cell_ids[1]]['3'].hrus.append(HydroResponseUnit(test_veg_types[2], test_area_fracs[cell_ids[1]][6], test_root_zone_parms[2]))
 
     pixel_elev = 1855
+#    new_band_idx = create_band(cells[cell_ids[1]], cell_ids[1], pixel_elev, band_size, test_band_map, GLACIER_ID, OPEN_GROUND_ID)
     new_band_idx = create_band(cells, cell_ids[1], pixel_elev, band_size, test_band_map, GLACIER_ID, OPEN_GROUND_ID)
 
     # Confirm that the new band was correctly placed in the first slot of the band_map for this cell
@@ -321,6 +325,10 @@ def test_cells_dynamic():
     assert test_band_map[cell_ids[1]].count(0) == 1
     # Confirm that there are 4 valid Bands in total for this cell
     assert len(cells[cell_ids[1]]) == 4
+    # Confirm that the new band has an OrderedDict index of '0' within the cell
+    for band in cells[cell_ids[1]]:
+        print('{}'.format(band))
+    assert cells[cell_ids[1]]['0'].num_hrus == 1
 
 def test_update_area_fracs():
     pass

@@ -65,6 +65,7 @@ def save_veg_parms(cells, filename):
     '''
     with open(filename, 'w') as f:
         writer = csv.writer(f, delimiter=' ')
+        #for cell in cells.values():
         for cell in cells:
             writer.writerow([cell, sum([cells[cell][band].num_hrus for band in cells[cell]])])
             for band in cells[cell]:
