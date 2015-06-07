@@ -95,13 +95,12 @@ def test_band_simple():
     assert my_band.area_frac_glacier == 0
     assert my_band.area_frac_non_glacier == 0
     assert my_band.area_frac_open_ground == 0
-    assert my_band.hrus == []
+    assert my_band.hrus == {}
     assert my_band.num_hrus == 0
 
 def test_hru_simple():
-    my_hru = HydroResponseUnit(GLACIER_ID, test_area_fracs_simple[0], test_root_zone_parms[2])    
+    my_hru = HydroResponseUnit(test_area_fracs_simple[0], test_root_zone_parms[2])    
 
-    assert my_hru.veg_type == GLACIER_ID
     assert my_hru.area_frac == test_area_fracs_simple[0]
     assert my_hru.root_zone_parms == test_root_zone_parms[2]
 
@@ -109,12 +108,8 @@ def test_band_typical():
     my_band = Band(test_median_elevs_simple[0])
 
     # Create and populate three HRUs in this Band...
-    # Tree HRU:
-    my_band.hrus.append(HydroResponseUnit(test_veg_types[0], test_area_fracs_simple[0], test_root_zone_parms[0]))
-    # Open ground HRU:
-    my_band.hrus.append(HydroResponseUnit(test_veg_types[1], test_area_fracs_simple[1], test_root_zone_parms[1]))
-    # Glacier HRU:
-    my_band.hrus.append(HydroResponseUnit(test_veg_types[2], test_area_fracs_simple[2], test_root_zone_parms[2]))
+    for veg_type, area_frac, root_zone in zip(test_veg_types, test_area_fracs_simple, test_root_zone_parms):
+        my_band.hrus[veg_type] = HydroResponseUnit(area_frac, root_zone)
 
     assert my_band.median_elev == test_median_elevs_simple[0]
     assert my_band.area_frac == sum(test_area_fracs_simple[0:3])
@@ -122,15 +117,9 @@ def test_band_typical():
     assert my_band.area_frac_non_glacier == sum(test_area_fracs_simple[0:3]) - test_area_fracs_simple[2]
     assert my_band.area_frac_open_ground == test_area_fracs_simple[1]
     assert my_band.num_hrus == 3
-    assert my_band.hrus[0].veg_type == test_veg_types[0]
-    assert my_band.hrus[0].area_frac == test_area_fracs_simple[0]
-    assert my_band.hrus[0].root_zone_parms == test_root_zone_parms[0]
-    assert my_band.hrus[1].veg_type == test_veg_types[1]
-    assert my_band.hrus[1].area_frac == test_area_fracs_simple[1]
-    assert my_band.hrus[1].root_zone_parms == test_root_zone_parms[1]
-    assert my_band.hrus[2].veg_type == test_veg_types[2]
-    assert my_band.hrus[2].area_frac == test_area_fracs_simple[2]
-    assert my_band.hrus[2].root_zone_parms == test_root_zone_parms[2]
+    for veg, afrac, rzone in zip(test_veg_types, test_area_fracs_simple, test_root_zone_parms):
+        assert my_band.hrus[veg].area_frac == afrac
+        assert my_band.hrus[veg].root_zone_parms == rzone
 
 def test_cells_simple():
     cells = OrderedDict()
@@ -139,22 +128,16 @@ def test_cells_simple():
     cells[cell_ids[0]] = OrderedDict()
     cells[cell_ids[0]]['0'] = Band(test_median_elevs[cell_ids[0]][0])
     # Create and populate three HRUs in this Band...
-    # Tree HRU:
-    cells[cell_ids[0]]['0'].hrus.append(HydroResponseUnit(test_veg_types[0], test_area_fracs_simple[0], test_root_zone_parms[0]))
-    # Open ground HRU:
-    cells[cell_ids[0]]['0'].hrus.append(HydroResponseUnit(test_veg_types[1], test_area_fracs_simple[1], test_root_zone_parms[1]))
-    # Glacier HRU:
-    cells[cell_ids[0]]['0'].hrus.append(HydroResponseUnit(test_veg_types[2], test_area_fracs_simple[2], test_root_zone_parms[2]))
+    for i in range(3): # Tree, open ground and glacier HRUs
+        cells[cell_ids[0]]['0'].hrus[test_veg_types[i]] = HydroResponseUnit(test_area_fracs_simple[i], test_root_zone_parms[i])
 
-    cells[cell_ids[0]]['1'] = Band(test_median_elevs[cell_ids[0]][1])
-    cells[cell_ids[0]]['2'] = Band(test_median_elevs[cell_ids[0]][2])
-    cells[cell_ids[0]]['3'] = Band(test_median_elevs[cell_ids[0]][3])
+    for i in range(1, 4):
+        cells[cell_ids[0]][str(i)] = Band(test_median_elevs[cell_ids[0]][i])
 
     # Create another cell with 3 Bands
     cells[cell_ids[1]] = OrderedDict()
-    cells[cell_ids[1]]['0'] = Band(test_median_elevs[cell_ids[1]][0])
-    cells[cell_ids[1]]['1'] = Band(test_median_elevs[cell_ids[1]][1])
-    cells[cell_ids[1]]['2'] = Band(test_median_elevs[cell_ids[1]][2])
+    for i in range(3):
+        cells[cell_ids[1]][str(i)] = Band(test_median_elevs[cell_ids[1]][i])
 
     # Test that the correct number of Bands was instantiated for a cell
     assert len(cells[cell_ids[0]]) == 4
@@ -162,7 +145,7 @@ def test_cells_simple():
     # Test that the number of HRUs reported for a Band is correct
     assert cells[cell_ids[0]]['0'].num_hrus == 3
     # Test that all HRU area fractions within a Band add up to original input
-    assert sum(hru.area_frac for hru in cells[cell_ids[0]]['0'].hrus) == sum(test_area_fracs_simple[0:3])
+    assert sum(hru.area_frac for hru in cells[cell_ids[0]]['0'].hrus.values()) == sum(test_area_fracs_simple[0:3])
 
 def test_cells_dynamic():
 
@@ -178,35 +161,35 @@ def test_cells_dynamic():
     # Band 0:
     cells[cell_ids[0]]['0'] = Band(test_median_elevs[cell_ids[0]][0])
     # Tree HRU:
-    cells[cell_ids[0]]['0'].hrus.append(HydroResponseUnit(test_veg_types[0], test_area_fracs[cell_ids[0]][0], test_root_zone_parms[0]))
+    cells[cell_ids[0]]['0'].hrus[test_veg_types[0]] = HydroResponseUnit(test_area_fracs[cell_ids[0]][0], test_root_zone_parms[0])
     # Open ground HRU:
-    cells[cell_ids[0]]['0'].hrus.append(HydroResponseUnit(test_veg_types[1], test_area_fracs[cell_ids[0]][1], test_root_zone_parms[1]))
+    cells[cell_ids[0]]['0'].hrus[test_veg_types[1]] = HydroResponseUnit(test_area_fracs[cell_ids[0]][1], test_root_zone_parms[1])
 
     # Band 1:
     cells[cell_ids[0]]['1'] = Band(test_median_elevs[cell_ids[0]][1])
     # Tree HRU:
-    cells[cell_ids[0]]['1'].hrus.append(HydroResponseUnit(test_veg_types[0], test_area_fracs[cell_ids[0]][2], test_root_zone_parms[0]))
+    cells[cell_ids[0]]['1'].hrus[test_veg_types[0]] = HydroResponseUnit(test_area_fracs[cell_ids[0]][2], test_root_zone_parms[0])
     # Open ground HRU:
-    cells[cell_ids[0]]['1'].hrus.append(HydroResponseUnit(test_veg_types[1], test_area_fracs[cell_ids[0]][3], test_root_zone_parms[1]))
+    cells[cell_ids[0]]['1'].hrus[test_veg_types[1]] = HydroResponseUnit(test_area_fracs[cell_ids[0]][3], test_root_zone_parms[1])
     # Glacier HRU:
-    cells[cell_ids[0]]['1'].hrus.append(HydroResponseUnit(test_veg_types[2], test_area_fracs[cell_ids[0]][4], test_root_zone_parms[2]))
+    cells[cell_ids[0]]['1'].hrus[test_veg_types[2]] = HydroResponseUnit(test_area_fracs[cell_ids[0]][4], test_root_zone_parms[2])
 
     # Band 2:
     cells[cell_ids[0]]['2'] = Band(test_median_elevs[cell_ids[0]][2])
     # Open ground HRU:
-    cells[cell_ids[0]]['2'].hrus.append(HydroResponseUnit(test_veg_types[1], test_area_fracs[cell_ids[0]][5], test_root_zone_parms[1]))
+    cells[cell_ids[0]]['2'].hrus[test_veg_types[1]] = HydroResponseUnit(test_area_fracs[cell_ids[0]][5], test_root_zone_parms[1])
     # Glacier HRU:
-    cells[cell_ids[0]]['2'].hrus.append(HydroResponseUnit(test_veg_types[2], test_area_fracs[cell_ids[0]][6], test_root_zone_parms[2]))
+    cells[cell_ids[0]]['2'].hrus[test_veg_types[2]] = HydroResponseUnit(test_area_fracs[cell_ids[0]][6], test_root_zone_parms[2])
 
     # Band 3:
     cells[cell_ids[0]]['3'] = Band(test_median_elevs[cell_ids[0]][3])
     # Open ground HRU:
-    cells[cell_ids[0]]['3'].hrus.append(HydroResponseUnit(test_veg_types[1], test_area_fracs[cell_ids[0]][7], test_root_zone_parms[1]))
+    cells[cell_ids[0]]['3'].hrus[test_veg_types[1]] = HydroResponseUnit(test_area_fracs[cell_ids[0]][7], test_root_zone_parms[1])
 
     ### 2. Simulate glacier expansion over all open ground in Band 2
     new_glacier_area_frac = 0.1875 # 12/64 pixels in toy problem domain, 12/12 pixels for Band 2
     # Glacier HRU area fraction change:
-    cells[cell_ids[0]]['2'].hrus[1].area_frac = new_glacier_area_frac
+    cells[cell_ids[0]]['2'].hrus[test_veg_types[1]].area_frac = new_glacier_area_frac
     # open ground HRU is now gone:
     new_open_ground_area_frac = 0 # not used
     cells[cell_ids[0]]['2'].delete_hru(OPEN_GROUND_ID)

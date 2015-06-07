@@ -7,43 +7,6 @@
 
 '''
 
-import bisect
-from collections import deque
-
-class PaddedDeque(deque):
-    def __init__(self, *args, left_padding=0):
-        self.left_padding = left_padding
-        super().__init__(*args)
-
-    @property
-    def right_padding(self):
-        return self.maxlen - len(self) - self.left_padding
-
-    def append(self, x):
-        if len(self) == self.maxlen or self.right_padding == 0:
-            raise IndexError("Cannot append to item to full PaddedDeque")
-        super().append(x)
-
-    def appendleft(self, x):
-        if len(self) == self.maxlen or self.left_padding == 0:
-            raise IndexError("Cannot append to item to full PaddedDeque")
-        self.left_padding -= 1
-        super().appendleft(x)
-
-    def popleft(self):
-        rv = super().popleft()
-        self.left_padding += 1
-        return rv
-
-    def __getitem__(self, i):
-        return super().__getitem__(i - self.left_padding)
-
-    def __iter__(self):
-        yield from ([None] * self.left_padding)
-        yield from super().__iter__()
-        yield from ([None] * self.right_padding)
-
-
 class Band(object):
     """ Class capturing vegetation parameters at the elevation band level
     """
@@ -59,9 +22,9 @@ class Band(object):
     glacier_id = 22
     open_ground_id = 19
 
-    def __init__(self, median_elev):
+    def __init__(self, median_elev, hrus={}):
         self.median_elev = median_elev
-        self.hrus = []
+        self.hrus = hrus
 
     @property
     def num_hrus(self):
@@ -73,11 +36,14 @@ class Band(object):
             which should be equal to the total area fraction of the band as given in the 
             Snow Band Parameters file
         """
-        return sum([hru.area_frac for hru in self.hrus])
+        return sum([hru.area_frac for hru in self.hrus.values()])
 
     @property
     def area_frac_glacier(self):
-        return sum([hru.area_frac for hru in self.hrus if hru.veg_type == self.glacier_id])
+        if self.glacier_id in self.hrus:
+            return self.hrus[self.glacier_id].area_frac
+        else:
+            return 0
 
     @property
     def area_frac_non_glacier(self):
@@ -85,91 +51,45 @@ class Band(object):
 
     @property
     def area_frac_open_ground(self):
-        return sum([hru.area_frac for hru in self.hrus if hru.veg_type == self.open_ground_id])
+        return sum([hru.area_frac for veg_type, hru in self.hrus.items() if veg_type == self.open_ground_id])
 
     def create_hru(self, veg_type, area_frac, root_zone_parms):
-        """ Creates a new HRU of veg_type within a given cell and Band
+        """ Creates a new HRU of veg_type
         """
-        new_hru = HydroResponseUnit(veg_type, area_frac, root_zone_parms)
         # Append new_hru to existing list of HRUs for this band, and re-sort the list ascending by veg_type
-        self.hrus.append(new_hru)
-        self.hrus.sort(key=lambda x: x.veg_type)
+        self.hrus[veg_type] = HydroResponseUnit(area_frac, root_zone_parms)
 
     def delete_hru(self, veg_type):
         """ Deletes an HRU of veg_type within the Band
         """
-        for i, hru in enumerate(self.hrus):
-            if hru.veg_type == veg_type:
-                del self.hrus[i]
-                return # there *should* only ever be one tile of any given vegetation type
-
-def band_index(band_zs, z):
-    '''Return the index 
-    '''
-    # band_zs = [ 0, 1900, 2000, 2100, 0 ]
-    # z = 701
-    # strip zeros
-    band_zs = [ elev for elev in band_zs if elev > 0 ]
-    for i, band_max in enumerate(band_zs):
-        if z < band_max:
-            return i
-    raise IndexError("Elevation {} is not contained by bands which are bound by "
-                     "the interval ({}-{})".format(min(band_zs), max(band_zs)))
+        del self.hrus[veg_type]
 
 
-def grow_band(band_zs, z, band_size=100):
-    # band_zs = [0, 1900, 2000, 2100, 0]
-    pass
+class Cell(object):
 
-    
-def create_band(cells, cell_id, elevation, band_size, band_map):
-    """ Creates a new elevation band of glacier vegetation type for a cell with an 
-        initial median elevation.
-        New bands can only occur on the upper end of the existing set, taking the
-        place of zero pads that were provided in the Snow Band Parameters File.
-    """
-    band_lower_bound = int(elevation - elevation % band_size)
-    bisect.insort_left(band_map[cell_id], band_lower_bound)
-    # Remove zero pad to left or right of new band. If none exists, throw an exception
+    def create_band(self, elevation):
+        new_band = Band(elevation)
+        if elevation < self.bands.peekleft():
+            self.bands.appendleft(new_band)
+        elif elevation > self.bands.peekright():
+            self.bands.append(new_band)
+        else:
+            raise ValueError("Cannot create a new band of elevation {} since "
+                    "bands already exist for the interval {}-{}"
+                    .format(elevation, self.bands.peekleft(), self.bands.peekright()))
 
-### experimental code to handle possibility of lower end band creation:
-### FIXME: Refactor this
-    band_idx = band_map[cell_id].index(band_lower_bound)
-    if(0 in band_map[cell_id][0:band_idx+1]): # this was appended to the lower end of valid bands
-        band_map[cell_id].remove(0) # removes a 0 left of the new entry
-    elif(0 in band_map[cell_id][band_idx+1:band_idx+2]): # this was appended to the upper end of valid bands
-        band_map[cell_id].remove(0) # removes the first 0 right of the new entry
-    else: # there's no zero pad available for this new band
-        raise Exception(
-                'Attempted to create a new elevation band at {}m '
-                '(RGM output DEM pixel elevation at {}) in cell {}, but ran out '
-                'of available slots. Increase number of 0 pads in the VIC Snow '
-                'Band Parameters file and re-run.'
-            .format(band_lower_bound, elevation, cell_id)
-        )
-    # Get final index / id of Band after zero pad removed from band_map
-    band_idx = band_map[cell_id].index(band_lower_bound)
-    # Create an additional Band object in the cell with initial median elevation
-    cells[cell_id][str(band_idx)] = Band(elevation)
-    return band_idx
-
-def delete_band(cells, cell_id, band_lower_bound, band_map):
-    """ Removes the band starting at band_lower_bound from the given cell 
-        and sets its position in band_map to a zero pad
-    """
-    band_idx = band_map[cell_id].index(band_lower_bound)
-    del cells[cell_id][str(band_idx)]
-    band_map[cell_id][band_idx] = 0
+    def delete_band(self):
+        raise NotImplementedError("FIXME: What's the best API for this method?!")
 
 class HydroResponseUnit(object):
     """ Class capturing vegetation parameters at the single vegetation tile (HRU) level 
         (of which there can be many per band)
     """
-    def __init__(self, veg_type, area_frac, root_zone_parms):
-        self.veg_type = veg_type
+    def __init__(self, area_frac, root_zone_parms):
         self.area_frac = area_frac
         self.root_zone_parms = root_zone_parms
 
+# FIXME: update usage of pixel_to_cell_map
 def update_area_fracs(cells, cell_areas, num_snow_bands, band_size, band_map, pixel_to_cell_map,
                       surf_dem, num_rows_dem, num_cols_dem, glacier_mask, glacier_id, open_ground_id):
     """ Calculates and updates the area fractions of elevation bands within VIC cells, and
@@ -220,8 +140,7 @@ def update_area_fracs(cells, cell_areas, num_snow_bands, band_size, band_map, pi
 
     # Update all Band and HRU area fractions in all cells
     for cell in cells:
-        for band_idx, band in enumerate(band_map[cell]):
-            band_idx = str(band_idx)
+        for band in cell.bands:
             # Update area fraction for this Band
             new_band_area_frac = float(band_areas[cell][band_idx]) / cell_areas[cell]
             new_glacier_area_frac = float(glacier_areas[cell][band_idx]) / cell_areas[cell]
