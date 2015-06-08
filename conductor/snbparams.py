@@ -67,10 +67,14 @@ class PaddedDeque(deque):
         else:
             return super().__getitem__(i - self.left_padding)
 
-    def __iter__(self):
+    def padded_iter(self):
         yield from ([None] * self.left_padding)
         yield from super().__iter__()
         yield from ([None] * self.right_padding)
+
+    def unpadded_enumerate(self):
+        for index, item in enumerate(super().__iter__()):
+            yield index + self.left_padding, item
 
     def peekleft(self):
         return super().__getitem__(0)

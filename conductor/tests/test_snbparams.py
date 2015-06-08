@@ -23,7 +23,7 @@ def test_load_snb_parms():
     zs = [ band.median_elev for band in cells['368470'] if band ]
     assert zs == expected_zs
 
-@pytest.mark.parametrize(('args', 'kwargs', 'expected'),
+@pytest.mark.parametrize(('args', 'kwargs', 'padded_result'),
                          # no padding
                          [(([1, 2, 3], 3), {}, [1, 2, 3]),
                           # left padding
@@ -32,14 +32,16 @@ def test_load_snb_parms():
                           (([1, 2, 3], 4), {}, [1, 2, 3, None]), 
                           (([1, 2, 3], 5), {'left_padding': 1}, [None, 1, 2, 3, None]), # double padded
                           ])
-def test_padded_deque_init(args, kwargs, expected):
+def test_padded_deque_init(args, kwargs, padded_result):
     pd = PaddedDeque(*args, **kwargs)
-    assert list(pd) == expected
+    assert list(pd.padded_iter()) == padded_result
+    assert list(pd) == [1, 2, 3]
 
 def test_padded_deque_empty_insert():
     pd = PaddedDeque([], 3)
     pd.append(1)
-    assert list(pd) == [1, None, None]
+    assert list(pd.padded_iter()) == [1, None, None]
+    assert list(pd) == [1]
 
 def test_padded_deque_overflow():
     pd = PaddedDeque([1], 1)
@@ -68,9 +70,11 @@ def test_padded_deque_pop():
     assert pd[0] is None
     assert pd.pop() == 4
     assert pd[4] is None
-    assert list(pd) == [None, 1, 2, 3, None]
+    assert list(pd.padded_iter()) == [None, 1, 2, 3, None]
+    assert list(pd) == [1, 2, 3]
     for _ in range(3):
         pd.pop()
-    assert list(pd) == [None] * 5
+    assert list(pd.padded_iter()) == [None] * 5
+    assert list(pd) == []
     with pytest.raises(IndexError):
         pd.pop()
