@@ -142,7 +142,7 @@ def get_rgm_pixel_mapping(pixel_map_file):
             else:
                 cell_areas[cell_id] = 1
 
-    return cell_id_map, z_map, cell_areas
+    return cellid_map, z_map, cell_areas
 
 def get_mass_balance_polynomials(state, state_file, cell_ids):
     """ Extracts the Glacier Mass Balance polynomial for each grid cell from an open VIC state file """
