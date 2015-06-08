@@ -56,7 +56,7 @@ class Band(object):
     def create_hru(self, veg_type, area_frac, root_zone_parms):
         """ Creates a new HRU of veg_type
         """
-        # Append new_hru to existing list of HRUs for this band, and re-sort the list ascending by veg_type
+        # Append new_hru to existing list of HRUs for this band
         self.hrus[veg_type] = HydroResponseUnit(area_frac, root_zone_parms)
 
     def delete_hru(self, veg_type):
@@ -64,6 +64,13 @@ class Band(object):
         """
         del self.hrus[veg_type]
 
+    def __repr__(self):
+        return '{}({}, {})'.format(self.__class__.__name__, self.median_elev,
+                                   repr(self.hrus))
+    def __str__(self):
+        return '{}(@{} meters with {} HRUs)'.format(self.__class__.__name__,
+                                                    self.median_elev,
+                                                    len(self.hrus))
 
 class Cell(object):
 
@@ -82,12 +89,17 @@ class Cell(object):
         raise NotImplementedError("FIXME: What's the best API for this method?!")
 
 class HydroResponseUnit(object):
-    """ Class capturing vegetation parameters at the single vegetation tile (HRU) level 
-        (of which there can be many per band)
+    """ Class capturing vegetation parameters at the single vegetation
+        tile (HRU) level (of which there can be many per band)
     """
     def __init__(self, area_frac, root_zone_parms):
         self.area_frac = area_frac
         self.root_zone_parms = root_zone_parms
+    def __repr__(self):
+        return '{}({}, {})'.format(self.__class__.__name__,
+                                   self.area_frac, self.root_zone_parms)
+    def __str__(self):
+        return 'HRU({:.2f}%, {})'.format(self.area_frac * 100, self.root_zone_parms)
 
 # FIXME: update usage of pixel_to_cell_map
 def update_area_fracs(cells, cell_areas, num_snow_bands, band_size, band_map, pixel_to_cell_map,

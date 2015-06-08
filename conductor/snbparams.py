@@ -78,6 +78,10 @@ class PaddedDeque(deque):
     def peekright(self):
         return super().__getitem__(-1)
 
+    def __repr__(self):
+        return '{}({}, {}, left_padding={})'.format(self.__class__.__name__,
+                repr(list(super().__iter__())), self.maxlen, self.left_padding)
+
 
 def load_snb_parms(snb_file, num_snow_bands):
     """ Reads in a Snow Band Parameter File and populates the median elevation
