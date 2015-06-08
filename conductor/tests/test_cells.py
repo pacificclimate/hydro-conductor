@@ -44,11 +44,14 @@
 
 '''
 
+from collections import OrderedDict
+from pkg_resources import resource_filename
+
 import pytest
 
-from collections import OrderedDict
-
 from conductor.cells import *
+from conductor.snbparams import load_snb_parms
+from conductor.vegparams import load_veg_parms
 
 GLACIER_ID = Band.glacier_id
 OPEN_GROUND_ID = Band.open_ground_id
@@ -303,3 +306,18 @@ def test_cells_dynamic():
 
 def test_update_area_fracs():
     pass
+
+def test_merge_cell_input():
+    fname = resource_filename('conductor', 'tests/input/snow_band.txt')
+    elevation_cells = load_snb_parms(fname, 15)
+    fname = resource_filename('conductor', 'tests/input/veg.txt')
+    hru_cells = load_veg_parms(fname)
+    cells = merge_cell_input(hru_cells, elevation_cells)
+    assert len(cells) == 6
+    assert len(cells['369560']) == 11
+    expected_zs = [ 2076, 2159, 2264, 2354, 2451, 2550, 2620, 2714, 2802 ]
+    zs = [ band.median_elev for band in cells['368470'] ]
+    assert zs == expected_zs
+    expected_afs = {0.000765462339, 0.000873527611, 0.009125511809, 0.009314626034, 0.004426673711, 0.004558753487, 0.001388838859, 0.000737445417}
+    afs = { band.hrus[19].area_frac for band in cells['368470'] if 19 in band.hrus }
+    assert afs == expected_afs

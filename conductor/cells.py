@@ -7,6 +7,9 @@
 
 '''
 
+from collections import OrderedDict
+from copy import deepcopy
+
 class Band(object):
     """ Class capturing vegetation parameters at the elevation band level
     """
@@ -87,6 +90,26 @@ class Cell(object):
 
     def delete_band(self):
         raise NotImplementedError("FIXME: What's the best API for this method?!")
+
+
+def merge_cell_input(hru_cell_dict, elevation_cell_dict):
+    missing_keys = hru_cell_dict.keys() ^ elevation_cell_dict.keys()
+    if missing_keys:
+        raise Exception("One or more cell IDs were found in one input file,"
+                "but not the other. IDs: {}".format(missing_keys))
+
+    # initialize new cell container
+    cells = deepcopy(elevation_cell_dict)
+    # FIXME: this is a little awkward
+    for cell_id, hru_dict in hru_cell_dict.items():
+        band_ids = { band_id for band_id, _ in hru_dict.keys() }
+        band_dict = { band_id: {} for band_id in band_ids }
+        for (band_id, veg_type), hru in hru_dict.items():
+            band_dict[band_id][veg_type] = hru
+        for band_id, hru_dict in band_dict.items():
+            cells[cell_id][band_id].hrus = hru_dict
+    return cells
+
 
 class HydroResponseUnit(object):
     """ Class capturing vegetation parameters at the single vegetation
