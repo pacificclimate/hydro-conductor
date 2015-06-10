@@ -25,8 +25,10 @@ class Band(object):
     glacier_id = 22
     open_ground_id = 19
 
-    def __init__(self, median_elev, hrus={}):
+    def __init__(self, median_elev, hrus=None):
         self.median_elev = median_elev
+        if hrus is None:
+            hrus = {}
         self.hrus = hrus
 
     @property
@@ -39,7 +41,10 @@ class Band(object):
             which should be equal to the total area fraction of the band as given in the 
             Snow Band Parameters file
         """
-        return sum([hru.area_frac for hru in self.hrus.values()])
+        if self.hrus:
+            return sum([hru.area_frac for hru in self.hrus.values()])
+        else:
+            return 0
 
     @property
     def area_frac_glacier(self):
@@ -75,18 +80,20 @@ class Band(object):
                                                     self.median_elev,
                                                     len(self.hrus))
 
+# NOTE: left off here.  Shouldn't Cell have a bands member, and how do we apply this to cells[] elements to do a create_band()?
 class Cell(object):
 
     def create_band(self, elevation):
         new_band = Band(elevation)
-        if elevation < self.bands.peekleft():
-            self.bands.appendleft(new_band)
-        elif elevation > self.bands.peekright():
-            self.bands.append(new_band)
+        if elevation < self.peekleft().median_elev:
+            self.appendleft(new_band)
+        elif elevation > self.peekright().median_elev:
+            self.append(new_band)
         else:
             raise ValueError("Cannot create a new band of elevation {} since "
                     "bands already exist for the interval {}-{}"
-                    .format(elevation, self.bands.peekleft(), self.bands.peekright()))
+                    .format(elevation, self.peekleft().median_elev, self.peekright().median_elev))
+
 
     def delete_band(self):
         raise NotImplementedError("FIXME: What's the best API for this method?!")
