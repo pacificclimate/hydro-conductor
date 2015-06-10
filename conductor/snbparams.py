@@ -101,14 +101,16 @@ def load_snb_parms(snb_file, num_snow_bands):
             split_line = line.split()
             cell_id = split_line[0]
             # Should have the cell_id followed by num_snow_bands columns 
-            # for each of area fractions and median elevations
-            if len(split_line) % num_snow_bands != 1:
+            # for each of area fractions and median elevations 
+            # (and NO Pfactor values, which are deprecated!)
+            if len(split_line) != (num_snow_bands * 2 + 1):
                 raise Exception(
                         'Number of columns ({}) in snow band file {} is '
-                        'incorrect for the given number of snow bands ({}) '
+                        'incorrect for the number of SNOW_BAND ({}) '
                         'given in the global parameter file (should be a '
-                        'multiple of num_snow_bands, plus 1).'
-                        .format(num_columns, snb_file, num_snow_bands)
+                        '2 * SNOW_BAND, plus 1). Are you still including '
+                        '(deprecated) Pfactor values? If so, remove them.'
+                        .format(len(split_line), snb_file, num_snow_bands)
                 )
             elevs = [ int(z) for z in split_line[num_snow_bands+1:] ]
             left_padding = front_padding(elevs)
