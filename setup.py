@@ -14,7 +14,9 @@ setup(
     install_requires = ['numpy', 'h5py'],
     tests_require = ['pytest'],
     scripts = ['scripts/vic_rgm_conductor.py'],
-    package_data = {'conductor': ['tests/input/global.txt']},
+    package_data = {'conductor': ['tests/input/global.txt',
+                                  'tests/input/snow_band.txt',
+                                  'tests/input/veg.txt']},
     zip_safe=True,
         classifiers=[
             'Environment :: Console',

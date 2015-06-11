@@ -120,24 +120,29 @@ def get_rgm_pixel_mapping(pixel_map_file):
             key, value = f.readline().split(None, 1)
             headers[key] = value
 
-        num_cols_dem = int(headers['NCOLS'])
-        num_rows_dem = int(headers['NROWS'])
-        # create an empty two dimensional list
-        pixel_to_cell_map = [[None] * num_cols_dem] * num_rows_dem 
+        nx = int(headers['NCOLS'])
+        ny = int(headers['NROWS'])
+        # create an empty two dimensional array
+        cellid_map = np.empty((nx, ny))
+        cellid_map.fill(np.nan)
+        z_map = np.empty((nx, ny))
+        z_map.fill(np.nan)
 
         _ = f.readline() # Consume the column headers
         
         for line in f:
             # NOTE: column 3 is the elevation band; not used now, but maybe in future?
-            _, row_num, col_num, _, median_elev, cell_id = line.split()
-            pixel_to_cell_map[int(row_num)][int(col_num)] = (cell_id, median_elev)
+            _, i, j, _, median_elev, cell_id = line.split()
+            i, j = int(i), int(j)
+            cellid_map[i,j] = cell_id
+            z_map[i, j] = median_elev
             # Increment the pixel-granularity area within the grid cell
             if cell_id in cell_areas:
                 cell_areas[cell_id] += 1
             else:
                 cell_areas[cell_id] = 1
 
-    return pixel_to_cell_map, num_rows_dem, num_cols_dem, cell_areas
+    return cellid_map, z_map, cell_areas
 
 def get_mass_balance_polynomials(state, state_file, cell_ids):
     """ Extracts the Glacier Mass Balance polynomial for each grid cell from an open VIC state file """
@@ -270,13 +275,14 @@ def main():
     # else:
     #     Band.open_ground_id = global_parms.open_ground_id
 
+    # Get VIC cells' band median elevations from initial Snow Band Parameters file
+    cells = load_snb_parms(snb_file, num_snow_bands)
+
     # Get VIC vegetation parameters and grid cell IDs from initial Vegetation Parameter File
     cells = vegparams.load_veg_parms(global_parms.vegparam, Band.glacier_id, Band.open_ground_id, glacier_root_zone_parms, open_ground_root_zone_parms)
 
     num_snow_bands, snb_file = global_parms.snow_band.split()
     num_snow_bands = int(num_snow_bands)
-    # Get VIC cells' band median elevations from initial Snow Band Parameters file, and generate band_map
-    band_map = load_snb_parms(cells, snb_file, num_snow_bands, band_size)
     
     # Do a sanity check to make sure band area fractions in Snow Band Parameters file add up to sum of HRU 
     # area fractions in Vegetation Parameter File for each cell?
@@ -287,7 +293,7 @@ def main():
 
     # Open and read VIC-grid-to-RGM-pixel mapping file
     # pixel_to_cell_map is a list of dimensions num_rows_dem x num_cols_dem, each element containing a VIC grid cell ID
-    pixel_to_cell_map, num_rows_dem, num_cols_dem, cell_areas = get_rgm_pixel_mapping(pixel_cell_map_file)
+    pixel_to_cell_map, elevation_map, cell_areas = get_rgm_pixel_mapping(pixel_cell_map_file)
 
     # Get DEM xmin, xmax, ymin, ymax metadata of Bed DEM and check file header validity     
     dem_xmin, dem_xmax, dem_ymin, dem_ymax, num_rows, num_cols = read_gsa_headers(bed_dem_file)
