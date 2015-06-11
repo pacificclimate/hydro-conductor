@@ -80,7 +80,6 @@ class Band(object):
                                                     self.median_elev,
                                                     len(self.hrus))
 
-# NOTE: left off here.  Shouldn't Cell have a bands member, and how do we apply this to cells[] elements to do a create_band()?
 class Cell(object):
 
     def create_band(self, elevation):
@@ -94,10 +93,16 @@ class Cell(object):
                     "bands already exist for the interval {}-{}"
                     .format(elevation, self.peekleft().median_elev, self.peekright().median_elev))
 
-
-    def delete_band(self):
-        raise NotImplementedError("FIXME: What's the best API for this method?!")
-
+    def delete_band(self, band_id):
+        if self[band_id].median_elev == max([band.median_elev for band in self]):
+            self.pop()
+        elif self[band_id].median_elev == min([band.median_elev for band in self]):
+            self.popleft()
+        else:
+            raise ValueError("Cannot delete band {} at elevation {} m because it"
+                        " is not located at either end of the set of valid elevation"
+                        " bands (i.e. deleting a band from the middle is not allowed)."
+                        .format(band_id, self[band_id].median_elev))
 
 def merge_cell_input(hru_cell_dict, elevation_cell_dict):
     missing_keys = hru_cell_dict.keys() ^ elevation_cell_dict.keys()
