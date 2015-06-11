@@ -154,9 +154,8 @@ class HydroResponseUnit(object):
 # FIXME: update usage of pixel_to_cell_map
 def update_area_fracs(cells, cell_areas, num_snow_bands, band_size, band_map, pixel_to_cell_map,
                       surf_dem, num_rows_dem, num_cols_dem, glacier_mask, glacier_id, open_ground_id):
-    """ Calculates and updates the area fractions of elevation bands within VIC cells, and
-        area fraction of glacier and open ground within VIC cells (broken down by elevation band).
-        Calls VegParams::update_tiles() to update all vegetation parameter tiles (or add/delete them as needed)
+    """ Applies the updated RGM DEM and glacier mask and calculates and updates all HRU area fractions 
+        for all elevation bands within the VIC cells
     """
     all_pixel_elevs = {} # temporarily store pixel elevations in bins by band so the median can be calculated
     band_areas = {} # temporary count of pixels, a proxy for area, within each band

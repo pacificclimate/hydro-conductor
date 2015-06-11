@@ -142,7 +142,7 @@ def get_rgm_pixel_mapping(pixel_map_file):
             else:
                 cell_areas[cell_id] = 1
 
-    return cellid_map, z_map, cell_areas
+    return cellid_map, z_map, cell_areas, nx, ny
 
 def get_mass_balance_polynomials(state, state_file, cell_ids):
     """ Extracts the Glacier Mass Balance polynomial for each grid cell from an open VIC state file """
@@ -298,8 +298,7 @@ def main():
     rgm_surf_dem_out_file = temp_files_path + 's_out_00001.grd'
 
     # Open and read VIC-grid-to-RGM-pixel mapping file
-    # pixel_to_cell_map is a list of dimensions num_rows_dem x num_cols_dem, each element containing a VIC grid cell ID
-    pixel_to_cell_map, elevation_map, cell_areas = get_rgm_pixel_mapping(pixel_cell_map_file)
+    cellid_map, elevation_map, cell_areas, num_cols_dem, num_rows_dem = get_rgm_pixel_mapping(pixel_cell_map_file)
 
     # Get DEM xmin, xmax, ymin, ymax metadata of Bed DEM and check file header validity     
     dem_xmin, dem_xmax, dem_ymin, dem_ymax, num_rows, num_cols = read_gsa_headers(bed_dem_file)
@@ -331,6 +330,7 @@ def main():
     # Apply the initial glacier mask and modify the band and glacier area fractions accordingly
     update_area_fracs(cells, cell_areas, num_snow_bands, band_size, band_map, pixel_to_cell_map,
                       surf_dem_initial, num_rows_dem, num_cols_dem, glacier_mask)
+
     temp_snb = temp_files_path + 'snb_temp_' + global_parms.startdate.isoformat() + '.txt'
     snbparams.save_snb_parms(cells, temp_snb, band_map)
     temp_vpf = temp_files_path + 'vpf_temp_' + global_parms.startdate.isoformat() + '.txt'
