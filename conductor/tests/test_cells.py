@@ -50,7 +50,8 @@ from pkg_resources import resource_filename
 import pytest
 
 from conductor.cells import *
-from conductor.snbparams import load_snb_parms
+from conductor.snbparams import load_snb_parms, PaddedDeque, front_padding
+#import conductor.snbparams
 from conductor.vegparams import load_veg_parms
 
 GLACIER_ID = Band.glacier_id
@@ -59,9 +60,10 @@ OPEN_GROUND_ID = Band.open_ground_id
 cell_ids = ['12345', '23456']
 
 # initially we have just 4 bands loaded for cell '12345', and 3 for cell '23456'
-band_ids = {'12345': ['0', '1', '2', '3'],
-            '23456': ['0', '1', '2']}
+band_ids = {'12345': [0, 1, 2, 3],
+            '23456': [1, 2, 3]}
 band_size = 100
+num_snow_bands = 5
 
 # initial median band elevations
 test_median_elevs_simple = [2035, 2172, 2241, 2315]
@@ -80,15 +82,27 @@ test_area_fracs = {'12345': [0.1875, 0.25, # Band 0 (11, 19)
                     0.0625, 0.125, 0.125, # Band 1 (11, 19, 22)
                     0.0625, 0.125, # Band 2 (19, 22)
                     0.0625], # Band 3 (19)
-                '23456': [0.25, 0.15625, 0.03125, # Band 0 (11, 19, 22)
-                    0.15625, 0.125, 0.03125, # Band 1 (11, 19, 22)
-                    0.125, 0.125]} # Band 2 (19, 22)
+                '23456': [0.25, 0.15625, 0.03125, # Band 1 (11, 19, 22)
+                    0.15625, 0.125, 0.03125, # Band 2 (11, 19, 22)
+                    0.125, 0.125]} # Band 3 (19, 22)
+test_area_fracs_by_band = {'12345': {'0': [0.1875, 0.25], # Band 0 (11, 19)
+                    '1': [0.0625, 0.125, 0.125], # Band 1 (11, 19, 22)
+                    '2': [0.0625, 0.125], # Band 2 (19, 22)
+                    '3': [0.0625]}, # Band 3 (19)
+                '23456': {'1': [0.25, 0.15625, 0.03125], # Band 1 (11, 19, 22)
+                    '2': [0.15625, 0.125, 0.03125], # Band 2 (11, 19, 22)
+                    '3': [0.125, 0.125]} } # Band 3 (19, 22)
+
+num_hrus = {'12345': [2, 3, 2, 1],
+            '23456': [3, 3, 2] }
+
 
 test_veg_types = [11, 19, 22]
 
-test_root_zone_parms = [[0.10, 0.60, 0.20, 0.25, 1.70, 0.15], # 11
-                        [0.1, 1.0, 0.1, 0.0, 0.1, 0.0], # 19
-                        [0.1, 1.0, 0.1, 0.0, 0.1, 0.0]] # 22
+test_root_zone_parms = {'11': [0.10, 0.60, 0.20, 0.25, 1.70, 0.15], # 11
+                        '19': [0.1, 1.0, 0.1, 0.0, 0.1, 0.0], # 19
+                        '22': [0.1, 1.0, 0.1, 0.0, 0.1, 0.0]} # 22
+
 
 def test_band_simple():
     my_band = Band(test_median_elevs_simple[0])
@@ -102,10 +116,10 @@ def test_band_simple():
     assert my_band.num_hrus == 0
 
 def test_hru_simple():
-    my_hru = HydroResponseUnit(test_area_fracs_simple[0], test_root_zone_parms[2])    
+    my_hru = HydroResponseUnit(test_area_fracs_simple[0], test_root_zone_parms['22'])    
 
     assert my_hru.area_frac == test_area_fracs_simple[0]
-    assert my_hru.root_zone_parms == test_root_zone_parms[2]
+    assert my_hru.root_zone_parms == test_root_zone_parms['22']
 
 def test_band_typical():
     my_band = Band(test_median_elevs_simple[0])
@@ -124,189 +138,8 @@ def test_band_typical():
         assert my_band.hrus[veg].area_frac == afrac
         assert my_band.hrus[veg].root_zone_parms == rzone
 
-def test_cells_simple():
-    cells = OrderedDict()
-
-    # Create a cell with 4 Bands ('0', '1', '2', '3')
-    cells[cell_ids[0]] = OrderedDict()
-    cells[cell_ids[0]]['0'] = Band(test_median_elevs[cell_ids[0]][0])
-    # Create and populate three HRUs in this Band...
-    for i in range(3): # Tree, open ground and glacier HRUs
-        cells[cell_ids[0]]['0'].hrus[test_veg_types[i]] = HydroResponseUnit(test_area_fracs_simple[i], test_root_zone_parms[i])
-
-    for i in range(1, 4):
-        cells[cell_ids[0]][str(i)] = Band(test_median_elevs[cell_ids[0]][i])
-
-    # Create another cell with 3 Bands
-    cells[cell_ids[1]] = OrderedDict()
-    for i in range(3):
-        cells[cell_ids[1]][str(i)] = Band(test_median_elevs[cell_ids[1]][i])
-
-    # Test that the correct number of Bands was instantiated for a cell
-    assert len(cells[cell_ids[0]]) == 4
-    assert len(cells[cell_ids[1]]) == 3    
-    # Test that the number of HRUs reported for a Band is correct
-    assert cells[cell_ids[0]]['0'].num_hrus == 3
-    # Test that all HRU area fractions within a Band add up to original input
-    assert sum(hru.area_frac for hru in cells[cell_ids[0]]['0'].hrus.values()) == sum(test_area_fracs_simple[0:3])
-
-def test_cells_dynamic():
-
-    # First, ensure that all Bands' HRU area fractions provided for the test sum to 1
-    assert sum(test_area_fracs[cell_ids[0]]) == 1
-    assert sum(test_area_fracs[cell_ids[1]]) == 1
-
-    cells = OrderedDict()
-
-    ## 1. Set up initial conditions
-    # Create a cell with 3 Bands
-    cells[cell_ids[0]] = OrderedDict()
-    # Band 0:
-    cells[cell_ids[0]]['0'] = Band(test_median_elevs[cell_ids[0]][0])
-    # Tree HRU:
-    cells[cell_ids[0]]['0'].hrus[test_veg_types[0]] = HydroResponseUnit(test_area_fracs[cell_ids[0]][0], test_root_zone_parms[0])
-    # Open ground HRU:
-    cells[cell_ids[0]]['0'].hrus[test_veg_types[1]] = HydroResponseUnit(test_area_fracs[cell_ids[0]][1], test_root_zone_parms[1])
-
-    # Band 1:
-    cells[cell_ids[0]]['1'] = Band(test_median_elevs[cell_ids[0]][1])
-    # Tree HRU:
-    cells[cell_ids[0]]['1'].hrus[test_veg_types[0]] = HydroResponseUnit(test_area_fracs[cell_ids[0]][2], test_root_zone_parms[0])
-    # Open ground HRU:
-    cells[cell_ids[0]]['1'].hrus[test_veg_types[1]] = HydroResponseUnit(test_area_fracs[cell_ids[0]][3], test_root_zone_parms[1])
-    # Glacier HRU:
-    cells[cell_ids[0]]['1'].hrus[test_veg_types[2]] = HydroResponseUnit(test_area_fracs[cell_ids[0]][4], test_root_zone_parms[2])
-
-    # Band 2:
-    cells[cell_ids[0]]['2'] = Band(test_median_elevs[cell_ids[0]][2])
-    # Open ground HRU:
-    cells[cell_ids[0]]['2'].hrus[test_veg_types[1]] = HydroResponseUnit(test_area_fracs[cell_ids[0]][5], test_root_zone_parms[1])
-    # Glacier HRU:
-    cells[cell_ids[0]]['2'].hrus[test_veg_types[2]] = HydroResponseUnit(test_area_fracs[cell_ids[0]][6], test_root_zone_parms[2])
-
-    # Band 3:
-    cells[cell_ids[0]]['3'] = Band(test_median_elevs[cell_ids[0]][3])
-    # Open ground HRU:
-    cells[cell_ids[0]]['3'].hrus[test_veg_types[1]] = HydroResponseUnit(test_area_fracs[cell_ids[0]][7], test_root_zone_parms[1])
-
-    ### 2. Simulate glacier expansion over all open ground in Band 2
-    new_glacier_area_frac = 0.1875 # 12/64 pixels in toy problem domain, 12/12 pixels for Band 2
-    # Glacier HRU area fraction change:
-    cells[cell_ids[0]]['2'].hrus[test_veg_types[1]].area_frac = new_glacier_area_frac
-    # open ground HRU is now gone:
-    new_open_ground_area_frac = 0 # not used
-    cells[cell_ids[0]]['2'].delete_hru(OPEN_GROUND_ID)
-    # Check that there is only one HRU left in this band
-    assert cells[cell_ids[0]]['2'].num_hrus == 1    # NOTE: was band_ids[3]?
-
-    ### 3. Simulate glacier expansion to replace all open ground in Band 3 (HRU delete + create) 
-    new_glacier_area_frac = 0.0625 # 4/64 pixels in toy problem domain. 4/4 in Band 3  
-    # open ground HRU is now gone:
-    new_open_ground_area_frac = 0
-    cells[cell_ids[0]]['3'].delete_hru(OPEN_GROUND_ID)
-    # Confirm that there are (temporarily) no HRUs in this band
-    assert cells[cell_ids[0]]['3'].num_hrus == 0
-    # create new glacier HRU:
-    cells[cell_ids[0]]['3'].create_hru(GLACIER_ID, new_glacier_area_frac, test_root_zone_parms[2])
-    # assign area fraction to this new glacier HRU:
-    cells[cell_ids[0]]['3'].hrus[0].area_frac = new_glacier_area_frac
-    # Check that there is only the one glacier HRU in this band
-    assert cells[cell_ids[0]]['3'].num_hrus == 1
-    assert cells[cell_ids[0]]['3'].hrus[0].veg_type == GLACIER_ID
-    assert cells[cell_ids[0]]['3'].hrus[0].area_frac == new_glacier_area_frac
-    assert cells[cell_ids[0]]['3'].hrus[0].root_zone_parms == test_root_zone_parms[2]
-
-    ### 4. Simulate glacier growth to create a new elevation Band 4 (stealing one pixel from Band 3)
-    new_glacier_area_frac = 0.015625 # 1/64 pixels in domain. 1/1 in Band 4
-    # For consistency over whole domain, adjust Band 3 to compensate (this is normally taken care of by update of band_areas):
-    cells[cell_ids[0]]['3'].hrus[0].area_frac -= 0.015625
-    # New Band's initial (single toy pixel) median elevation:
-    pixel_elev = 2450
-    new_band_idx = create_band(cells, cell_ids[0], pixel_elev, band_size, test_band_map)
-    new_band_id = str(new_band_idx) # this is true because we only ever append to upper end of band_map
-#    print('new_band_id: {}'.format(new_band_id))
-#    print('band_map: {}'.format(test_band_map))
-    # Check that this new band was created in the band_map at new_band_idx
-    assert test_band_map[cell_ids[0]][new_band_idx] == 2400
-    # Test that band_map stayed the same length (num_snow_bands = 5 in this case)
-    assert len(test_band_map[cell_ids[0]]) == 5
-    # Create the corresponding new glacier HRU
-    cells[cell_ids[0]][new_band_id].create_hru(GLACIER_ID, new_glacier_area_frac, test_root_zone_parms[2])
-    # Check out this new HRU
-    assert cells[cell_ids[0]][new_band_id].num_hrus == 1
-    assert cells[cell_ids[0]][new_band_id].hrus[0].veg_type == GLACIER_ID
-    assert cells[cell_ids[0]][new_band_id].hrus[0].area_frac == new_glacier_area_frac
-    assert cells[cell_ids[0]][new_band_id].hrus[0].root_zone_parms == test_root_zone_parms[2]
-    # Confirm this Band's total area_frac is equal to that of its one HRU, and related quantities
-    assert cells[cell_ids[0]][new_band_id].area_frac == new_glacier_area_frac
-    assert cells[cell_ids[0]][new_band_id].area_frac_glacier == new_glacier_area_frac
-    assert cells[cell_ids[0]][new_band_id].area_frac_non_glacier == 0
-    assert cells[cell_ids[0]][new_band_id].area_frac_open_ground == 0
-
-    ## 5. Simulate an attempt to grow the glacier into a new elevation Band 5 (no 0 pad available)
-    pixel_elev = 2550
-    with pytest.raises(Exception):
-        new_band_idx = create_band(cells, cell_ids[0], pixel_elev, band_size, test_band_map)
-
-    ## 6. Simulate glacier recession completely out of elevation Band 4 (i.e. delete the Band)
-    new_glacier_area_frac = 0
-    delete_band(cells, cell_ids[0], 2400, test_band_map)
-    # Confirm that there are 4 Bands in total for this cell
-    assert len(cells[cell_ids[0]]) == 4
-    # Confirm that the entry for this former valid band is set to 0 in band_map
-    assert test_band_map[cell_ids[0]][4] == 0
-    # For consistency over whole domain, adjust Band 3 to compensate (this is normally taken care of by update of band_areas):
-    cells[cell_ids[0]]['3'].hrus[0].area_frac += 0.015625
-    # Confirm that all Band area fractions for this cell still sum to 1
-    assert sum(cells[cell_ids[0]][band].area_frac for band in cells[cell_ids[0]]) == 1
-
-    ## 7. Simulate glacier recession from the lowest existing band, to reveal a yet 
-    # lower elevation band.  This is done in cell '23456', created here:
-    cells[cell_ids[1]] = OrderedDict()
-    # Band 0:
-    cells[cell_ids[1]]['1'] = Band(test_median_elevs[cell_ids[1]][0])
-    # Tree HRU:
-    cells[cell_ids[1]]['1'].hrus.append(HydroResponseUnit(test_veg_types[0], test_area_fracs[cell_ids[1]][0], test_root_zone_parms[0]))
-    # Open ground HRU:
-    cells[cell_ids[1]]['1'].hrus.append(HydroResponseUnit(test_veg_types[1], test_area_fracs[cell_ids[1]][1], test_root_zone_parms[1]))
-    # Glacier HRU:
-    cells[cell_ids[1]]['1'].hrus.append(HydroResponseUnit(test_veg_types[2], test_area_fracs[cell_ids[1]][2], test_root_zone_parms[2]))
-
-    # Band 1:
-    cells[cell_ids[1]]['2'] = Band(test_median_elevs[cell_ids[1]][1])
-    # Tree HRU:
-    cells[cell_ids[1]]['2'].hrus.append(HydroResponseUnit(test_veg_types[0], test_area_fracs[cell_ids[1]][3], test_root_zone_parms[0]))
-    # Open ground HRU:
-    cells[cell_ids[1]]['2'].hrus.append(HydroResponseUnit(test_veg_types[1], test_area_fracs[cell_ids[1]][4], test_root_zone_parms[1]))
-    # Glacier HRU:
-    cells[cell_ids[1]]['2'].hrus.append(HydroResponseUnit(test_veg_types[2], test_area_fracs[cell_ids[1]][5], test_root_zone_parms[2]))
-
-    # Band 2:
-    cells[cell_ids[1]]['3'] = Band(test_median_elevs[cell_ids[1]][2])
-    # Open ground HRU:
-    cells[cell_ids[1]]['3'].hrus.append(HydroResponseUnit(test_veg_types[1], test_area_fracs[cell_ids[1]][5], test_root_zone_parms[1]))
-    # Glacier HRU:
-    cells[cell_ids[1]]['3'].hrus.append(HydroResponseUnit(test_veg_types[2], test_area_fracs[cell_ids[1]][6], test_root_zone_parms[2]))
-
-    pixel_elev = 1855
-    #with pytest.raises(NameError):
-    new_band_idx = create_band(cells, cell_ids[1], pixel_elev, band_size, test_band_map)
-
-    # Confirm that the new band was correctly placed in the first slot of the band_map for this cell
-    assert new_band_idx == 0
-    assert test_band_map[cell_ids[1]][0] == 1800
-    # Confirm that there are still 5 entries for the band_map for this cell
-    assert len(test_band_map[cell_ids[1]]) == 5
-    # Confirm that there is a zero pad remaining on the upper end of the band_map for this cell
-    assert test_band_map[cell_ids[1]][-1] == 0
-    # Confirm that there is only one 0 entry left in the band_map for this cell
-    assert test_band_map[cell_ids[1]].count(0) == 1
-    # Confirm that there are 4 valid Bands in total for this cell
-    assert len(cells[cell_ids[1]]) == 4
-
-def test_update_area_fracs():
-    pass
-
+# Load up data from large sample vegetation and snow band parameters files and test a few pieces
+# of the cells created
 def test_merge_cell_input():
     fname = resource_filename('conductor', 'tests/input/snow_band.txt')
     elevation_cells = load_snb_parms(fname, 15)
@@ -321,3 +154,168 @@ def test_merge_cell_input():
     expected_afs = {0.000765462339, 0.000873527611, 0.009125511809, 0.009314626034, 0.004426673711, 0.004558753487, 0.001388838859, 0.000737445417}
     afs = { band.hrus[19].area_frac for band in cells['368470'] if 19 in band.hrus }
     assert afs == expected_afs
+    assert cells['368470'][0].num_hrus == 2
+
+# Load up the toy problem domain from snow band and vegetation parameter files
+# and thoroughly check that the cells were created correctly
+def test_cell_simple():
+    fname = resource_filename('conductor', 'tests/input/snb_toy_64px.txt')
+    elevation_cells = load_snb_parms(fname, num_snow_bands)
+    fname = resource_filename('conductor', 'tests/input/vfp_toy_64px.txt')
+    hru_cells = load_veg_parms(fname)
+    cells = merge_cell_input(hru_cells, elevation_cells)
+
+    # Test that the correct number of Cells were instantiated
+    assert len(cells) == 2
+    # Test that the correct number of Bands was instantiated for each cell
+    assert len(cells[cell_ids[0]]) == 4
+    assert len(cells[cell_ids[1]]) == 3
+    # Test that the left and right padding is accounted for
+    assert cells[cell_ids[0]].left_padding == 0
+    assert cells[cell_ids[0]].right_padding == 1
+    assert cells[cell_ids[1]].left_padding == 1
+    assert cells[cell_ids[1]].right_padding == 1
+
+    # Test that area fractions and root zone parameters for each HRU in each band of one cell are correct
+    assert cells['12345'][0].hrus[11].area_frac == test_area_fracs['12345'][0]
+    assert cells['12345'][0].hrus[19].area_frac == test_area_fracs['12345'][1]
+    assert cells['12345'][1].hrus[11].area_frac == test_area_fracs['12345'][2]
+    assert cells['12345'][1].hrus[19].area_frac == test_area_fracs['12345'][3]
+    assert cells['12345'][1].hrus[22].area_frac == test_area_fracs['12345'][4]
+    assert cells['12345'][2].hrus[19].area_frac == test_area_fracs['12345'][5]
+    assert cells['12345'][2].hrus[22].area_frac == test_area_fracs['12345'][6]
+    assert cells['12345'][3].hrus[19].area_frac == test_area_fracs['12345'][7]
+
+    assert cells['12345'][0].hrus[11].root_zone_parms == test_root_zone_parms['11']
+    assert cells['12345'][0].hrus[19].root_zone_parms == test_root_zone_parms['19']
+    assert cells['12345'][1].hrus[11].root_zone_parms == test_root_zone_parms['11']
+    assert cells['12345'][1].hrus[19].root_zone_parms == test_root_zone_parms['19']
+    assert cells['12345'][1].hrus[22].root_zone_parms == test_root_zone_parms['22']
+    assert cells['12345'][2].hrus[19].root_zone_parms == test_root_zone_parms['19']
+    assert cells['12345'][2].hrus[22].root_zone_parms == test_root_zone_parms['22']
+    assert cells['12345'][3].hrus[19].root_zone_parms == test_root_zone_parms['19']
+
+    for band_id in band_ids['12345']:
+        # Test that the number of HRUs reported for each Band in one cell is correct
+        assert cells['12345'][band_id].num_hrus == num_hrus['12345'][band_id]
+        # Test that all HRU area fractions within a Band add up to original input
+        assert sum(hru.area_frac for hru in cells['12345'][band_id].hrus.values()) == sum(test_area_fracs_by_band['12345'][str(band_id)])
+
+def test_cells_dynamic():
+    # First, ensure that all Bands' HRU area fractions provided for the test sum to 1
+    assert sum(test_area_fracs[cell_ids[0]]) == 1
+    assert sum(test_area_fracs[cell_ids[1]]) == 1
+
+    fname = resource_filename('conductor', 'tests/input/snb_toy_64px.txt')
+    elevation_cells = load_snb_parms(fname, 5)
+    fname = resource_filename('conductor', 'tests/input/vfp_toy_64px.txt')
+    hru_cells = load_veg_parms(fname)
+    cells = merge_cell_input(hru_cells, elevation_cells)
+
+    ### 2. Simulate glacier expansion over all open ground in Band 2
+    new_glacier_area_frac = 0.1875 # 12/64 pixels in toy problem domain, 12/12 pixels for Band 2
+    # Glacier HRU area fraction change:
+    cells[cell_ids[0]][2].hrus[22].area_frac = new_glacier_area_frac
+    # open ground HRU is now gone:
+    new_open_ground_area_frac = 0 # not used
+    cells[cell_ids[0]][2].delete_hru(OPEN_GROUND_ID)
+    # Check that there is only one HRU left in this band
+    assert cells[cell_ids[0]][2].num_hrus == 1  
+
+    ### 3. Simulate glacier expansion to replace all open ground in Band 3 (HRU delete + create) 
+    new_glacier_area_frac = 0.0625 # 4/64 pixels in toy problem domain. 4/4 in Band 3  
+    # open ground HRU is now gone:
+    new_open_ground_area_frac = 0
+    cells[cell_ids[0]][3].delete_hru(OPEN_GROUND_ID)
+    # Confirm that there are (temporarily) no HRUs in this band
+    assert cells[cell_ids[0]][3].num_hrus == 0
+    # create new glacier HRU:
+    cells[cell_ids[0]][3].create_hru(GLACIER_ID, new_glacier_area_frac, test_root_zone_parms['22'])
+    # Check that there is only the one glacier HRU in this band
+    assert cells[cell_ids[0]][3].num_hrus == 1
+    assert cells[cell_ids[0]][3].hrus[22].area_frac == new_glacier_area_frac
+    assert cells[cell_ids[0]][3].hrus[22].root_zone_parms == test_root_zone_parms['22']
+
+    ### 4. Simulate glacier growth to create a new elevation Band 4 (stealing one pixel from Band 3)
+    new_glacier_area_frac = 0.015625 # 1/64 pixels in domain. 1/1 in Band 4
+    # For consistency over whole domain, adjust Band 3 to compensate (this is normally taken care of by update of band_areas):
+    cells[cell_ids[0]][3].hrus[22].area_frac -= 0.015625 # area_frac should now be 0.0625 - 0.015625 = 0.046875
+    # Confirm existing number of Bands is 4
+    assert len(cells[cell_ids[0]]) == 4
+    # New Band's initial (single toy pixel) median elevation:
+    pixel_elev = 2450
+    # Create new Band
+    Cell.create_band(cells[cell_ids[0]], pixel_elev)
+
+    # Check that number of Bands has grown by one, and has no HRUs (yet)
+    assert len(cells[cell_ids[0]]) == 5
+    assert cells[cell_ids[0]][4].num_hrus == 0
+    # Create the corresponding new glacier HRU
+    cells[cell_ids[0]][4].create_hru(GLACIER_ID, new_glacier_area_frac, test_root_zone_parms['22'])
+    # Confirm that this new HRU was correctly instantiated
+    assert cells[cell_ids[0]][4].num_hrus == 1
+    assert cells[cell_ids[0]][4].hrus[22].area_frac == new_glacier_area_frac
+    assert cells[cell_ids[0]][4].hrus[22].root_zone_parms == test_root_zone_parms['22']
+    # Confirm this Band's total area_frac is equal to that of its one HRU, and related quantities
+    assert cells[cell_ids[0]][4].area_frac == new_glacier_area_frac
+    assert cells[cell_ids[0]][4].area_frac_glacier == new_glacier_area_frac
+    assert cells[cell_ids[0]][4].area_frac_non_glacier == 0
+    assert cells[cell_ids[0]][4].area_frac_open_ground == 0
+
+    ## 5. Simulate an attempt to grow the glacier into a new elevation Band 5 (no 0 pad available)
+    pixel_elev = 2550
+    with pytest.raises(IndexError):
+        Cell.create_band(cells[cell_ids[0]], pixel_elev)
+    # Confirm the number of bands has not changed
+    assert len(cells[cell_ids[0]]) == 5
+
+    ## 6. Simulate glacier recession completely out of elevation Band 4 (i.e. delete the Band)
+    new_glacier_area_frac = 0
+    Cell.delete_band(cells[cell_ids[0]], 4)
+    # Confirm that there are 4 Bands in total for this cell
+    assert len(cells[cell_ids[0]]) == 4
+    # For consistency over whole domain, adjust Band 3 to compensate (this is normally taken care of by update of band_areas):
+    cells[cell_ids[0]][3].hrus[22].area_frac += 0.015625
+    # Confirm that all Band area fractions for this cell still sum to 1
+    assert sum(cells[cell_ids[0]][band_idx].area_frac for band_idx, band in enumerate(cells[cell_ids[0]])) == 1
+
+    ## 7. Simulate glacier recession from the lowest existing band, to reveal a yet 
+    # lower elevation band (consisting of a single pixel).  This is done in the second test cell, '23456':
+    # Initial conditions setup, and check to confirm that no Band 0 currently exists, nor can anything be written to it:
+    assert cells[cell_ids[1]].left_padding == 1
+    assert cells[cell_ids[1]][0] == None
+    with pytest.raises(Exception):
+        cells[cell_ids[1]][0].median_elev = 9999
+    # New band 0:
+    pixel_elev = 1855
+    Cell.create_band(cells[cell_ids[1]], pixel_elev)
+    # Confirm that the new band was correctly placed in the first position for this cell
+    assert cells[cell_ids[1]].left_padding == 0
+    assert cells[cell_ids[1]].right_padding == 1
+    # Confirm that there are now 4 valid Bands for this cell
+    assert len(cells[cell_ids[1]]) == 4
+    # Create an open ground HRU in this new lowest band
+    new_open_ground_area_frac = 777 # NOTE: this is not a realistic number; just for testing
+    cells[cell_ids[1]][0].create_hru(OPEN_GROUND_ID, new_open_ground_area_frac, test_root_zone_parms['19'])
+    assert cells[cell_ids[1]][0].num_hrus == 1
+    assert cells[cell_ids[1]][0].area_frac == 777
+
+    ## 8. Simulate the glacier re-covering (deleting) the lowest band
+    Cell.delete_band(cells[cell_ids[1]], 0)
+    # Confirm update of padding
+    assert cells[cell_ids[1]].left_padding == 1
+    assert cells[cell_ids[1]].right_padding == 1
+    # Confirm that there are now 3 valid Bands for this cell
+    assert len(cells[cell_ids[1]]) == 3
+
+    ## 9. Attempt to delete a band from the middle of the valid bands
+    with pytest.raises(ValueError):
+        Cell.delete_band(cells[cell_ids[1]], 2)
+
+    #print('{}'.format(cells))
+    #assert 1 == 0 # just to reveal the contents of cells via the print statement above for debugging
+
+
+def test_update_area_fracs():
+    pass
+
