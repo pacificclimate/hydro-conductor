@@ -122,7 +122,6 @@ def merge_cell_input(hru_cell_dict, elevation_cell_dict):
             cells[cell_id][band_id].hrus = hru_dict
     return cells
 
-
 class HydroResponseUnit(object):
     """ Class capturing vegetation parameters at the single vegetation
         tile (HRU) level (of which there can be many per band)
