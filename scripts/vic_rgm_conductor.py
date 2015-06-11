@@ -275,14 +275,20 @@ def main():
     # else:
     #     Band.open_ground_id = global_parms.open_ground_id
 
-    # Get VIC cells' band median elevations from initial Snow Band Parameters file
-    cells = load_snb_parms(snb_file, num_snow_bands)
-
-    # Get VIC vegetation parameters and grid cell IDs from initial Vegetation Parameter File
-    cells = vegparams.load_veg_parms(global_parms.vegparam, Band.glacier_id, Band.open_ground_id, glacier_root_zone_parms, open_ground_root_zone_parms)
-
     num_snow_bands, snb_file = global_parms.snow_band.split()
     num_snow_bands = int(num_snow_bands)
+    # Get VIC cells' band median elevations from initial Snow Band Parameters file
+    elevation_cell_dict = load_snb_parms(snb_file, num_snow_bands)
+ 
+    # Get VIC vegetation parameters and grid cell IDs from initial Vegetation Parameter File
+    hru_cell_dict = vegparams.load_veg_parms(global_parms.vegparam, Band.glacier_id, Band.open_ground_id, glacier_root_zone_parms, open_ground_root_zone_parms)
+
+    # If custom HRU root zone parameters were provided at the command line, apply them now
+    if glacier_root_zone_parms or open_ground_root_zone_parms:
+        cells.apply_custom_root_zone_parms(hru_cell_dict, glacier_root_zone_parms, open_ground_root_zone_parms)
+
+    # Merge information for all VIC cells from snow band and vegetation parameter files into one structure
+    cells = merge_cell_input(hru_cell_dict, elevation_cell_dict)
     
     # Do a sanity check to make sure band area fractions in Snow Band Parameters file add up to sum of HRU 
     # area fractions in Vegetation Parameter File for each cell?

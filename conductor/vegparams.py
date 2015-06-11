@@ -25,7 +25,6 @@ def read_one_cell(f):
         area_frac = float(split_line[1])
         root_zone_parms = [ float(x) for x in split_line[2:8] ]
         band_id = int(split_line[8])
-
         key = (band_id, veg_type)
         hru_dict[key] = HydroResponseUnit(area_frac, root_zone_parms)
 

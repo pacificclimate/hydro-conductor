@@ -11,7 +11,7 @@ from collections import OrderedDict
 from copy import deepcopy
 
 class Band(object):
-    """ Class capturing vegetation parameters at the elevation band level
+    """ Class capturing VIC cell parameters at the elevation band level
     """
     # glacier_id and open_ground_id are defined on a *per-run* basis. On one
     # hand, we want to contain these magic numbers within this class, but OTOH
@@ -81,7 +81,9 @@ class Band(object):
                                                     len(self.hrus))
 
 class Cell(object):
-
+    """ Class providing cell creation and deletion functions used during runtime
+        (initial cell creation at start-up is done via vegparams and snbparams load functions)
+    """
     def create_band(self, elevation):
         new_band = Band(elevation)
         if elevation < self.peekleft().median_elev:
@@ -104,7 +106,21 @@ class Cell(object):
                         " bands (i.e. deleting a band from the middle is not allowed)."
                         .format(band_id, self[band_id].median_elev))
 
+def apply_custom_root_zone_parms(hru_cell_dict, glacier_root_zone_parms, open_ground_root_zone_parms):
+    """ Utility function to apply user-supplied custom root zone parameters to glacier 
+        and/or open ground HRUs """
+    for cell in hru_cell_dict.keys():
+        for key in hru_cell_dict[cell]:
+            if glacier_root_zone_parms and (key[1] == global_parms.glacier_id):
+                hru_cell_dict[cell][key].root_zone_parms = glacier_root_zone_parms
+            if open_ground_root_zone_parms and (key[1] == global_parms.open_ground_id):
+                hru_cell_dict[cell][key].root_zone_parms = open_ground_root_zone_parms
+
 def merge_cell_input(hru_cell_dict, elevation_cell_dict):
+    """ Utility function to merge the dict of HRUs loaded via vegparams.load_veg_parms()
+        with the PaddedDeque of Bands loaded at start-up via snbparams.load_snb_parms()
+        into one unified structure capturing all VIC cells' properties
+    """ 
     missing_keys = hru_cell_dict.keys() ^ elevation_cell_dict.keys()
     if missing_keys:
         raise Exception("One or more cell IDs were found in one input file,"
