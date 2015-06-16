@@ -1,3 +1,53 @@
+'''
+    This is a set of test fixtures for the VIC-RGM Conductor.
+    They are mostly based upon a simple domain consisting of a 8x8 pixel grid  
+    for each VIC cell, using 3 HRU (aka vegetation) types (tree = 11, 
+    open ground = 19, and glacier = 22), and a maximum of 5 elevation (aka snow) bands.  
+
+    The initial breakdown of the first cell (ID '12345') is as follows, where
+    pixels are labeled as O = open ground, T = tree, or G = glacier.  Elevation 
+    bands (starting at 2000m and incrementing by a band_size of 100m) are spatially  
+    comprised of concentric boxes of one pixel width, with the highest band 
+    occupying the centre 4 pixels of the 8x8 grid (as open ground sticking out above 
+    the glacier, represented here by lowercase 'o's).
+
+    cell '12345':
+    Spatial layout      Glacier mask
+
+    O O O O O O O O     0 0 0 0 0 0 0 0
+    O G G G G G O O     0 1 1 1 1 1 0 0 
+    O G G G G G O T     0 1 1 1 1 1 0 0 
+    O G G o o G O T     0 1 1 0 0 1 0 0 
+    O G G o o G O T     0 1 1 0 0 1 0 0 
+    O T O O O O O T     0 0 0 0 0 0 0 0 
+    O T T T O O O T     0 0 0 0 0 0 0 0 
+    O T T T T T T T     0 0 0 0 0 0 0 0 
+
+    Initial HRU area fractions are calculated by adding up the sum of pixels for
+    each given HRU type within a band and dividing by 64 (e.g. band 0 has a tree
+    area fraction of 12/64 = 0.1875).
+
+    The initial breakdown of the second cell (ID '23456') is as follows. Elevation 
+    bands (starting at 1900m and incrementing by a band_size of 100m) are spatially 
+    comprised in this domain of concentric boxes of one pixel width, with 
+    the highest band / peak occupying the centre 16 (4x4) pixels of the 8x8 grid 
+    (as a glacier plateau). This grid cell is located immediately to the right of 
+    cell '12345' (its leftmost pixels are adjacent to the rightmost pixels of '12345').
+
+    cell '23456':
+    Spatial layout      Glacier mask
+
+    O O G G O O O O     0 0 1 1 0 0 0 0      
+    O T G G O O O O     0 0 1 1 0 0 0 0 
+    T T O G G G O T     0 0 0 1 1 1 0 0 
+    T T O G G G T T     0 0 0 1 1 1 0 0 
+    T T O G G O T T     0 0 0 1 1 0 0 0 
+    T T O O O O T T     0 0 0 0 0 0 0 0 
+    T T T O O O O T     0 0 0 0 0 0 0 0 
+    T T T O O T T T     0 0 0 0 0 0 0 0 
+
+'''
+
 import io
 from pkg_resources import resource_stream, resource_filename
 
@@ -26,25 +76,6 @@ def pytest_runtest_setup(item):
 def sample_global_file_string():
     stream = resource_stream('conductor', 'tests/input/global.txt')
     return io.TextIOWrapper(stream)
-
-@pytest.fixture(scope="module")
-def toy_domain_64px_cells():
-    fname = resource_filename('conductor', 'tests/input/snb_toy_64px.txt')
-    elevation_cells = load_snb_parms(fname, 5)
-    fname = resource_filename('conductor', 'tests/input/vfp_toy_64px.txt')
-    hru_cells = load_veg_parms(fname)
-    cells = merge_cell_input(hru_cells, elevation_cells)
-    cell_ids = list(cells.keys())
-    # We have a total allowable number of snow bands of 5, with 100m spacing
-    num_snow_bands = 5
-    band_size = 100
-    # Initially we have just 4 bands loaded for cell 0, and 3 for cell 1
-    expected_band_ids = {cell_ids[0]: [0, 1, 2, 3],
-            cell_ids[1]: [1, 2, 3]}
-    expected_root_zone_parms = {'11': [0.10, 0.60, 0.20, 0.25, 1.70, 0.15], # 11
-                        '19': [0.1, 1.0, 0.1, 0.0, 0.1, 0.0], # 19
-                        '22': [0.1, 1.0, 0.1, 0.0, 0.1, 0.0]} # 22
-    return cells, cell_ids, num_snow_bands, band_size, expected_band_ids, expected_root_zone_parms
 
 @pytest.fixture(scope="module")
 def simple_unit_test_parms():
@@ -89,3 +120,34 @@ def simple_unit_test_parms():
 
     return test_median_elevs_simple, test_median_elevs, test_area_fracs_simple, test_area_fracs, \
             test_area_fracs_by_band, test_veg_types, expected_num_hrus, expected_root_zone_parms
+
+@pytest.fixture(scope="module")
+def large_merge_cells_unit_test_parms():
+    fname = resource_filename('conductor', 'tests/input/snow_band.txt')
+    elevation_cells = load_snb_parms(fname, 15)
+    fname = resource_filename('conductor', 'tests/input/veg.txt')
+    hru_cells = load_veg_parms(fname)
+    expected_zs = [ 2076, 2159, 2264, 2354, 2451, 2550, 2620, 2714, 2802 ]
+    expected_afs = {0.000765462339, 0.000873527611, 0.009125511809, 0.009314626034, 0.004426673711, 0.004558753487, 0.001388838859, 0.000737445417}
+
+    return elevation_cells, hru_cells, expected_zs, expected_afs
+
+@pytest.fixture(scope="module")
+def toy_domain_64px_cells():
+    fname = resource_filename('conductor', 'tests/input/snb_toy_64px.txt')
+    elevation_cells = load_snb_parms(fname, 5)
+    fname = resource_filename('conductor', 'tests/input/vfp_toy_64px.txt')
+    hru_cells = load_veg_parms(fname)
+    cells = merge_cell_input(hru_cells, elevation_cells)
+    cell_ids = list(cells.keys())
+    # We have a total allowable number of snow bands of 5, with 100m spacing
+    num_snow_bands = 5
+    band_size = 100
+    # Initially we have just 4 bands loaded for cell 0, and 3 for cell 1
+    expected_band_ids = {cell_ids[0]: [0, 1, 2, 3],
+                        cell_ids[1]: [1, 2, 3]}
+    expected_root_zone_parms = {'11': [0.10, 0.60, 0.20, 0.25, 1.70, 0.15], # 11
+                        '19': [0.1, 1.0, 0.1, 0.0, 0.1, 0.0], # 19
+                        '22': [0.1, 1.0, 0.1, 0.0, 0.1, 0.0]} # 22
+    return cells, cell_ids, num_snow_bands, band_size, expected_band_ids, expected_root_zone_parms
+

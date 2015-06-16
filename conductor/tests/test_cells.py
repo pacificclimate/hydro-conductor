@@ -1,47 +1,5 @@
 ''' This is a set of tests for the cells.py module.
-    It is based upon a simple 8x8 pixel grid domain per VIC cell, 
-    using 3 HRU (aka vegetation) types (tree = 11, open ground = 19, 
-    and glacier = 22), and a maximum of 5 elevation (aka snow) bands.  
-
-    The initial breakdown of the first cell (ID '12345') is as follows, where
-    pixels are labeled as O = open ground, T = tree, or G = glacier.  Elevation 
-    bands (starting at 2000m and incrementing by a band_size of 100m) are spatially  
-    comprised in this domain of concentric boxes of one pixel width, with 
-    the highest band / peak occupying the centre 4 pixels of the 8x8 grid 
-    (as open ground sticking out above the glacier, shown by lowercase 'o's).
-
-    cell '12345'
-    Spatial layout      Glacier mask
-
-    O O O O O O O O     0 0 0 0 0 0 0 0
-    O G G G G G O O     0 1 1 1 1 1 0 0 
-    O G G G G G O T     0 1 1 1 1 1 0 0 
-    O G G o o G O T     0 1 1 0 0 1 0 0 
-    O G G o o G O T     0 1 1 0 0 1 0 0 
-    O T O O O O O T     0 0 0 0 0 0 0 0 
-    O T T T O O O T     0 0 0 0 0 0 0 0 
-    O T T T T T T T     0 0 0 0 0 0 0 0 
-
-    Initial HRU area fractions are calculated by adding up the sum of pixels for
-    each given HRU type within a band and dividing by 64 (e.g. band 0 has a tree
-    area fraction of 12/64 = 0.1875).
-
-    The initial breakdown of the second cell (ID '23456') is as follows. Elevation 
-    bands (starting at 1900m and incrementing by a band_size of 100m) are spatially 
-    comprised in this domain of concentric boxes of one pixel width, with 
-    the highest band / peak occupying the centre 16 (4x4) pixels of the 8x8 grid 
-    (as a glacier plateau). This grid cell is located immediately to the right of 
-    cell '12345' (its leftmost pixels are adjacent to the rightmost pixels of '12345').
-
-    O O G G O O O O     0 0 1 1 0 0 0 0      
-    O T G G O O O O     0 0 1 1 0 0 0 0 
-    T T O G G G O T     0 0 0 1 1 1 0 0 
-    T T O G G G T T     0 0 0 1 1 1 0 0 
-    T T O G G O T T     0 0 0 1 1 0 0 0 
-    T T O O O O T T     0 0 0 0 0 0 0 0 
-    T T T O O O O T     0 0 0 0 0 0 0 0 
-    T T T O O T T T     0 0 0 0 0 0 0 0 
-
+    See conftest.py for details on the test fixtures used.
 '''
 
 from collections import OrderedDict
@@ -59,11 +17,13 @@ OPEN_GROUND_ID = Band.open_ground_id
 
 @pytest.mark.incremental
 class TestsSimpleUnit:
-    def test_band_and_hru_units(self, simple_unit_test_parms):
+    def test_band_and_hru_units(self, simple_unit_test_parms, large_merge_cells_unit_test_parms):
 
         test_median_elevs_simple, test_median_elevs, test_area_fracs_simple, test_area_fracs, \
             test_area_fracs_by_band, test_veg_types, expected_num_hrus, expected_root_zone_parms \
             = simple_unit_test_parms
+
+        elevation_cells, hru_cells, expected_zs, expected_afs = large_merge_cells_unit_test_parms
 
         def test_band_simple(self):
             my_band = Band(test_median_elevs_simple[0])
@@ -102,17 +62,11 @@ class TestsSimpleUnit:
         # Load up data from large sample vegetation and snow band parameters files and test a few pieces
         # of the cells created
         def test_merge_cell_input(self):
-            fname = resource_filename('conductor', 'tests/input/snow_band.txt')
-            elevation_cells = load_snb_parms(fname, 15)
-            fname = resource_filename('conductor', 'tests/input/veg.txt')
-            hru_cells = load_veg_parms(fname)
             cells = merge_cell_input(hru_cells, elevation_cells)
             assert len(cells) == 6
             assert len(cells['369560']) == 11
-            expected_zs = [ 2076, 2159, 2264, 2354, 2451, 2550, 2620, 2714, 2802 ]
             zs = [ band.median_elev for band in cells['368470'] ]
             assert zs == expected_zs
-            expected_afs = {0.000765462339, 0.000873527611, 0.009125511809, 0.009314626034, 0.004426673711, 0.004558753487, 0.001388838859, 0.000737445417}
             afs = { band.hrus[19].area_frac for band in cells['368470'] if 19 in band.hrus }
             assert afs == expected_afs
             assert cells['368470'][0].num_hrus == 2
@@ -295,7 +249,7 @@ class TestsDynamic:
                 Cell.delete_band(cells[cell_ids[1]], 2)
 
 @pytest.mark.incremental
-class TestsAreaFracUpdate:
+class TestsAreaFracUpdate:  # THIS IS TODO NEXT (Tuesday, June 16)
     def test_update_area_fracs(self, toy_domain_64px_cells):
         cells, cell_ids, num_snow_bands, band_size, expected_band_ids, expected_root_zone_parms = toy_domain_64px_cells
         pass
