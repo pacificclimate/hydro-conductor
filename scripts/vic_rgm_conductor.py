@@ -133,9 +133,9 @@ def get_rgm_pixel_mapping(pixel_map_file):
                 cellid_map[i,j] = cell_id
                 z_map[i, j] = median_elev
             # Increment the pixel-granularity area within the grid cell
-            if cell_id in cell_areas:
+            try:
                 cell_areas[cell_id] += 1
-            else:
+            except:
                 cell_areas[cell_id] = 1
     return cellid_map, z_map, cell_areas, nx, ny
 
@@ -259,6 +259,7 @@ def main():
     # Initial VIC output state filename prefix is determined by STATENAME in the global file
     state_filename_prefix = global_parms.statename
 
+    # Apply custom glacier_id and open_ground_id Band attributes, if provided
     if global_parms.glacier_id is None:
         print('No value for GLACIER_ID was provided in the VIC global file. Assuming default value of {}.'.format(Band.glacier_id))
     else:
@@ -269,23 +270,27 @@ def main():
     #     print('No value for OPEN_GROUND_ID was provided in the VIC global file. Assuming default value of {}.'.format(Band.open_ground_id))
     # else:
     #     Band.open_ground_id = global_parms.open_ground_id
+    if band_size:
+        Band.band_size = band_size
 
+    # Load parameters from Snow Band Parameters File
     num_snow_bands, snb_file = global_parms.snow_band.split()
     num_snow_bands = int(num_snow_bands)
-    # Get VIC cells' band median elevations from initial Snow Band Parameters file
     elevation_cell_dict = load_snb_parms(snb_file, num_snow_bands)
- 
-    # Get VIC vegetation parameters and grid cell IDs from initial Vegetation Parameter File
-    hru_cell_dict = vegparams.load_veg_parms(global_parms.vegparam, Band.glacier_id, Band.open_ground_id, glacier_root_zone_parms, open_ground_root_zone_parms)
 
-    # If custom HRU root zone parameters were provided at the command line, apply them now
+    # Load vegetation parameters from initial Vegetation Parameter File
+    hru_cell_dict = vegparams.load_veg_parms(global_parms.vegparam)
+
+    # Apply custom HRU root_zone_parms attributes, if provided
     if glacier_root_zone_parms or open_ground_root_zone_parms:
         cells.apply_custom_root_zone_parms(hru_cell_dict, glacier_root_zone_parms, open_ground_root_zone_parms)
+        Band.glacier_root_zone_parms = glacier_root_zone_parms
+        Band.open_ground_root_zone_parms = open_ground_root_zone_parms
 
-    # Merge information for all VIC cells from snow band and vegetation parameter files into one structure
+    # Merge all VIC cells info gathered from Snow Band and Vegetation Parameter files and custom parameters
     cells = merge_cell_input(hru_cell_dict, elevation_cell_dict)
     
-    # Do a sanity check to make sure band area fractions in Snow Band Parameters file add up to sum of HRU 
+    # TODO: Do a sanity check to make sure band area fractions in Snow Band Parameters file add up to sum of HRU 
     # area fractions in Vegetation Parameter File for each cell?
     #assert (area_fracs == [sums of HRU area fracs for all bands])
   
@@ -328,7 +333,7 @@ def main():
     glacier_mask = np.loadtxt(init_glacier_mask_file, skiprows=5)
 
     # Apply the initial glacier mask and modify the band and glacier area fractions accordingly
-    update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands, band_size,
+    update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
                       surf_dem_initial, num_rows_dem, num_cols_dem, glacier_mask)
 
     temp_snb = temp_files_path + 'snb_temp_' + global_parms.startdate.isoformat() + '.txt'
@@ -392,7 +397,7 @@ def main():
             write_grid_to_gsa_file(glacier_mask, glacier_mask_file)
         
         # 8. Update areas of each elevation band in each VIC grid cell, and update snow band and vegetation parameters
-        update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands, band_size, \
+        update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands, \
             rgm_surf_dem_out, num_rows_dem, num_cols_dem, glacier_mask)
         temp_snb = temp_files_path + 'snb_temp_' + start.isoformat() + '.txt'
         snbparams.save_snb_parms(cells, temp_snb, band_map)

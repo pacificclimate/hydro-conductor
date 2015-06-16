@@ -115,7 +115,6 @@ def load_snb_parms(snb_file, num_snow_bands):
             elevs = [ int(z) for z in split_line[num_snow_bands+1:] ]
             left_padding = front_padding(elevs)
             bands = [ Band(z) for z in elevs if z ]
-            
             cell = PaddedDeque(bands, num_snow_bands, left_padding=left_padding)
             cells[cell_id] = cell
     return cells
