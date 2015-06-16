@@ -243,14 +243,14 @@ for cell in cells:
             glacier_found = False
             open_ground_found = False
             for hru_idx, hru in enumerate(cell[band_id].hrus):
-                if hru.veg_type == glacier_id:
+                if hru.veg_type == Band.glacier_id:
                     glacier_found = True
                     cell[band_id].hrus[hru_idx].area_frac = new_glacier_area_frac
-                if hru.veg_type == open_ground_id:
+                if hru.veg_type == Band.open_ground_id:
                     open_ground_found = True
                     # If open ground area fraction was reduced to 0, we delete the HRU
                     if new_open_ground_area_frac == 0:
-                        band.delete_hru(open_ground_id)
+                        band.delete_hru(Band.open_ground_id)
                     else:
                         cell[band_id].hrus[hru_idx].area_frac = new_open_ground_area_frac
                 else:
@@ -265,10 +265,10 @@ for cell in cells:
             # Create glacier HRU if it didn't already exist, if we have a non-zero new_glacier_area_frac. 
             # If glacier area fraction was reduced to 0, we leave the "shadow glacier" HRU in place for VIC
             if not glacier_found and (new_glacier_area_frac > 0):
-                band.create_hru(glacier_id, new_glacier_area_frac)
+                band.create_hru(Band.glacier_id, new_glacier_area_frac)
             # If open ground was exposed in this band we need to add an open ground HRU
             if not open_ground_found and (new_open_ground_area_frac > 0):
-                band.create_hru(open_ground_id, new_open_ground_area_frac)
+                band.create_hru(Band.open_ground_id, new_open_ground_area_frac)
 
             # Sanity check that glacier + non-glacier area fractions add up to Band's total area fraction, within tolerance
             sum_test = new_glacier_area_frac + new_non_glacier_area_frac
