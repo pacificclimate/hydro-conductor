@@ -133,9 +133,9 @@ def get_rgm_pixel_mapping(pixel_map_file):
                 cellid_map[i,j] = cell_id
                 z_map[i, j] = median_elev
             # Increment the pixel-granularity area within the grid cell
-            try:
+            if cell_id in cell_areas:
                 cell_areas[cell_id] += 1
-            except:
+            else:
                 cell_areas[cell_id] = 1
     return cellid_map, z_map, cell_areas, nx, ny
 
