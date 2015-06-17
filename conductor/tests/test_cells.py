@@ -8,8 +8,6 @@ from pkg_resources import resource_filename
 import pytest
 
 from conductor.cells import *
-from conductor.snbparams import load_snb_parms, PaddedDeque, front_padding
-from conductor.vegparams import load_veg_parms
 
 GLACIER_ID = Band.glacier_id
 OPEN_GROUND_ID = Band.open_ground_id

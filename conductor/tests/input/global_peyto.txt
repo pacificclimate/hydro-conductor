@@ -1,0 +1,190 @@
+#######################################################################
+#   VIC Model Global Parameter File - v. 4.0.7
+#   S:\Shared\Projects\VIC\GLOBAL\[Global_File_4-0-7.xlsm]HEADER
+# 
+#   Modified: 06 Feb, 2009
+# 
+#  Comments:
+#                Global Parameter file for Peyto glacier cells
+#                Input files set up for model resolution of 0.0625 decimal degrees
+#                Set up for daily water balance
+#                Set up for no surface energy balance
+#                Set up for constant flux lower boundary
+#                Uses snowbands
+#                Base sensitivity run
+# 
+# 
+# 
+#  This file is generated automatically; edit with caution!
+########################################################################
+
+########################################################################
+# Simulation Parameters
+########################################################################
+TIME_STEP	1
+SNOW_STEP	1
+STARTYEAR	1960
+STARTMONTH	1
+STARTDAY	1
+STARTHOUR	0
+ENDYEAR		1970
+ENDMONTH	12
+ENDDAY		31
+FULL_ENERGY	FALSE
+FROZEN_SOIL	FALSE
+#QUICK_FLUX	FALSE
+NO_FLUX	FALSE
+#GRND_FLUX	FALSE
+DIST_PRCP	FALSE
+CORRPREC	FALSE
+MIN_WIND_SPEED	0.1
+PREC_EXPT	0.6
+#MAX_SNOW_TEMP	6
+#MIN_RAIN_TEMP	0
+#PADJ		1
+GLACIER_ID	22
+GLACIER_ACCUM_START_YEAR	1965
+GLACIER_ACCUM_START_MONTH	10
+GLACIER_ACCUM_START_DAY		1
+GLACIER_ACCUM_INTERVAL		1
+OUTPUT_FORCE	FALSE
+
+########################################################################
+# State Files and Parameters
+########################################################################
+#INIT_STATE	inputState
+STATENAME	/home/mfischer/vic_dev/out/testing/frs.state
+STATEYEAR	1965
+STATEMONTH	09
+STATEDAY	30
+STATE_FORMAT	NETCDF
+
+########################################################################
+# Forcing Files and Parameters
+########################################################################
+GRID_DECIMAL	5
+WIND_H		10
+MEASURE_H	2
+ALMA_INPUT	FALSE
+###		Forcing file number 1 (Required)
+FORCING1        /home/mfischer/vic_dev/forcings/hourly_disagg_forcings_peyto.nc
+FORCE_FORMAT	NETCDF
+FORCE_ENDIAN	LITTLE
+N_TYPES         8
+FORCE_TYPE      PREC    PREC
+FORCE_TYPE      AIR_TEMP        AIR_TEMP
+FORCE_TYPE      SHORTWAVE       SHORTWAVE
+FORCE_TYPE      LONGWAVE        LONGWAVE
+FORCE_TYPE      DENSITY         DENSITY
+FORCE_TYPE      PRESSURE        PRESSURE
+FORCE_TYPE      VP      VP
+FORCE_TYPE      WIND    WIND
+FORCE_DT	1
+# Set the following to match the start time used when generating the disaggregated forcings
+FORCEYEAR	1960
+FORCEMONTH	1
+FORCEDAY	1
+FORCEHOUR	0
+###		Forcing file number 2 (Optional)
+
+########################################################################
+# Land Surface Files and Parameters
+########################################################################
+NLAYER		3
+NODES		5
+SOIL		/home/mfischer/vic_dev/input/peyto/spp_peyto_base.txt
+BASEFLOW	ARNO
+ARC_SOIL	FALSE
+VEGPARAM	/home/mfischer/vic_dev/input/peyto/vpf_peyto_100m.txt
+#GLOBAL_LAI	FALSE
+VEGPARAM_LAI	FALSE
+LAI_SRC	LAI_FROM_VEGLIB
+VEGLIB          /home/mfischer/vic_dev/input/vlbc_nalc_2005_draft.txt
+ROOT_ZONES	3
+SNOW_BAND 	15	/home/mfischer/vic_dev/input/peyto/snb_peyto_100m.txt
+#COMPUTE_TREELINE	3
+
+########################################################################
+# Output Files and Parameters
+########################################################################
+RESULT_DIR	/home/mfischer/vic_dev/out/testing
+OUT_STEP	0
+SKIPYEAR	0
+COMPRESS	FALSE
+OUTPUT_FORMAT	NETCDF
+ALMA_OUTPUT	FALSE
+PRT_HEADER	TRUE
+PRT_SNOW_BAND	FALSE
+
+########################################################################
+# NetCDF global attributes to be written out
+########################################################################
+NETCDF_ATTRIBUTE	institution	Pacific Climate Impacts Consortium (PCIC), Victoria, BC, www.pacificclimate.org
+NETCDF_ATTRIBUTE	contact	mschnorb@uvic.ca
+NETCDF_ATTRIBUTE	contact2	Markus Schnorbus
+NETCDF_ATTRIBUTE	references	http://www.pacificclimate.org
+
+########################################################################
+# Output Variables
+#
+# Format:
+#
+#    N_OUTFILES     <n_outfiles>
+#
+#    OUTFILE     <prefix>     <nvars>
+#    OUTVAR      <varnam>     [<format>     <type>     <multiplier>]
+#    OUTVAR      <varnam>     [<format>     <type>     <multiplier>]
+#    OUTVAR      <varnam>     [<format>     <type>     <multiplier>]
+#
+########################################################################
+N_OUTFILES     2
+
+OUTFILE    cell    39
+OUTVAR     OUT_PREC
+OUTVAR     OUT_RAINF
+OUTVAR     OUT_SNOWF
+OUTVAR     OUT_EVAP
+OUTVAR     OUT_EVAP_BARE
+OUTVAR     OUT_EVAP_CANOP
+OUTVAR     OUT_TRANSP_VEG
+OUTVAR     OUT_WDEW
+OUTVAR     OUT_INFLOW
+OUTVAR     OUT_RUNOFF
+OUTVAR     OUT_BASEFLOW
+OUTVAR     OUT_SWE
+OUTVAR     OUT_SNOW_DEPTH
+OUTVAR     OUT_SNOW_CANOPY
+OUTVAR     OUT_SNOW_COVER
+OUTVAR     OUT_SNOW_MELT
+OUTVAR     OUT_SOIL_MOIST
+OUTVAR     OUT_GLAC_ACCUM
+OUTVAR     OUT_GLAC_MELT
+OUTVAR     OUT_GLAC_SUB
+OUTVAR     OUT_GLAC_INFLOW
+OUTVAR     OUT_GLAC_OUTFLOW
+OUTVAR     OUT_GLAC_WAT_STOR
+OUTVAR     OUT_GLAC_OUTFLOW_COEF
+OUTVAR     OUT_GLAC_AREA
+OUTVAR     OUT_GLAC_MBAL
+OUTVAR     OUT_GLAC_IMBAL
+OUTVAR     OUT_GLAC_SURF_TEMP
+OUTVAR     OUT_GLAC_TSURF_FBFLAG
+OUTVAR     OUT_GLAC_DELTACC
+OUTVAR     OUT_GLAC_FLUX
+OUTVAR     OUT_WATER_ERROR
+OUTVAR     OUT_AIR_TEMP
+OUTVAR     OUT_SHORTWAVE
+OUTVAR     OUT_LONGWAVE
+OUTVAR     OUT_REL_HUMID
+OUTVAR     OUT_WIND
+OUTVAR     OUT_AERO_RESIST
+OUTVAR     OUT_AERO_RESIST1
+#OUTVAR     OUT_AERO_RESIST2
+
+OUTFILE    bands    6
+OUTVAR     OUT_SWE_BAND
+OUTVAR     OUT_GLAC_ACCUM_BAND
+OUTVAR     OUT_GLAC_MELT_BAND
+OUTVAR     OUT_GLAC_OUTFLOW_BAND
+OUTVAR     OUT_GLAC_MBAL_BAND
+OUTVAR     OUT_GLAC_IMBAL_BAND

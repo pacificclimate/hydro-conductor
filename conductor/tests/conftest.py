@@ -1,4 +1,4 @@
-'''
+"""
     This is a set of test fixtures for the VIC-RGM Conductor.
     They are mostly based upon a simple domain consisting of a 8x8 pixel grid  
     for each VIC cell, using 3 HRU (aka vegetation) types (tree = 11, 
@@ -46,7 +46,7 @@
     T T T O O O O T     0 0 0 0 0 0 0 0 
     T T T O O T T T     0 0 0 0 0 0 0 0 
 
-'''
+"""
 
 import io
 from pkg_resources import resource_stream, resource_filename
@@ -54,7 +54,7 @@ from pkg_resources import resource_stream, resource_filename
 import pytest
 
 from conductor.cells import *
-from conductor.snbparams import load_snb_parms, PaddedDeque, front_padding
+from conductor.snbparams import load_snb_parms
 from conductor.vegparams import load_veg_parms
 
 def pytest_report_header(config):
@@ -74,15 +74,11 @@ def pytest_runtest_setup(item):
 
 @pytest.fixture(scope="module")
 def sample_global_file_string():
-    stream = resource_stream('conductor', 'tests/input/global.txt')
+    stream = resource_stream('conductor', 'tests/input/global_peyto.txt')
     return io.TextIOWrapper(stream)
 
 @pytest.fixture(scope="module")
 def simple_unit_test_parms():
-
-    # NOT USED BUT USEFUL INFO: initial band map of lower elevation bounds for all existing (valid) bands
-    # test_band_map = {'12345': [2000, 2100, 2200, 2300, 0], # allows for glacier growth at top
-    #            '23456': [0, 1900, 2000, 2100, 0]} # allows for glacier growth at top, and revelation of lower band at bottom
 
     # initial median band elevations
     test_median_elevs_simple = [2035, 2172, 2241, 2315]
@@ -134,9 +130,14 @@ def large_merge_cells_unit_test_parms():
 
 @pytest.fixture(scope="module")
 def toy_domain_64px_cells():
+
+    # NOT USED BUT USEFUL INFO: initial band map of lower elevation bounds for all existing (valid) bands
+    # test_band_map = {'12345': [2000, 2100, 2200, 2300, 0], # allows for glacier growth at top
+    #            '23456': [0, 1900, 2000, 2100, 0]} # allows for glacier growth at top, and revelation of lower band at bottom
+
     fname = resource_filename('conductor', 'tests/input/snb_toy_64px.txt')
     elevation_cells = load_snb_parms(fname, 5)
-    fname = resource_filename('conductor', 'tests/input/vfp_toy_64px.txt')
+    fname = resource_filename('conductor', 'tests/input/vpf_toy_64px.txt')
     hru_cells = load_veg_parms(fname)
     cells = merge_cell_input(hru_cells, elevation_cells)
     cell_ids = list(cells.keys())
@@ -149,5 +150,47 @@ def toy_domain_64px_cells():
     expected_root_zone_parms = {'11': [0.10, 0.60, 0.20, 0.25, 1.70, 0.15], # 11
                         '19': [0.1, 1.0, 0.1, 0.0, 0.1, 0.0], # 19
                         '22': [0.1, 1.0, 0.1, 0.0, 0.1, 0.0]} # 22
+
+    # Spatial DEM layout                    
+    initial_dem_cell_12345 = np.array([ [2065, 2055, 2045, 2035, 2025, 2015, 2005, 2000],
+                                        [2075, 2100, 2120, 2140, 2130, 2120, 2100, 2005],
+                                        [2085, 2110, 2250, 2270, 2260, 2240, 2110, 2010],
+                                        [2090, 2120, 2260, 2377, 2310, 2245, 2125, 2015],
+                                        [2070, 2110, 2250, 2340, 2320, 2250, 2130, 2020],
+                                        [2090, 2105, 2200, 2210, 2220, 2220, 2120, 2015],
+                                        [2090, 2100, 2105, 2110, 2140, 2150, 2130, 2010],
+                                        [2080, 2075, 2065, 2055, 2045, 2035, 2020, 2000] ])
+
+    initial_dem_cell_23456 = np.array([ [1970, 1975, 1995, 1995, 1975, 1965, 1960, 1960],
+                                        [1970, 2000, 2045, 2055, 2005, 2005, 2000, 1965],
+                                        [1975, 2000, 2100, 2155, 2160, 2140, 2000, 1970],
+                                        [1985, 2005, 2105, 2160, 2180, 2130, 2000, 1975],
+                                        [1990, 2010, 2110, 2150, 2140, 2105, 2005, 1980],
+                                        [1980, 2005, 2105, 2105, 2110, 2100, 2000, 1980],
+                                        [1970, 2000, 2000, 2020, 2035, 2025, 2000, 1970],
+                                        [1965, 1965, 1970, 1970, 1975, 1960, 1950, 1960] ])
+
+    initial_dem = np.concatenate((initial_dem_cell_12345, initial_dem_cell_23456), axis=1)
+
+    initial_glacier_mask_cell_12345 = np.array( [ 0, 0, 0, 0, 0, 0, 0, 0 ],
+                                                [ 0, 1, 1, 1, 1, 1, 0, 0 ],
+                                                [ 0, 1, 1, 1, 1, 1, 0, 0 ],
+                                                [ 0, 1, 1, 0, 0, 1, 0, 0 ],
+                                                [ 0, 1, 1, 0, 0, 1, 0, 0 ],
+                                                [ 0, 0, 0, 0, 0, 0, 0, 0 ],
+                                                [ 0, 0, 0, 0, 0, 0, 0, 0 ],
+                                                [ 0, 0, 0, 0, 0, 0, 0, 0 ]])
+
+#TODO: fill in this glacier mask
+    initial_glacier_mask_cell_23456 = np.array( [ 0, 0, 0, 0, 0, 0, 0, 0 ],
+                                                [ 0, 1, 1, 1, 1, 1, 0, 0 ],
+                                                [ 0, 1, 1, 1, 1, 1, 0, 0 ],
+                                                [ 0, 1, 1, 0, 0, 1, 0, 0 ],
+                                                [ 0, 1, 1, 0, 0, 1, 0, 0 ],
+                                                [ 0, 0, 0, 0, 0, 0, 0, 0 ],
+                                                [ 0, 0, 0, 0, 0, 0, 0, 0 ],
+                                                [ 0, 0, 0, 0, 0, 0, 0, 0 ]])
+
+
     return cells, cell_ids, num_snow_bands, band_size, expected_band_ids, expected_root_zone_parms
 

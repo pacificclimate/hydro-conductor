@@ -10,7 +10,7 @@
 from collections import OrderedDict
 from copy import deepcopy
 
-from conductor.snbparams import PaddedDeque.unpadded_enumerate
+#from conductor.snbparams.PaddedDeque import unpadded_enumerate
 
 class Band(object):
     """ Class capturing VIC cell parameters at the elevation band level
@@ -30,11 +30,11 @@ class Band(object):
         self.hrus = hrus
 
     @property
-    def lower_bound:
+    def lower_bound(self):
         return self.median_elev - self.median_elev % self.band_size
 
     @property
-    def upper_bound:
+    def upper_bound(self):
         return self.lower_bound + self.band_size
 
     @property
