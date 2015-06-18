@@ -176,6 +176,7 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
     # Scan through the RGM output DEM and drop pixels into bins according to cell and elevation
     for cell in cells:
 
+        # Select the portion of the DEM that pertains to this cell
         masked_dem = np.ma.masked_array(surf_dem)
         masked_dem[np.where(cellid_map != float(cell))] = np.ma.masked
 
@@ -183,19 +184,30 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
         #flat_dem = np.flatten(masked_dem) # allows digitize and np.bincount
         flat_dem = masked_dem[~masked_dem.mask]
 
-        # create band area and glacier area bins
+        # Create band area and glacier area bins (assumes enumerate will include non-valid Bands)
         for band_idx, band in enumerate(cells[cell]):
             band_areas[cell][str(band.lower_bound)] = 0
             glacier_areas[cell][str(band.lower_bound)] = 0
 
-        # mask to glacier
+        # Select portion of glacier_mask pertaining to this cell
+        masked_glacier_mask = np.ma.masked_array(glacier_mask)
+        masked_glacier_mask[np.where(cellid_map != float(cell))] = np.ma.masked
+        # Exclude non-glacier areas from binning of glacier_areas by Band
         masked_dem.mask = False
-        masked_dem[np.where(glacier_mask == 0)] = np.ma.masked
-        flat_glacier_dem
+        masked_dem[np.where(masked_glacier_mask !=1)] = np.ma.masked
+        flat_glacier_dem = masked_dem[~masked_dem.mask]
 
-        # do glacier binning
+        # Do binning into all_pixel_elevs[cell][band], band_areas[cell][band] and glacier_areas[cell][band] 
+        # using data in flat_dem and flat_glacier_dem
 
 
+        # Identify if any previously invalid Bands have new pixels in them, and create new HRUs if so
+            #NOTE: this is done below where new_glacier_area_frac and new_band_area_frac are calculated
+
+        # Update all band median elevations for all cells, delete unused Bands
+
+
+####################### the above should replace this section ######################
     # for col in range(num_cols_dem):
     #     for row in range(num_rows_dem):
             cell = cellid_map[col][row] # get the VIC cell this pixel belongs to
@@ -234,6 +246,8 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
                 band.median_elev = np.median(all_pixel_elevs[cell][band_id])
             else: # if no pixels fell into this elevation band bin, delete it
                 Cell.delete_band(cells[cell], band_id)
+
+######################################################################################
 
     # Update all Band and HRU area fractions in all cells
     for cell in cells:
