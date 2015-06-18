@@ -174,8 +174,30 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
         band_areas[cell] = [0] * num_snow_bands
         glacier_areas[cell] = [0] * num_snow_bands
     # Scan through the RGM output DEM and drop pixels into bins according to cell and elevation
-    for col in range(num_cols_dem):
-        for row in range(num_rows_dem):
+    for cell in cells:
+
+        masked_dem = np.ma.masked_array(surf_dem)
+        masked_dem[np.where(cellid_map != float(cell))] = np.ma.masked
+
+        # Do band binning on cells only within the valid area
+        #flat_dem = np.flatten(masked_dem) # allows digitize and np.bincount
+        flat_dem = masked_dem[~masked_dem.mask]
+
+        # create band area and glacier area bins
+        for band_idx, band in enumerate(cells[cell]):
+            band_areas[cell][str(band.lower_bound)] = 0
+            glacier_areas[cell][str(band.lower_bound)] = 0
+
+        # mask to glacier
+        masked_dem.mask = False
+        masked_dem[np.where(glacier_mask == 0)] = np.ma.masked
+        flat_glacier_dem
+
+        # do glacier binning
+
+
+    # for col in range(num_cols_dem):
+    #     for row in range(num_rows_dem):
             cell = cellid_map[col][row] # get the VIC cell this pixel belongs to
             if cell != np.nan:
                 # Use the RGM DEM output to update the pixel median elevation in the pixel_to_cell_map
