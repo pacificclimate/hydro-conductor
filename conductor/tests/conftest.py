@@ -101,15 +101,17 @@ def simple_unit_test_parms():
     test_area_fracs_by_band = {'12345': {'0': [0.1875, 0.25], # Band 0 (11, 19)
                         '1': [0.0625, 0.125, 0.125], # Band 1 (11, 19, 22)
                         '2': [0.0625, 0.125], # Band 2 (19, 22)
-                        '3': [0.0625]}, # Band 3 (19)
-                    '23456': {'1': [0.25, 0.15625, 0.03125], # Band 1 (11, 19, 22)
+                        '3': [0.0625], # Band 3 (19)
+                        '4': [0]}, # DUMMY BAND
+                    '23456': { '0': [0], # DUMMY BAND
+                        '1': [0.25, 0.15625, 0.03125], # Band 1 (11, 19, 22)
                         '2': [0.15625, 0.125, 0.03125], # Band 2 (11, 19, 22)
                         '3': [0.125, 0.125]} } # Band 3 (19, 22)
 
     test_veg_types = [11, 19, 22]
 
-    expected_num_hrus = {'12345': [2, 3, 2, 1],
-                '23456': [3, 3, 2] }
+    expected_num_hrus = {'12345': [2, 3, 2, 1, 0],
+                '23456': [0, 3, 3, 2, 0] }
 
     expected_root_zone_parms = {'11': [0.10, 0.60, 0.20, 0.25, 1.70, 0.15], # 11
                         '19': [0.1, 1.0, 0.1, 0.0, 0.1, 0.0], # 19
@@ -124,7 +126,7 @@ def large_merge_cells_unit_test_parms():
     elevation_cells = load_snb_parms(fname, 15)
     fname = resource_filename('conductor', 'tests/input/veg.txt')
     hru_cells = load_veg_parms(fname)
-    expected_zs = [ 2076, 2159, 2264, 2354, 2451, 2550, 2620, 2714, 2802 ]
+    expected_zs = [ 2076, 2159, 2264, 2354, 2451, 2550, 2620, 2714, 2802, 2900, 3000, 3100, 3200, 3300, 3400 ]
     expected_afs = {0.000765462339, 0.000873527611, 0.009125511809, 0.009314626034, 0.004426673711, 0.004558753487, 0.001388838859, 0.000737445417}
 
     return elevation_cells, hru_cells, expected_zs, expected_afs
