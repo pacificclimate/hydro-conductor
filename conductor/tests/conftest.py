@@ -54,6 +54,7 @@ import numpy as np
 
 import pytest
 
+from scripts.vic_rgm_conductor import get_rgm_pixel_mapping
 from conductor.cells import *
 from conductor.snbparams import load_snb_parms
 from conductor.vegparams import load_veg_parms
@@ -106,7 +107,9 @@ def simple_unit_test_parms():
                     '23456': { '0': [0], # DUMMY BAND
                         '1': [0.25, 0.15625, 0.03125], # Band 1 (11, 19, 22)
                         '2': [0.15625, 0.125, 0.03125], # Band 2 (11, 19, 22)
-                        '3': [0.125, 0.125]} } # Band 3 (19, 22)
+                        '3': [0.125, 0.125], # Band 3 (19, 22)
+                        '4': [0] } # DUMMY BAND
+                        }
 
     test_veg_types = [11, 19, 22]
 
@@ -131,7 +134,7 @@ def large_merge_cells_unit_test_parms():
 
     return elevation_cells, hru_cells, expected_zs, expected_afs
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def toy_domain_64px_cells():
 
     # NOT USED BUT USEFUL INFO: initial band map of lower elevation bounds for all existing (valid) bands
@@ -147,7 +150,8 @@ def toy_domain_64px_cells():
     # We have a total allowable number of snow bands of 5, with 100m spacing
     num_snow_bands = 5
     band_size = 100
-    # Initially we have just 4 bands loaded for cell 0, and 3 for cell 1
+  
+    # Initially we have 4 valid bands loaded for cell 0, and 3 for cell 1
     expected_band_ids = {cell_ids[0]: [0, 1, 2, 3],
                         cell_ids[1]: [1, 2, 3]}
     expected_root_zone_parms = {'11': [0.10, 0.60, 0.20, 0.25, 1.70, 0.15], # 11
@@ -290,3 +294,42 @@ def toy_domain_64px_cells():
     return cells, cell_ids, num_snow_bands, band_size, expected_band_ids, expected_root_zone_parms, \
             cellid_map, surf_dem, glacier_mask, cell_band_pixel_elevations
 
+
+@pytest.fixture(scope="function")
+def toy_domain_64px_rgm_vic_map_file_readout(toy_domain_64px_cells):
+
+    cells, cell_ids, num_snow_bands, band_size, expected_band_ids, expected_root_zone_parms, \
+        cellid_map, surf_dem, glacier_mask, cell_band_pixel_elevations = toy_domain_64px_cells
+
+    # Use this to verify output of get_rgm_pixel_mapping()
+    def write_rgm_pixel_to_vic_cell_map_file():
+        """ Helper function to write out an rgm_vic_map_ file (in tabular format) from cellid_map and surf_dem """
+        nx=len(cellid_map[0])
+        ny=len(cellid_map)
+        with open('/home/mfischer/code/hydro-conductor/conductor/tests/input/rgm_vic_map_toy_64px_auto.txt', 'w') as f:
+            f.write('NCOLS '+ str(nx) + '\n')
+            f.write('NROWS '+ str(ny) + '\n')
+            f.write('"PIXEL_ID" "ROW" "COL" "BAND" "ELEV" "CELL_ID"\n')
+            count = 1
+            for col in range(0, nx):
+                for row in range(0, ny):
+                    elev = surf_dem[row][col]
+                    if np.isnan(elev):
+                        elev = 0
+                    cell_id = cellid_map[row][col]
+                    if np.isnan(cell_id):
+                        cell_id = 'NA'
+                    else:
+                        cell_id = int(cell_id)
+                    line = str(count)+' '+str(row)+' '+str(col)+' 0 '+str(int(elev))+' '+str(cell_id)+'\n'
+                    f.write(line)
+                    count += 1
+
+    # UNCOMMENT THIS LINE IF YOU WANT A NEW rgm_vic_map_toy_64px_auto.txt file written from toy_domain_64px_cells data
+    #write_rgm_pixel_to_vic_cell_map_file()
+
+    # Load in the file just written, via get_rgm_pixel_mapping()
+    fname = resource_filename('conductor', 'tests/input/rgm_vic_map_toy_64px_auto.txt')
+    cellid_map_from_file, elevation_map, cell_areas, nx, ny = get_rgm_pixel_mapping(fname)
+
+    return cellid_map_from_file, elevation_map, cell_areas, nx, ny
