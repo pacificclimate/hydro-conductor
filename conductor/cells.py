@@ -28,6 +28,9 @@ class Band(object):
             hrus = {}
         self.hrus = hrus
 
+    def __eq__(self, other):
+        return (self.__class__ == other.__class__ and self.__dict__ == other.__dict__)
+
     @property
     def lower_bound(self):
         return self.median_elev - self.median_elev % self.band_size
@@ -133,6 +136,9 @@ class HydroResponseUnit(object):
     def __str__(self):
         return 'HRU({:.2f}%, {})'.format(self.area_frac * 100, self.root_zone_parms)
 
+    def __eq__(self, other):
+        return (self.__class__ == other.__class__ and self.__dict__ == other.__dict__)
+
 def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
                       surf_dem, num_rows_dem, num_cols_dem, glacier_mask):
     """ Applies the updated RGM DEM and glacier mask and calculates and updates all HRU area fractions 
@@ -172,7 +178,11 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
         band_bin_bounds = []
         for band in cell:
             band_bin_bounds.append(band.lower_bound)
-            band.median_elev = np.median(flat_dem[np.where((flat_dem >= band.lower_bound) & (flat_dem < band.upper_bound))])
+            band_pixels = flat_dem[np.where((flat_dem >= band.lower_bound) & (flat_dem < band.upper_bound))]
+            if not band_pixels.size: # if there are no pixels in this band
+                band.median_elev = band.lower_bound
+            else:
+                band.median_elev = np.median(band_pixels)
             print ('band: {}, band.median_elev: {}, band.area_frac: {}, band.area_frac_glacier: {}'.format(band, band.median_elev, band.area_frac, band.area_frac_glacier))
         print('band_bin_bounds: {}'.format(band_bin_bounds))
 
@@ -203,7 +213,6 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
         # Update all Band and HRU area fractions in this cell
 # NOTE: changed to iterate through all Bands, even those not currently valid (i.e. no HRUs...yet)
         for band_id, band in enumerate(cell):
-            print('cell_id: {}, band_id: {}, band.area_frac: {} \nband: {}'.format(cell_id, band_id, band.area_frac, band))
             # Update total area fraction for this Band
             new_band_area_frac = band_areas[cell_id][band_id] / cell_areas[cell_id] 
             new_glacier_area_frac = glacier_areas[cell_id][band_id] / cell_areas[cell_id]
