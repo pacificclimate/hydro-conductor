@@ -79,11 +79,6 @@ def sample_global_file_string():
     stream = resource_stream('conductor', 'tests/input/global_peyto.txt')
     return io.TextIOWrapper(stream)
 
-@pytest.fixture(scope="function")
-def global_file_write_test_fname():
-    fname = resource_filename('conductor', 'tests/input/global_parms_write_out_test.txt')
-    return fname
-
 @pytest.fixture(scope="module")
 def simple_unit_test_parms():
 

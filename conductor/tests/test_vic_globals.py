@@ -2,6 +2,9 @@ from conductor.vic_globals import Scalar, Boolean, Filename, Mapping, List, Glob
 
 import pytest
 
+from pkg_resources import resource_stream, resource_filename
+import io
+
 def test_scalar_int():
     class Foo(object):
         x = Scalar(int)
@@ -92,8 +95,6 @@ def test_force_types(sample_global_file_string):
     force_type = g._str_member('force_type')
     force_dt = g._str_member('force_dt')
 
-    assert force_dt == 'FORCE_DT 1\n'
-
     expected_force_types = ['FORCE_TYPE SHORTWAVE SHORTWAVE\n', 'FORCE_TYPE LONGWAVE LONGWAVE\n', \
                         'FORCE_TYPE AIR_TEMP AIR_TEMP\n', 'FORCE_TYPE PRESSURE PRESSURE\n', \
                         'FORCE_TYPE DENSITY DENSITY\n', 'FORCE_TYPE VP VP\n', 'FORCE_TYPE WIND WIND\n', \
@@ -101,13 +102,16 @@ def test_force_types(sample_global_file_string):
     for ft in expected_force_types:
         assert ft in force_type
 
-# def test_global_parms_write(sample_global_file_string, global_file_write_test_fname):
-#     g_init = Global(sample_global_file_string)
-#     g_init.write(global_file_write_test_fname)
-#     print('global_file_write_test_fname: {}'.format(global_file_write_test_fname))
+def test_global_parms_write(sample_global_file_string):
+    g_init = Global(sample_global_file_string)
+    write_test_fname = resource_filename('conductor', 'tests/input/global_parms_write_out_test.txt')
+    g_init.write(write_test_fname)
 
-#     with open(global_file_write_test_fname, 'r') as f:
-#         g_final = Global(f)
+    print(str(g_init))
 
-#     for gp in g_init:
-#         assert gp in g_final
+    read_back_stream = resource_stream('conductor', 'tests/input/global_parms_write_out_test.txt')
+    read_back_stream = io.TextIOWrapper(read_back_stream)
+    g_final = Global(read_back_stream)
+
+    for gp in g_init:
+        assert gp in g_final
