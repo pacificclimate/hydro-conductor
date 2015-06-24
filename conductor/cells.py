@@ -161,20 +161,19 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
         # Check if any pixels fall outside of valid range of bands
         if len(np.where(flat_dem < cell[0].lower_bound)[0]) > 0:
             raise Exception(
-                ' One or more RGM output DEM pixels lies below the lowest \
-                defined elevation band (< {}m) as defined by the Snow Band Parameter File.\
-                You may need to adjust your model inputs accordingly.'
-                ).format(cell[0].lower_bound)
+                'One or more RGM output DEM pixels lies below the lowest \
+                defined elevation band (< {}m) as defined by the Snow Band Parameter File \
+                for cell {}. You may need to add or shift the zero padding to accommodate this.'
+                ).format(cell[0].lower_bound, cell_id)
         if len(np.where(flat_dem > cell[-1].upper_bound)[0]) > 0:
             raise Exception(
-                ' One or more RGM output DEM pixels lies above the highest \
-                defined elevation band (> {}m) as defined by the Snow Band Parameter File.\
-                You may need to adjust your model inputs accordingly.'
-                ).format(cell[-1].upper_bound)
+                'One or more RGM output DEM pixels lies above the highest \
+                defined elevation band (> {}m) as defined by the Snow Band Parameter File \
+                for cell {}. You may need to add or shift the zero padding to accommodate this.'
+                ).format(cell[-1].upper_bound, cell_id)
 
         # Identify the bounds of the band area and glacier area bins for this cell
         # and update the band median elevations 
-# NOTE: this assumes enumerate will include non-valid Bands
         band_bin_bounds = []
         for band in cell:
             band_bin_bounds.append(band.lower_bound)
@@ -206,12 +205,8 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
             glacier_areas[cell_id][idx] = count
         print ('band_areas: {}'.format(band_areas))
         print('glacier_areas: {}'.format(glacier_areas))
-        # Identify if any previously invalid Bands have new pixels in them, and create new HRUs if so
-            #NOTE: this is done below where new_glacier_area_frac and new_band_area_frac are calculated
-# NOTE: we don't delete Bands anymore, just HRUs
-
+        
         # Update all Band and HRU area fractions in this cell
-# NOTE: changed to iterate through all Bands, even those not currently valid (i.e. no HRUs...yet)
         for band_id, band in enumerate(cell):
             # Update total area fraction for this Band
             new_band_area_frac = band_areas[cell_id][band_id] / cell_areas[cell_id] 

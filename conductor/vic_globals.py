@@ -250,7 +250,7 @@ class Global(metaclass=OrderedMeta):
         self.glacier_accum_startyear, self.glacier_accum_startmonth, self.glacier_accum_startday = value.year, value.month, value.day
 
     def __init__(self, input_stream):
-        for line in input_stream:
+        for idx, line in enumerate(input_stream):
             if line.isspace() or line.startswith('#'):
                 continue
 
