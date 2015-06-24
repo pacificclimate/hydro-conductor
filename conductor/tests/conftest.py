@@ -79,6 +79,11 @@ def sample_global_file_string():
     stream = resource_stream('conductor', 'tests/input/global_peyto.txt')
     return io.TextIOWrapper(stream)
 
+@pytest.fixture(scope="function")
+def global_file_write_test_fname():
+    fname = resource_filename('conductor', 'tests/input/global_parms_write_out_test.txt')
+    return fname
+
 @pytest.fixture(scope="module")
 def simple_unit_test_parms():
 
@@ -113,15 +118,9 @@ def simple_unit_test_parms():
 
     test_veg_types = [11, 19, 22]
 
-    expected_num_hrus = {'12345': [2, 3, 2, 1, 0],
-                '23456': [0, 3, 3, 2, 0] }
-
-    expected_root_zone_parms = {'11': [0.10, 0.60, 0.20, 0.25, 1.70, 0.15], # 11
-                        '19': [0.1, 1.0, 0.1, 0.0, 0.1, 0.0], # 19
-                        '22': [0.1, 1.0, 0.1, 0.0, 0.1, 0.0]} # 22
 
     return test_median_elevs_simple, test_median_elevs, test_area_fracs_simple, test_area_fracs, \
-            test_area_fracs_by_band, test_veg_types, expected_num_hrus, expected_root_zone_parms
+            test_area_fracs_by_band, test_veg_types
 
 @pytest.fixture(scope="module")
 def large_merge_cells_unit_test_parms():
@@ -150,13 +149,6 @@ def toy_domain_64px_cells():
     # We have a total allowable number of snow bands of 5, with 100m spacing
     num_snow_bands = 5
     band_size = 100
-  
-    # Initially we have 4 valid bands loaded for cell 0, and 3 for cell 1
-    expected_band_ids = {cell_ids[0]: [0, 1, 2, 3],
-                        cell_ids[1]: [1, 2, 3]}
-    expected_root_zone_parms = {'11': [0.10, 0.60, 0.20, 0.25, 1.70, 0.15], # 11
-                        '19': [0.1, 1.0, 0.1, 0.0, 0.1, 0.0], # 19
-                        '22': [0.1, 1.0, 0.1, 0.0, 0.1, 0.0]} # 22
 
     # Spatial DEM layout
     initial_dem_by_cells = { cell_ids[0]:                  
@@ -291,15 +283,15 @@ def toy_domain_64px_cells():
                     2105, 2105, 2110, 2100],
                     ] }
 
-    return cells, cell_ids, num_snow_bands, band_size, expected_band_ids, expected_root_zone_parms, \
-            cellid_map, surf_dem, glacier_mask, cell_band_pixel_elevations
+    return cells, cell_ids, num_snow_bands, band_size, cellid_map, surf_dem, glacier_mask, \
+        cell_band_pixel_elevations
 
 
 @pytest.fixture(scope="function")
 def toy_domain_64px_rgm_vic_map_file_readout(toy_domain_64px_cells):
 
-    cells, cell_ids, num_snow_bands, band_size, expected_band_ids, expected_root_zone_parms, \
-        cellid_map, surf_dem, glacier_mask, cell_band_pixel_elevations = toy_domain_64px_cells
+    cells, cell_ids, num_snow_bands, band_size, cellid_map, surf_dem, glacier_mask, \
+        cell_band_pixel_elevations = toy_domain_64px_cells
 
     # Use this to verify output of get_rgm_pixel_mapping()
     def write_rgm_pixel_to_vic_cell_map_file():

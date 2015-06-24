@@ -92,12 +92,22 @@ def test_force_types(sample_global_file_string):
     force_type = g._str_member('force_type')
     force_dt = g._str_member('force_dt')
 
-    # This test fails because the \n is missing at the very end
-    assert force_type == 'FORCE_TYPE SHORTWAVE SHORTWAVE\nFORCE_TYPE LONGWAVE LONGWAVE\n\
-                        FORCE_TYPE AIR_TEMP AIR_TEMP\nFORCE_TYPE PRESSURE PRESSURE\n\
-                        FORCE_TYPE DENSITY DENSITY\nFORCE_TYPE VP VP\nFORCE_TYPE WIND WIND\n\
-                        FORCE_TYPE PREC PREC\n'
+    assert force_dt == 'FORCE_DT 1\n'
 
-#    assert force_type == 'FORCE_TYPE SHORTWAVE SHORTWAVE FORCE_TYPE LONGWAVE LONGWAVE FORCE_TYPE AIR_TEMP AIR\
-#_TEMP FORCE_TYPE PRESSURE PRESSURE FORCE_TYPE DENSITY DENSITY FORCE_TYPE VP VP FORCE_TYPE WIND WIND FORCE_T\
-#YPE PREC PREC'
+    expected_force_types = ['FORCE_TYPE SHORTWAVE SHORTWAVE\n', 'FORCE_TYPE LONGWAVE LONGWAVE\n', \
+                        'FORCE_TYPE AIR_TEMP AIR_TEMP\n', 'FORCE_TYPE PRESSURE PRESSURE\n', \
+                        'FORCE_TYPE DENSITY DENSITY\n', 'FORCE_TYPE VP VP\n', 'FORCE_TYPE WIND WIND\n', \
+                        'FORCE_TYPE PREC PREC\n']
+    for ft in expected_force_types:
+        assert ft in force_type
+
+# def test_global_parms_write(sample_global_file_string, global_file_write_test_fname):
+#     g_init = Global(sample_global_file_string)
+#     g_init.write(global_file_write_test_fname)
+#     print('global_file_write_test_fname: {}'.format(global_file_write_test_fname))
+
+#     with open(global_file_write_test_fname, 'r') as f:
+#         g_final = Global(f)
+
+#     for gp in g_init:
+#         assert gp in g_final

@@ -44,8 +44,8 @@ def test_run_ranges_warning(recwarn):
     assert 'run_ranges assumes that glacier_start' in str(w.message)
 
 def test_cell_and_pixel_maps(toy_domain_64px_cells, toy_domain_64px_rgm_vic_map_file_readout):
-    cells, cell_ids, num_snow_bands, band_size, expected_band_ids, expected_root_zone_parms, \
-            cellid_map, surf_dem, glacier_mask, cell_band_pixel_elevations = toy_domain_64px_cells        
+    cells, cell_ids, num_snow_bands, band_size, cellid_map, surf_dem, glacier_mask, \
+        cell_band_pixel_elevations = toy_domain_64px_cells        
         
     cellid_map_from_file, elevation_map, cell_areas, nx, ny = toy_domain_64px_rgm_vic_map_file_readout
 

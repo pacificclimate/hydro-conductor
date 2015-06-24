@@ -13,13 +13,24 @@ from conductor.cells import *
 GLACIER_ID = Band.glacier_id
 OPEN_GROUND_ID = Band.open_ground_id
 
+# Initially we have 4 valid bands loaded for cell 0, and 3 for cell 1
+expected_band_ids = {'12345': [0, 1, 2, 3, 4],
+                    '23456': [0, 1, 2, 3, 4]}
+
+expected_num_hrus = {'12345': [2, 3, 2, 1, 0],
+            '23456': [0, 3, 3, 2, 0] }
+                                   
+expected_root_zone_parms = {'11': [0.10, 0.60, 0.20, 0.25, 1.70, 0.15], # 11
+                    '19': [0.1, 1.0, 0.1, 0.0, 0.1, 0.0], # 19
+                    '22': [0.1, 1.0, 0.1, 0.0, 0.1, 0.0]} # 22
+
 
 @pytest.mark.incremental
 class TestsSimpleUnit:
     def test_band_and_hru_units(self, simple_unit_test_parms, large_merge_cells_unit_test_parms):
 
         test_median_elevs_simple, test_median_elevs, test_area_fracs_simple, test_area_fracs, \
-            test_area_fracs_by_band, test_veg_types, expected_num_hrus, expected_root_zone_parms \
+            test_area_fracs_by_band, test_veg_types \
             = simple_unit_test_parms
 
         elevation_cells, hru_cells, expected_zs, expected_afs = large_merge_cells_unit_test_parms
@@ -81,11 +92,10 @@ class TestsSimpleUnit:
         represent the toy domain) that the cells were created correctly"""
 
         test_median_elevs_simple, test_median_elevs, test_area_fracs_simple, test_area_fracs, \
-            test_area_fracs_by_band, test_veg_types, expected_num_hrus, expected_root_zone_parms \
-            = simple_unit_test_parms
+            test_area_fracs_by_band, test_veg_types = simple_unit_test_parms
 
-        cells, cell_ids, num_snow_bands, band_size, expected_band_ids, expected_root_zone_parms, \
-            cellid_map, surf_dem, glacier_mask, cell_band_pixel_elevations = toy_domain_64px_cells
+        cells, cell_ids, num_snow_bands, band_size, cellid_map, surf_dem, glacier_mask, \
+            cell_band_pixel_elevations = toy_domain_64px_cells
 
         # Test that the correct number of Cells were instantiated
         assert len(cells) == len(cell_ids)
@@ -134,8 +144,8 @@ class TestsSimpleUnit:
 class TestsDynamic:
     def test_cells_dynamic(self, toy_domain_64px_cells):
 
-        cells, cell_ids, num_snow_bands, band_size, expected_band_ids, expected_root_zone_parms, \
-            cellid_map, surf_dem, glacier_mask, cell_band_pixel_elevations = toy_domain_64px_cells
+        cells, cell_ids, num_snow_bands, band_size, cellid_map, surf_dem, glacier_mask, \
+            cell_band_pixel_elevations = toy_domain_64px_cells
 
         def test_existing_glacier_growth_within_band_replacing_all_open_ground(self):
             """test_cells_dynamic -- Test #1: Simulates glacier expansion over all open ground in Band 2 """
@@ -189,8 +199,8 @@ class TestsDynamic:
 @pytest.mark.incremental
 class TestsAreaFracUpdate:
     def test_update_area_fracs(self, toy_domain_64px_cells, toy_domain_64px_rgm_vic_map_file_readout):
-        cells, cell_ids, num_snow_bands, band_size, expected_band_ids, expected_root_zone_parms, \
-            cellid_map, surf_dem, glacier_mask, cell_band_pixel_elevations = toy_domain_64px_cells        
+        cells, cell_ids, num_snow_bands, band_size, cellid_map, initial_surf_dem, initial_glacier_mask, \
+            cell_band_pixel_elevations = toy_domain_64px_cells        
         
         _, _, cell_areas, num_cols_dem, num_rows_dem = toy_domain_64px_rgm_vic_map_file_readout
 
@@ -198,18 +208,41 @@ class TestsAreaFracUpdate:
             cells_orig = deepcopy(cells)
 
             update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
-                      surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+                      initial_surf_dem, num_rows_dem, num_cols_dem, initial_glacier_mask)
 
-            # This assertion fails, because ordering in each Band's HRU dict can change            
-            #assert cells == cells_orig
-
-            # TODO: Need a test that recursively goes through both versions of cells to test for equivalency
+            assert cells == cells_orig
 
         test_no_changes(self)
 
-    def test_glacier_growth_over_open_ground_and_vegetation_in_band(self):
-        """ Simulates Band 1 losing all its open ground and some vegetated area to glacier growth"""
-        pass
+        def test_glacier_growth_over_open_ground_and_vegetation_in_band(self):
+            """ Simulates Band 1 losing some of its open ground area to glacier growth 
+                (confined to cell '12345' here) """
+            
+            ## LEFT OFF HERE: need to replace some open ground pixels in Band 1 with higher DEM
+            # elevations (glacier) and update the glacier mask accordingly (both need padding added)
+                # initial_dem_by_cells = { cell_ids[0]:                  
+                #                 np.array([[2065, 2055, 2045, 2035, 2025, 2015, 2005, 2000],
+                #                         [2075, 2100, 2120, 2140, 2130, 2120, 2100, 2005],
+                #                         [2085, 2110, 2250, 2270, 2260, 2240, 2110, 2010],
+                #                         [2090, 2120, 2260, 2377, 2310, 2250, 2125, 2015],
+                #                         [2070, 2110, 2250, 2340, 2320, 2250, 2130, 2020],
+                #                         [2090, 2105, 2200, 2210, 2220, 2220, 2120, 2015],
+                #                         [2090, 2100, 2105, 2110, 2140, 2150, 2130, 2010],
+                #                         [2080, 2075, 2065, 2055, 2045, 2035, 2020, 2000] ]),
+
+                #             cell_ids[1]:
+                #                 np.array([[1970, 1975, 1995, 1995, 1975, 1965, 1960, 1960],
+                #                         [1970, 2000, 2045, 2055, 2005, 2005, 2000, 1965],
+                #                         [1975, 2000, 2100, 2155, 2160, 2140, 2000, 1970],
+                #                         [1985, 2005, 2105, 2160, 2180, 2130, 2000, 1975],
+                #                         [1990, 2010, 2110, 2150, 2140, 2105, 2005, 1980],
+                #                         [1980, 2005, 2105, 2105, 2110, 2100, 2000, 1980],
+                #                         [1970, 2000, 2000, 2020, 2035, 2025, 2000, 1970],
+                #                         [1965, 1965, 1970, 1970, 1975, 1960, 1950, 1960] ])
+
+
+        def test_glacier_growth_over_open_ground_and_vegetation_in_band(self):
+            """ Simulates Band 1 losing all its open ground and some vegetated area to glacier growth"""
 
     def test_glacier_growth_over_remaining_vegetation_in_band(self):
         """ Simulates Band 1 losing (some of) its only remaining non-glacier (vegetated) HRU to glacier growth"""
