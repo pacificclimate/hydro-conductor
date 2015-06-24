@@ -217,54 +217,34 @@ class TestsAreaFracUpdate:
         def test_glacier_growth_over_open_ground_and_vegetation_in_band(self):
             """ Simulates Band 1 losing some of its open ground area to glacier growth 
                 (confined to cell '12345' here) """
-            
-            ## LEFT OFF HERE: need to replace some open ground pixels in Band 1 with higher DEM
-            # elevations (glacier) and update the glacier mask accordingly (both need padding added)
-                # initial_dem_by_cells = { cell_ids[0]:                  
-                #                 np.array([[2065, 2055, 2045, 2035, 2025, 2015, 2005, 2000],
-                #                         [2075, 2100, 2120, 2140, 2130, 2120, 2100, 2005],
-                #                         [2085, 2110, 2250, 2270, 2260, 2240, 2110, 2010],
-                #                         [2090, 2120, 2260, 2377, 2310, 2250, 2125, 2015],
-                #                         [2070, 2110, 2250, 2340, 2320, 2250, 2130, 2020],
-                #                         [2090, 2105, 2200, 2210, 2220, 2220, 2120, 2015],
-                #                         [2090, 2100, 2105, 2110, 2140, 2150, 2130, 2010],
-                #                         [2080, 2075, 2065, 2055, 2045, 2035, 2020, 2000] ]),
-
-                #             cell_ids[1]:
-                #                 np.array([[1970, 1975, 1995, 1995, 1975, 1965, 1960, 1960],
-                #                         [1970, 2000, 2045, 2055, 2005, 2005, 2000, 1965],
-                #                         [1975, 2000, 2100, 2155, 2160, 2140, 2000, 1970],
-                #                         [1985, 2005, 2105, 2160, 2180, 2130, 2000, 1975],
-                #                         [1990, 2010, 2110, 2150, 2140, 2105, 2005, 1980],
-                #                         [1980, 2005, 2105, 2105, 2110, 2100, 2000, 1980],
-                #                         [1970, 2000, 2000, 2020, 2035, 2025, 2000, 1970],
-                #                         [1965, 1965, 1970, 1970, 1975, 1960, 1950, 1960] ])
+            surf_dem = deepcopy(initial_surf_dem)
+            # TODO: modify surf_dem accordingly, and run update_area_fracs()
 
 
         def test_glacier_growth_over_open_ground_and_vegetation_in_band(self):
             """ Simulates Band 1 losing all its open ground and some vegetated area to glacier growth"""
 
-    def test_glacier_growth_over_remaining_vegetation_in_band(self):
-        """ Simulates Band 1 losing (some of) its only remaining non-glacier (vegetated) HRU to glacier growth"""
-        pass
+        def test_glacier_growth_over_remaining_vegetation_in_band(self):
+            """ Simulates Band 1 losing (some of) its only remaining non-glacier (vegetated) HRU to glacier growth"""
+            pass
 
-    def test_attempt_new_glacier_growth_into_unavailable_lower_band(self):
-        """test_cells_dynamic -- Test #7: Simulates the glacier expanding downward into an elevation band
-        that has not been anticipated, i.e. not enough 0 pads were provided on the lower end in the snow band file"""
-        pass
+        def test_attempt_new_glacier_growth_into_unavailable_lower_band(self):
+            """test_cells_dynamic -- Test #7: Simulates the glacier expanding downward into an elevation band
+            that has not been anticipated, i.e. not enough 0 pads were provided on the lower end in the snow band file"""
+            pass
 
-    def test_glacier_growth_to_conceal_lowest_band(self):
-        """test_cells_dynamic -- Test #8: Simulates the glacier re-covering the lowest band thickly enough 
-        such that the pixels elevations in that area no longer belong to that band (i.e. the band must be deleted).
-        NOTE: the glacier area fraction for existing Band 1 is not being updated in this test"""
-        pass
+        def test_glacier_growth_to_conceal_lowest_band(self):
+            """test_cells_dynamic -- Test #8: Simulates the glacier re-covering the lowest band thickly enough 
+            such that the pixels elevations in that area no longer belong to that band (i.e. the band must be deleted).
+            NOTE: the glacier area fraction for existing Band 1 is not being updated in this test"""
+            pass
 
-    def test_existing_glacier_shrink_revealing_new_lower_band(self):
-        """test_cells_dynamic -- Test #6: Simulates glacier recession from the lowest existing band, to reveal a yet
-        lower elevation band (consisting of a single pixel).  This is done in the second test cell, ID '23456' """
-        pass
+        def test_existing_glacier_shrink_revealing_new_lower_band(self):
+            """test_cells_dynamic -- Test #6: Simulates glacier recession from the lowest existing band, to reveal a yet
+            lower elevation band (consisting of a single pixel).  This is done in the second test cell, ID '23456' """
+            pass
 
-    def test_attempt_new_glacier_growth_into_unavailable_higher_band(self):
-        """test_cells_dynamic -- Test #4: Simulates a (failing) attempt to grow the glacier into a new elevation Band 5 (no 0 pad available)"""
-        pass
+        def test_attempt_new_glacier_growth_into_unavailable_higher_band(self):
+            """test_cells_dynamic -- Test #4: Simulates a (failing) attempt to grow the glacier into a new elevation Band 5 (no 0 pad available)"""
+            pass
 
