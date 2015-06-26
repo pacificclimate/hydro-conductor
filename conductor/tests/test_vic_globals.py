@@ -95,10 +95,8 @@ def test_force_types(sample_global_file_string):
     force_type = g._str_member('force_type')
     force_dt = g._str_member('force_dt')
 
-    expected_force_types = ['FORCE_TYPE SHORTWAVE SHORTWAVE\n', 'FORCE_TYPE LONGWAVE LONGWAVE\n', \
-                        'FORCE_TYPE AIR_TEMP AIR_TEMP\n', 'FORCE_TYPE PRESSURE PRESSURE\n', \
-                        'FORCE_TYPE DENSITY DENSITY\n', 'FORCE_TYPE VP VP\n', 'FORCE_TYPE WIND WIND\n', \
-                        'FORCE_TYPE PREC PREC\n']
+    expected_force_types = ['FORCE_TYPE PREC pr\n', 'FORCE_TYPE TMAX tasmax\n', \
+                        'FORCE_TYPE TMIN tasmin\n', 'FORCE_TYPE WIND wind\n']
     for ft in expected_force_types:
         assert ft in force_type
 

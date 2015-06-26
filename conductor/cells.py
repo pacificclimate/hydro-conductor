@@ -9,6 +9,7 @@
 
 from collections import OrderedDict
 from copy import deepcopy
+import numpy as np
 
 #from conductor.snbparams.PaddedDeque import unpadded_enumerate
 

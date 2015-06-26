@@ -43,20 +43,3 @@ def test_run_ranges_warning(recwarn):
     w = recwarn.pop()
     assert 'run_ranges assumes that glacier_start' in str(w.message)
 
-def test_cell_and_pixel_maps(toy_domain_64px_cells, toy_domain_64px_rgm_vic_map_file_readout):
-    cells, cell_ids, num_snow_bands, band_size, cellid_map, surf_dem, glacier_mask, \
-        cell_band_pixel_elevations = toy_domain_64px_cells        
-        
-    cellid_map_from_file, elevation_map, cell_areas, nx, ny = toy_domain_64px_rgm_vic_map_file_readout
-
-    # Replace all np.nans with a fill value, as np.nan == np.nan does not evaluate to True
-    fill_value = 9999
-    cellid_map_from_file[np.isnan(cellid_map_from_file)] = fill_value
-    cellid_map[np.isnan(cellid_map)] = fill_value
-    assert np.array_equal(cellid_map_from_file, cellid_map)
-
-    elevation_map[np.isnan(elevation_map)] = fill_value
-    surf_dem[np.isnan(surf_dem)] = fill_value
-    assert np.array_equal(elevation_map, surf_dem)
-
-
