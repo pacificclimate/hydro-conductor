@@ -16,7 +16,10 @@ setup(
     scripts = ['scripts/vic_rgm_conductor.py'],
     package_data = {'conductor': ['tests/input/global.txt',
                                   'tests/input/snow_band.txt',
-                                  'tests/input/veg.txt']},
+                                  'tests/input/veg.txt',
+				  'tests/input/snb_toy_64px.txt',
+				  'tests/input/vpf_toy_64px.txt',
+				  'tests/input/rgm_vic_map_toy_64px_auto.txt']},
     zip_safe=True,
         classifiers=[
             'Environment :: Console',
