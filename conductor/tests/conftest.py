@@ -54,10 +54,10 @@ import numpy as np
 
 import pytest
 
-from scripts.vic_rgm_conductor import get_rgm_pixel_mapping
 from conductor.cells import *
 from conductor.snbparams import load_snb_parms
 from conductor.vegparams import load_veg_parms
+from conductor.io import get_rgm_pixel_mapping
 
 def pytest_report_header(config):
     return "VIC-RGM Conductor - Automated Test Suite"
@@ -76,7 +76,7 @@ def pytest_runtest_setup(item):
 
 @pytest.fixture(scope="module")
 def sample_global_file_string():
-    stream = resource_stream('conductor', 'tests/input/global_peyto.txt')
+    stream = resource_stream('conductor', 'tests/input/global.txt')
     return io.TextIOWrapper(stream)
 
 @pytest.fixture(scope="module")
@@ -102,20 +102,22 @@ def simple_unit_test_parms():
     test_area_fracs_by_band = {'12345': {'0': [0.1875, 0.25], # Band 0 (11, 19)
                         '1': [0.0625, 0.125, 0.125], # Band 1 (11, 19, 22)
                         '2': [0.0625, 0.125], # Band 2 (19, 22)
-                        '3': [0.0625], # Band 3 (19)
-                        '4': [0]}, # DUMMY BAND
-                    '23456': { '0': [0], # DUMMY BAND
-                        '1': [0.25, 0.15625, 0.03125], # Band 1 (11, 19, 22)
+                        '3': [0.0625]}, # Band 3 (19)
+                    '23456': {'1': [0.25, 0.15625, 0.03125], # Band 1 (11, 19, 22)
                         '2': [0.15625, 0.125, 0.03125], # Band 2 (11, 19, 22)
-                        '3': [0.125, 0.125], # Band 3 (19, 22)
-                        '4': [0] } # DUMMY BAND
-                        }
+                        '3': [0.125, 0.125]} } # Band 3 (19, 22)
 
     test_veg_types = [11, 19, 22]
 
+    expected_num_hrus = {'12345': [2, 3, 2, 1],
+                '23456': [3, 3, 2] }
+
+    expected_root_zone_parms = {'11': [0.10, 0.60, 0.20, 0.25, 1.70, 0.15], # 11
+                        '19': [0.1, 1.0, 0.1, 0.0, 0.1, 0.0], # 19
+                        '22': [0.1, 1.0, 0.1, 0.0, 0.1, 0.0]} # 22
 
     return test_median_elevs_simple, test_median_elevs, test_area_fracs_simple, test_area_fracs, \
-            test_area_fracs_by_band, test_veg_types
+            test_area_fracs_by_band, test_veg_types, expected_num_hrus, expected_root_zone_parms
 
 @pytest.fixture(scope="module")
 def large_merge_cells_unit_test_parms():
@@ -123,7 +125,7 @@ def large_merge_cells_unit_test_parms():
     elevation_cells = load_snb_parms(fname, 15)
     fname = resource_filename('conductor', 'tests/input/veg.txt')
     hru_cells = load_veg_parms(fname)
-    expected_zs = [ 2076, 2159, 2264, 2354, 2451, 2550, 2620, 2714, 2802, 2900, 3000, 3100, 3200, 3300, 3400 ]
+    expected_zs = [ 2076, 2159, 2264, 2354, 2451, 2550, 2620, 2714, 2802 ]    
     expected_afs = {0.000765462339, 0.000873527611, 0.009125511809, 0.009314626034, 0.004426673711, 0.004558753487, 0.001388838859, 0.000737445417}
 
     return elevation_cells, hru_cells, expected_zs, expected_afs
@@ -144,6 +146,12 @@ def toy_domain_64px_cells():
     # We have a total allowable number of snow bands of 5, with 100m spacing
     num_snow_bands = 5
     band_size = 100
+    # Initially we have just 4 bands loaded for cell 0, and 3 for cell 1
+    expected_band_ids = {cell_ids[0]: [0, 1, 2, 3],
+                        cell_ids[1]: [1, 2, 3]}
+    expected_root_zone_parms = {'11': [0.10, 0.60, 0.20, 0.25, 1.70, 0.15], # 11
+                        '19': [0.1, 1.0, 0.1, 0.0, 0.1, 0.0], # 19
+                        '22': [0.1, 1.0, 0.1, 0.0, 0.1, 0.0]} # 22
 
     # Spatial DEM layout
     initial_dem_by_cells = { cell_ids[0]:                  
@@ -278,45 +286,5 @@ def toy_domain_64px_cells():
                     2105, 2105, 2110, 2100],
                     ] }
 
-    return cells, cell_ids, num_snow_bands, band_size, cellid_map, surf_dem, glacier_mask, \
-        cell_band_pixel_elevations
+    return cells, cell_ids, num_snow_bands, band_size, expected_band_ids, expected_root_zone_parms
 
-
-@pytest.fixture(scope="function")
-def toy_domain_64px_rgm_vic_map_file_readout(toy_domain_64px_cells):
-
-    cells, cell_ids, num_snow_bands, band_size, cellid_map, surf_dem, glacier_mask, \
-        cell_band_pixel_elevations = toy_domain_64px_cells
-
-    # Use this to verify output of get_rgm_pixel_mapping()
-    def write_rgm_pixel_to_vic_cell_map_file():
-        """ Helper function to write out an rgm_vic_map_ file (in tabular format) from cellid_map and surf_dem """
-        nx=len(cellid_map[0])
-        ny=len(cellid_map)
-        with open('/home/mfischer/code/hydro-conductor/conductor/tests/input/rgm_vic_map_toy_64px_auto.txt', 'w') as f:
-            f.write('NCOLS '+ str(nx) + '\n')
-            f.write('NROWS '+ str(ny) + '\n')
-            f.write('"PIXEL_ID" "ROW" "COL" "BAND" "ELEV" "CELL_ID"\n')
-            count = 1
-            for col in range(0, nx):
-                for row in range(0, ny):
-                    elev = surf_dem[row][col]
-                    if np.isnan(elev):
-                        elev = 0
-                    cell_id = cellid_map[row][col]
-                    if np.isnan(cell_id):
-                        cell_id = 'NA'
-                    else:
-                        cell_id = int(cell_id)
-                    line = str(count)+' '+str(row)+' '+str(col)+' 0 '+str(int(elev))+' '+str(cell_id)+'\n'
-                    f.write(line)
-                    count += 1
-
-    # UNCOMMENT THIS LINE IF YOU WANT A NEW rgm_vic_map_toy_64px_auto.txt file written from toy_domain_64px_cells data
-    #write_rgm_pixel_to_vic_cell_map_file()
-
-    # Load in the file just written, via get_rgm_pixel_mapping()
-    fname = resource_filename('conductor', 'tests/input/rgm_vic_map_toy_64px_auto.txt')
-    cellid_map_from_file, elevation_map, cell_areas, nx, ny = get_rgm_pixel_mapping(fname)
-
-    return cellid_map_from_file, elevation_map, cell_areas, nx, ny
