@@ -5,7 +5,7 @@ __version__ = '0.1-dev'
 setup(
     name="hydro-conductor",
     description="",
-    keywords="science climate hydrology glaicer modelling",
+    keywords="science climate hydrology glacier modelling",
     packages=['conductor'],
     version=__version__,
     url="http://www.pacificclimate.org/",
@@ -19,7 +19,8 @@ setup(
                                   'tests/input/veg.txt',
 				  'tests/input/snb_toy_64px.txt',
 				  'tests/input/vpf_toy_64px.txt',
-				  'tests/input/rgm_vic_map_toy_64px_auto.txt']},
+				  'tests/input/rgm_vic_map_toy_64px_auto.txt',
+				  'tests/input/global_parms_write_out_test.txt']},
     zip_safe=True,
         classifiers=[
             'Environment :: Console',
