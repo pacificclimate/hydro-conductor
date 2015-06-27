@@ -2,7 +2,7 @@ from pkg_resources import resource_filename
 
 import pytest
 
-from conductor.snbparams import front_padding, load_snb_parms
+from conductor.snbparams import load_snb_parms
 
 def test_load_snb_parms():
     fname = resource_filename('conductor', 'tests/input/snow_band.txt')

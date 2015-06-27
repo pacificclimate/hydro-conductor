@@ -206,13 +206,13 @@ def toy_domain_64px_cells():
         padded_map = np.concatenate((padded_map, vertical_pad), axis=0)
         return padded_map
 
-        # Create cellid_map that is padded by 2 rows & columns of np.NaNs (to simulate mapping
-    	# of valid pixels to VIC cells, as read in by get_rgm_pixel_mapping())
-    	cellid_map_cell_0 = np.empty((8,8))
-    	cellid_map_cell_0.fill(cell_ids[0])
-    	cellid_map_cell_1 = np.empty((8,8))
-    	cellid_map_cell_1.fill(cell_ids[1])
-    	cellid_map = build_padded_dem_aligned_map(cellid_map_cell_0, cellid_map_cell_1, 2)
+    # Create cellid_map that is padded by 2 rows & columns of np.NaNs (to simulate mapping
+	# of valid pixels to VIC cells, as read in by get_rgm_pixel_mapping())
+    cellid_map_cell_0 = np.empty((8,8))
+    cellid_map_cell_0.fill(cell_ids[0])
+    cellid_map_cell_1 = np.empty((8,8))
+    cellid_map_cell_1.fill(cell_ids[1])
+    cellid_map = build_padded_dem_aligned_map(cellid_map_cell_0, cellid_map_cell_1, 2)
 
     # Create initial surf_dem with padding of 2
     surf_dem = build_padded_dem_aligned_map(initial_dem_by_cells[cell_ids[0]], initial_dem_by_cells[cell_ids[1]], 2)

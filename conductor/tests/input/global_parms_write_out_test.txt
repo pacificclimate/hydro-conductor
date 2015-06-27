@@ -34,8 +34,8 @@ FORCING1 ./forcings_v2_1950-2006.nc
 FORCE_FORMAT NETCDF
 FORCE_ENDIAN LITTLE
 N_TYPES 4
-FORCE_TYPE WIND wind
 FORCE_TYPE TMIN tasmin
+FORCE_TYPE WIND wind
 FORCE_TYPE PREC pr
 FORCE_TYPE TMAX tasmax
 FORCE_DT 24
@@ -62,8 +62,8 @@ OUTPUT_FORMAT ASCII
 ALMA_OUTPUT FALSE
 PRT_HEADER TRUE
 PRT_SNOW_BAND FALSE
-NETCDF_ATTRIBUTE contact2 Markus Schnorbus
 NETCDF_ATTRIBUTE references http://www.pacificclimate.org
+NETCDF_ATTRIBUTE contact2 Markus Schnorbus
 NETCDF_ATTRIBUTE contact mschnorb@uvic.ca
 NETCDF_ATTRIBUTE institution Pacific Climate Impacts Consortium (PCIC), Victoria, BC, www.pacificclimate.org
 N_OUTFILES 2
