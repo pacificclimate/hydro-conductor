@@ -10,81 +10,10 @@
 
 __all__ = ['load_snb_parms', 'save_snb_parms']
 
-from collections import OrderedDict, deque
+from collections import OrderedDict
 import csv
 
 from conductor.cells import Band, HydroResponseUnit
-
-def front_padding(l):
-    ''' Count and return the number of falsy occurrances at the
-        beginning of a list
-    '''
-    count = 0
-    for x in l:
-        if x:
-            break
-        else:
-            count += 1
-    return count
-
-
-class PaddedDeque(deque):
-    '''A Double Ended Queue (deque) of fixed length that is optionally
-       None padded on both ends. Standard append operations consume
-       unused padding until the deque is full. Standard pop() operations
-       return the first non-None values and leave None-padding in their
-       wake.
-    '''
-    def __init__(self, *args, left_padding=0):
-        self.left_padding = left_padding
-        super().__init__(*args)
-
-    @property
-    def right_padding(self):
-        return self.maxlen - len(self) - self.left_padding
-
-    def append(self, x):
-        if len(self) == self.maxlen or self.right_padding == 0:
-            raise IndexError("Cannot append to item to full PaddedDeque")
-        super().append(x)
-
-    def appendleft(self, x):
-        if len(self) == self.maxlen or self.left_padding == 0:
-            raise IndexError("Cannot append to item to full PaddedDeque")
-        self.left_padding -= 1
-        super().appendleft(x)
-
-    def popleft(self):
-        rv = super().popleft()
-        self.left_padding += 1
-        return rv
-
-    def __getitem__(self, i):
-        if i > self.maxlen - 1:
-            raise IndexError("Index out of bounds for PaddedDeque")
-        if i < self.left_padding or i >= (self.left_padding + super().__len__()):
-            return None
-        else:
-            return super().__getitem__(i - self.left_padding)
-
-    def padded_iter(self):
-        yield from ([None] * self.left_padding)
-        yield from super().__iter__()
-        yield from ([None] * self.right_padding)
-
-    def unpadded_enumerate(self):
-        for index, item in enumerate(super().__iter__()):
-            yield index + self.left_padding, item
-
-    def peekleft(self):
-        return super().__getitem__(0)
-
-    def peekright(self):
-        return super().__getitem__(-1)
-
-    def __repr__(self):
-        return '{}({}, {}, left_padding={})'.format(self.__class__.__name__,
-                repr(list(super().__iter__())), self.maxlen, self.left_padding)
 
 
 def load_snb_parms(snb_file, num_snow_bands):
