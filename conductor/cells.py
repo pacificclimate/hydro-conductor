@@ -11,8 +11,6 @@ from collections import OrderedDict
 from copy import deepcopy
 import numpy as np
 
-#from conductor.snbparams.PaddedDeque import unpadded_enumerate
-
 class Band(object):
     """ Class capturing VIC cell parameters at the elevation band level
     """
@@ -29,6 +27,9 @@ class Band(object):
         if hrus is None:
             hrus = {}
         self.hrus = hrus
+
+    def __eq__(self, other):
+        return (self.__class__ == other.__class__ and self.__dict__ == other.__dict__)
 
     @property
     def lower_bound(self):
@@ -90,33 +91,6 @@ class Band(object):
                                                     self.median_elev,
                                                     len(self.hrus))
 
-class Cell(object):
-    """ Class providing cell creation and deletion functions used during runtime
-        (initial cell creation at start-up is done via vegparams and snbparams load functions)
-    """
-    def create_band(self, elevation):
-        new_band = Band(elevation)
-        if elevation < self.peekleft().median_elev:
-            self.appendleft(new_band)
-        elif elevation > self.peekright().median_elev:
-            self.append(new_band)
-        else:
-            raise ValueError("Cannot create a new band of elevation {} since "
-                    "bands already exist for the interval {}-{}"
-                    .format(elevation, self.peekleft().median_elev, self.peekright().median_elev))
-        return list(self).index(new_band)
-
-    def delete_band(self, band_id):
-        if self[band_id].median_elev == max([band.median_elev for band in self]):
-            self.pop()
-        elif self[band_id].median_elev == min([band.median_elev for band in self]):
-            self.popleft()
-        else:
-            raise ValueError("Cannot delete band {} at elevation {} m because it"
-                        " is not located at either end of the set of valid elevation"
-                        " bands (i.e. deleting a band from the middle is not allowed)."
-                        .format(band_id, self[band_id].median_elev))
-
 def apply_custom_root_zone_parms(hru_cell_dict, glacier_root_zone_parms, open_ground_root_zone_parms):
     """ Utility function to apply user-supplied custom root zone parameters to glacier 
         and/or open ground HRUs at initialization time """
@@ -162,71 +136,83 @@ class HydroResponseUnit(object):
     def __str__(self):
         return 'HRU({:.2f}%, {})'.format(self.area_frac * 100, self.root_zone_parms)
 
+    def __eq__(self, other):
+        return (self.__class__ == other.__class__ and self.__dict__ == other.__dict__)
+
 def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
                       surf_dem, num_rows_dem, num_cols_dem, glacier_mask):
     """ Applies the updated RGM DEM and glacier mask and calculates and updates all HRU area fractions 
         for all elevation bands within the VIC cells
     """
-    all_pixel_elevs = {} # temporarily store pixel elevations in bins by band so the median can be calculated
-    band_areas = {} # temporary count of pixels, a proxy for area, within each band
-    glacier_areas = {} # temporary count of pixels landing within the glacier mask, a proxy for glacier area
-    for cell in cells:
-        all_pixel_elevs[cell] = [ [] for x in range(num_snow_bands) ]
-        band_areas[cell] = [0] * num_snow_bands
-        glacier_areas[cell] = [0] * num_snow_bands
+    # Create temporary band area and glacier area bins
+    band_areas = {} # count of pixels; a proxy for area, within each band
+    glacier_areas = {} # count of pixels landing within the glacier mask; a proxy for glacier area
+
     # Scan through the RGM output DEM and drop pixels into bins according to cell and elevation
-    for col in range(num_cols_dem):
-        for row in range(num_rows_dem):
-            cell = cellid_map[col][row] # get the VIC cell this pixel belongs to
-            if cell != np.nan:
-                # Use the RGM DEM output to update the pixel median elevation in the pixel_to_cell_map
-                try:
-                    pixel_elev = float(surf_dem[col][row])
-                except (Exception):
-                    print(
-                            'RGM returned an invalid DEM pixel (elevation = {}) at '
-                            'col = {}, row = {} for cell {}, band {}'\
-                            .format(elevation, col, row, cell, band)
-                    )
-                for band_id, band in unpadded_enumerate(cells[cell]):
-                    band_found = False
-                    if (band.lower_bound < pixel_elev) and (pixel_elev < band.upper_bound):
-                        band_found = True
-                        # Gather all pixel_elev values to update the median_elev of this band later
-                        all_pixel_elevs[cell][band_id].append(pixel_elev)
-                        band_areas[cell][band_id] += 1
-                        if glacier_mask[col][row]:
-                            glacier_areas[cell][band_id] += 1
-                        break
-                if not band_found: # we have to introduce a new elevation band
-                    new_band_id = Cell.create_band(cells[cell], pixel_elev)
-                    all_pixel_elevs[cell][new_band_id].append(pixel_elev)
-                    band_areas[cell][new_band_id] += 1
-                    if glacier_mask[col][row]:
-                        glacier_areas[cell][new_band_id] += 1
-                        break
+    for cell_id, cell in cells.items():
+        band_areas[cell_id] = [0] * num_snow_bands
+        glacier_areas[cell_id] = [0] * num_snow_bands
 
-    # Update all band median elevations for all cells, delete unused Bands
-    for cell in cells:
-        for band_id, band in unpadded_enumerate(cells[cell]):
-            if all_pixel_elevs[cell][band_id]:
-                band.median_elev = np.median(all_pixel_elevs[cell][band_id])
-            else: # if no pixels fell into this elevation band bin, delete it
-                Cell.delete_band(cells[cell], band_id)
+        # Select the portion of the DEM that pertains to this cell from which we will do binning
+        masked_dem = np.ma.masked_array(surf_dem)
+        masked_dem[np.where(cellid_map != float(cell_id))] = np.ma.masked
+        flat_dem = masked_dem[~masked_dem.mask]
 
-    # Update all Band and HRU area fractions in all cells
-    for cell in cells:
-        for band_id, band in unpadded_enumerate(cells[cell]):
-            # Update area fraction for this Band
-            new_band_area_frac = band_areas[cell][band.lower_bound] / cell_areas[cell]
-            new_glacier_area_frac = glacier_areas[cell][band.lower_bound] / cell_areas[cell]
+        # Check if any pixels fall outside of valid range of bands
+        if len(np.where(flat_dem < cell[0].lower_bound)[0]) > 0:
+            raise Exception(
+                'One or more RGM output DEM pixels lies below the lowest \
+                defined elevation band (< {}m) as defined by the Snow Band Parameter File \
+                for cell {}. You may need to add or shift the zero padding to accommodate this.'
+                ).format(cell[0].lower_bound, cell_id)
+        if len(np.where(flat_dem > cell[-1].upper_bound)[0]) > 0:
+            raise Exception(
+                'One or more RGM output DEM pixels lies above the highest \
+                defined elevation band (> {}m) as defined by the Snow Band Parameter File \
+                for cell {}. You may need to add or shift the zero padding to accommodate this.'
+                ).format(cell[-1].upper_bound, cell_id)
+
+        # Identify the bounds of the band area and glacier area bins for this cell
+        # and update the band median elevations 
+        band_bin_bounds = []
+        for band in cell:
+            band_bin_bounds.append(band.lower_bound)
+            band_pixels = flat_dem[np.where((flat_dem >= band.lower_bound) & (flat_dem < band.upper_bound))]
+            if not band_pixels.size: # if there are no pixels in this band
+                band.median_elev = band.lower_bound
+            else:
+                band.median_elev = np.median(band_pixels)
+            print ('band: {}, band.median_elev: {}, band.area_frac: {}, band.area_frac_glacier: {}'.format(band, band.median_elev, band.area_frac, band.area_frac_glacier))
+        print('band_bin_bounds: {}'.format(band_bin_bounds))
+
+        # Select portion of glacier_mask pertaining to this cell
+        cell_glacier_mask = np.ma.masked_array(glacier_mask)
+        cell_glacier_mask[np.where(cellid_map != float(cell_id))] = np.ma.masked
+        masked_dem.mask = False
+        masked_dem[np.where(cell_glacier_mask !=1)] = np.ma.masked
+        flat_glacier_dem = masked_dem[~masked_dem.mask]
+
+        # Do binning into band_areas[cell][band] and glacier_areas[cell][band] 
+        # using data in flat_dem and flat_glacier_dem
+        inds = np.digitize(flat_dem, band_bin_bounds)
+        print('band bin inds-1: {}'.format(inds-1))
+        for idx, count in enumerate(np.bincount(inds-1)):
+            band_areas[cell_id][idx] = count
+
+        inds = np.digitize(flat_glacier_dem, band_bin_bounds)
+        print('glacier bin inds-1: {}'.format(inds-1))
+        for idx, count in enumerate(np.bincount(inds-1)):
+            glacier_areas[cell_id][idx] = count
+        print ('band_areas: {}'.format(band_areas))
+        print('glacier_areas: {}'.format(glacier_areas))
+        
+        # Update all Band and HRU area fractions in this cell
+        for band_id, band in enumerate(cell):
+            # Update total area fraction for this Band
+            new_band_area_frac = band_areas[cell_id][band_id] / cell_areas[cell_id] 
+            new_glacier_area_frac = glacier_areas[cell_id][band_id] / cell_areas[cell_id]
             # If the glacier HRU area fraction has changed for this band then we need to update all area fractions
             if new_glacier_area_frac != cell[band_id].area_frac_glacier:
-                if new_glacier_area_frac < 0:
-                    raise Exception(
-                            'Calculated a negative glacier area fraction for '
-                            'cell {}, band {}'.format(cell, band)
-                    )
                 # Calculate new non-glacier area fraction for this band
                 new_non_glacier_area_frac = new_band_area_frac - new_glacier_area_frac
                 # Calculate new_residual area fraction
@@ -243,26 +229,28 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
                 # Update area fractions for all HRUs in this Band  
                 glacier_found = False
                 open_ground_found = False
-                for hru_idx, hru in enumerate(cell[band_id].hrus):
-                    if hru.veg_type == Band.glacier_id:
+                for veg_type, hru in band.hrus.items():
+                    print('cell_id: {}, band_id: {}, veg_type: {}'.format(cell_id, band_id, veg_type))
+                    if veg_type == Band.glacier_id:
+                        print('glacier found')
                         glacier_found = True
-                        cell[band_id].hrus[hru_idx].area_frac = new_glacier_area_frac
-                    if hru.veg_type == Band.open_ground_id:
+                        cell[band_id].hrus[veg_type].area_frac = new_glacier_area_frac
+                    elif veg_type == Band.open_ground_id:
                         open_ground_found = True
                         # If open ground area fraction was reduced to 0, we delete the HRU
                         if new_open_ground_area_frac == 0:
                             band.delete_hru(Band.open_ground_id)
                         else:
-                            cell[band_id].hrus[hru_idx].area_frac = new_open_ground_area_frac
+                            cell[band_id].hrus[veg_type].area_frac = new_open_ground_area_frac
                     else:
+                        print('veg section... cell_id: {}, band_id: {}, veg_type: {}'.format(cell_id, band_id, veg_type))
                         # Calculate change in HRU area fraction & update
-                        delta_area_hru = delta_area_vegetated * (cell[band_id].hrus[hru_idx].area_frac / veg_scaling_divisor)
-                        new_hru_area_frac = cell[band_id].hrus[hru_idx].area_frac + delta_area_hru
+                        delta_area_hru = delta_area_vegetated * (cell[band_id].hrus[veg_type].area_frac / veg_scaling_divisor)
+                        new_hru_area_frac = cell[band_id].hrus[veg_type].area_frac + delta_area_hru
                         if new_hru_area_frac == 0: # HRU has disappeared, never to return (only open ground can come back in its place)
-                            veg_type = cell[band_id].hrus[hru_idx]
                             band.delete_hru(veg_type)
                         else:
-                            cell[band_id].hrus[hru_idx].area_frac = new_hru_area_frac
+                            cell[band_id].hrus[veg_type].area_frac = new_hru_area_frac
                 # Create glacier HRU if it didn't already exist, if we have a non-zero new_glacier_area_frac. 
                 # If glacier area fraction was reduced to 0, we leave the "shadow glacier" HRU in place for VIC
                 if not glacier_found and (new_glacier_area_frac > 0):
@@ -270,6 +258,9 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
                 # If open ground was exposed in this band we need to add an open ground HRU
                 if not open_ground_found and (new_open_ground_area_frac > 0):
                     band.create_hru(Band.open_ground_id, new_open_ground_area_frac)
+                # If there are no HRUs left in this band, it's now a dummy band (set its median elevation to the floor)
+                if band.num_hrus == 0:
+                    band.median_elev = band.lower_bound
 
                 # Sanity check that glacier + non-glacier area fractions add up to Band's total area fraction, within tolerance
                 sum_test = new_glacier_area_frac + new_non_glacier_area_frac
@@ -278,7 +269,7 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
                             'cell {}, band {}: glacier area fraction {} + '
                             'non-glacier area fraction {} = {} is not equal to '
                             'the band area fraction of {}'
-                            .format(cell, band, new_glacier_area_frac,
+                            .format(cell_id, band_id, new_glacier_area_frac,
                                     new_non_glacier_area_frac, sum_test,
                                     new_band_area_frac)
                     )

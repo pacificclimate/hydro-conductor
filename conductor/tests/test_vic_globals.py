@@ -90,6 +90,7 @@ def test_global_init(sample_global_file_string):
     g = Global(sample_global_file_string)
     print(str(g))
 
+
 def test_force_types(sample_global_file_string):
     g = Global(sample_global_file_string)
     force_type = g._str_member('force_type')
@@ -99,7 +100,6 @@ def test_force_types(sample_global_file_string):
                         'FORCE_TYPE TMIN tasmin\n', 'FORCE_TYPE WIND wind\n']
     for ft in expected_force_types:
         assert ft in force_type
-
 def test_global_parms_write(sample_global_file_string):
     g_init = Global(sample_global_file_string)
     write_test_fname = resource_filename('conductor', 'tests/input/global_parms_write_out_test.txt')
