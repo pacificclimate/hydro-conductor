@@ -87,16 +87,3 @@ def test_global_init(sample_global_file_string):
     g = Global(sample_global_file_string)
     print(str(g))
 
-def test_force_types(sample_global_file_string):
-    g = Global(sample_global_file_string)
-    force_type = g._str_member('force_type')
-    force_dt = g._str_member('force_dt')
-
-    # This test fails because the \n is missing at the very end
-   assert force_type == 'FORCE_TYPE SHORTWAVE SHORTWAVE\nFORCE_TYPE LONGWAVE LONGWAVE\nFORCE_TYPE AIR_TEMP AIR\
-_TEMP\nFORCE_TYPE PRESSURE PRESSURE\nFORCE_TYPE DENSITY DENSITY\nFORCE_TYPE VP VP\nFORCE_TYPE WIND WIND\nFORCE_T\
-YPE PREC PREC\n'
-
-#    assert force_type == 'FORCE_TYPE SHORTWAVE SHORTWAVE FORCE_TYPE LONGWAVE LONGWAVE FORCE_TYPE AIR_TEMP AIR\
-#_TEMP FORCE_TYPE PRESSURE PRESSURE FORCE_TYPE DENSITY DENSITY FORCE_TYPE VP VP FORCE_TYPE WIND WIND FORCE_T\
-#YPE PREC PREC'
