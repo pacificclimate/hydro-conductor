@@ -39,3 +39,49 @@ def get_rgm_pixel_mapping(pixel_map_file):
             else:
                 cell_areas[cell_id] = 1
     return cellid_map, z_map, cell_areas, nx, ny
+
+def read_gsa_headers(dem_file):
+    """ Opens and reads the header metadata from a GSA Digital Elevation Map
+        file, verifies agreement with the VIC-RGM mapping file metadata, and
+        returns the x and y extents metadata
+    """
+    with open(dem_file, 'r') as f:
+        # First line
+        first_line = f.readline()
+        assert first_line.startswith('DSAA'), 'read_gsa_headers({}): DSAA header on first line of DEM file was not found or is malformed.  DEM file does not conform to ASCII grid format.'.format(dem_file)
+        # Second line
+        num_cols, num_rows = f.readline().split()
+        xmin, xmax = f.readline().split()
+        ymin, ymax = f.readline().split()
+        out_1 = [float(n) for n in (xmin, xmax, ymin, ymax)]
+        out_2 = [int(x) for x in (num_rows, num_cols)]
+    return out_1 + out_2
+
+def write_grid_to_gsa_file(grid, outfilename, num_cols_dem, num_rows_dem, dem_xmin, dem_xmax, dem_ymin, dem_ymax):
+    """ Writes a 2D grid to ASCII file in the input format expected by the RGM for DEM and mass balance grids """
+    zmin = np.min(grid)
+    zmax = np.max(grid)
+    header_rows = [['DSAA'], [num_cols_dem, num_rows_dem], [dem_xmin, dem_xmax], [dem_ymin, dem_ymax], [zmin, zmax]]
+    with open(outfilename, 'w') as csvfile:
+        writer = csv.writer(csvfile, delimiter=' ')
+        for header_row in header_rows:
+            writer.writerow(header_row)
+        for row in grid:
+            writer.writerow(row)
+
+def get_mass_balance_polynomials(state, state_file, cell_ids):
+    """ Extracts the Glacier Mass Balance polynomial for each grid cell from an open VIC state file """
+    gmb_info = state['GLAC_MASS_BALANCE_INFO'][0]
+    cell_count = len(gmb_info)
+    if cell_count != len(cell_ids):
+        print('get_mass_balance_polynomials: The number of VIC cells ({}) read from the state file {} and those read from the vegetation parameter file ({}) disagree. Exiting.\n'.format(cell_count, state_file, len(cell_ids)))
+        sys.exit(0)
+    gmb_polys = {}
+    for i in range(cell_count):
+        cell_id = str(int(gmb_info[i][0]))
+        if cell_id not in cell_ids:
+            print('get_mass_balance_polynomials: Cell ID {} was not found in the list of VIC cell IDs read from the vegetation parameters file. Exiting.\n'.format(cell_id))
+            sys.exit(0)
+        gmb_polys[cell_id] = [gmb_info[i][1], gmb_info[i][2], gmb_info[i][3]]
+    return gmb_polys
+

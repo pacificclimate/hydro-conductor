@@ -15,7 +15,7 @@ import numpy as np
 import h5py
 from dateutil.relativedelta import relativedelta
 
-from conductor.io import get_rgm_pixel_mapping
+from conductor.io import get_rgm_pixel_mapping, read_gsa_headers, write_grid_to_gsa_file, get_mass_balance_polynomials
 from conductor.cells import Band, HydroResponseUnit
 from conductor.snbparams import load_snb_parms, save_snb_parms
 from conductor.vegparams import load_veg_parms, save_veg_parms
@@ -88,39 +88,6 @@ def parse_input_parms():
         pixel_cell_map_file, init_glacier_mask_file, output_trace_files, \
         glacier_root_zone_parms, open_ground_root_zone_parms, band_size
 
-def read_gsa_headers(dem_file):
-    """ Opens and reads the header metadata from a GSA Digital Elevation Map
-        file, verifies agreement with the VIC-RGM mapping file metadata, and
-        returns the x and y extents metadata
-    """
-    with open(dem_file, 'r') as f:
-        # First line
-        first_line = f.readline()
-        assert first_line.startswith('DSAA'), 'read_gsa_headers({}): DSAA header on first line of DEM file was not found or is malformed.  DEM file does not conform to ASCII grid format.'.format(dem_file)
-        # Second line
-        num_cols, num_rows = f.readline().split()
-        xmin, xmax = f.readline().split()
-        ymin, ymax = f.readline().split()
-        out_1 = [float(n) for n in (xmin, xmax, ymin, ymax)]
-        out_2 = [int(x) for x in (num_rows, num_cols)]
-    return out_1 + out_2
-
-def get_mass_balance_polynomials(state, state_file, cell_ids):
-    """ Extracts the Glacier Mass Balance polynomial for each grid cell from an open VIC state file """
-    gmb_info = state['GLAC_MASS_BALANCE_INFO'][0]
-    cell_count = len(gmb_info)
-    if cell_count != len(cell_ids):
-        print('get_mass_balance_polynomials: The number of VIC cells ({}) read from the state file {} and those read from the vegetation parameter file ({}) disagree. Exiting.\n'.format(cell_count, state_file, len(cell_ids)))
-        sys.exit(0)
-    gmb_polys = {}
-    for i in range(cell_count):
-        cell_id = str(int(gmb_info[i][0]))
-        if cell_id not in cell_ids:
-            print('get_mass_balance_polynomials: Cell ID {} was not found in the list of VIC cell IDs read from the vegetation parameters file. Exiting.\n'.format(cell_id))
-            sys.exit(0)
-        gmb_polys[cell_id] = [gmb_info[i][1], gmb_info[i][2], gmb_info[i][3]]
-    return gmb_polys
-
 def mass_balances_to_rgm_grid(gmb_polys, pixel_to_cell_map, num_rows_dem, num_cols_dem, cell_ids):
     """ Translate mass balances from grid cell GMB polynomials to 2D RGM pixel grid to use as one of the inputs to RGM """
     mass_balance_grid = [[0 for x in range(num_cols_dem)] for x in range(num_rows_dem)]
@@ -141,18 +108,6 @@ def mass_balances_to_rgm_grid(gmb_polys, pixel_to_cell_map, num_rows_dem, num_co
     except:
         print('mass_balances_to_rgm_grid: Error while processing pixel {} (row {} column {})'.format(pixel, row, col))
     return mass_balance_grid
-
-def write_grid_to_gsa_file(grid, outfilename, num_cols_dem, num_rows_dem, dem_xmin, dem_xmax, dem_ymin, dem_ymax):
-    """ Writes a 2D grid to ASCII file in the input format expected by the RGM for DEM and mass balance grids """
-    zmin = np.min(grid)
-    zmax = np.max(grid)
-    header_rows = [['DSAA'], [num_cols_dem, num_rows_dem], [dem_xmin, dem_xmax], [dem_ymin, dem_ymax], [zmin, zmax]]
-    with open(outfilename, 'w') as csvfile:
-        writer = csv.writer(csvfile, delimiter=' ')
-        for header_row in header_rows:
-            writer.writerow(header_row)
-        for row in grid:
-            writer.writerow(row)
 
 def update_glacier_mask(sdem, bdem, num_rows_dem, num_cols_dem):
     """ Takes output Surface DEM from RGM and uses element-wise differencing 
