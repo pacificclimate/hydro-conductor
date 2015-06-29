@@ -19,8 +19,7 @@ setup(
                                   'tests/input/veg.txt',
 				  'tests/input/snb_toy_64px.txt',
 				  'tests/input/vpf_toy_64px.txt',
-				  'tests/input/rgm_vic_map_toy_64px_auto.txt',
-				  'tests/input/global_parms_write_out_test.txt']},
+				  'tests/input/rgm_vic_map_toy_64px_auto.txt']},
     zip_safe=True,
         classifiers=[
             'Environment :: Console',
