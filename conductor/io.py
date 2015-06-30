@@ -85,3 +85,14 @@ def get_mass_balance_polynomials(state, state_file, cell_ids):
         gmb_polys[cell_id] = [gmb_info[i][1], gmb_info[i][2], gmb_info[i][3]]
     return gmb_polys
 
+def update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem):
+    """ Takes output Surface DEM from RGM and uses element-wise differencing 
+        with the Bed DEM to form an updated glacier mask 
+    """
+    diffs = surf_dem - bed_dem
+    if np.any(diffs < 0):
+        print('update_glacier_mask: Error: subtraction of Bed DEM from output Surface DEM of RGM produced one or more negative values.  Exiting.\n')
+        sys.exit(0)
+    glacier_mask = np.zeros((num_rows_dem, num_cols_dem))
+    glacier_mask[diffs > 0] = 1
+    return glacier_mask
