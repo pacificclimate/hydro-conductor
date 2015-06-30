@@ -20,6 +20,8 @@ class Scalar(object):
     def __get__(self, instance, cls):
         return self.value
     def __str__(self, instance, cls, name=''):
+        if self.value is None:
+            return ''
         return '{} {}\n'.format(name.upper(), self.value)
 
 class Boolean(Scalar):

@@ -2,8 +2,6 @@ from conductor.vic_globals import Scalar, Boolean, Filename, Mapping, List, Glob
 
 import pytest
 
-from pkg_resources import resource_stream, resource_filename
-import io
 
 def test_scalar_int():
     class Foo(object):
@@ -100,16 +98,8 @@ def test_force_types(sample_global_file_string):
                         'FORCE_TYPE TMIN tasmin\n', 'FORCE_TYPE WIND wind\n']
     for ft in expected_force_types:
         assert ft in force_type
-def test_global_parms_write(sample_global_file_string):
-    g_init = Global(sample_global_file_string)
-    write_test_fname = resource_filename('conductor', 'tests/input/global_parms_write_out_test.txt')
-    g_init.write(write_test_fname)
 
-    print(str(g_init))
 
-    read_back_stream = resource_stream('conductor', 'tests/input/global_parms_write_out_test.txt')
-    read_back_stream = io.TextIOWrapper(read_back_stream)
-    g_final = Global(read_back_stream)
-
-    for gp in g_init:
-        assert gp in g_final
+def test_none_not_in_global_parms_output(sample_global_file_string):
+    g = Global(sample_global_file_string)
+    assert "None" not in str(g)
