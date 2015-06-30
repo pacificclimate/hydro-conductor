@@ -91,8 +91,11 @@ def update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem):
     """
     diffs = surf_dem - bed_dem
     if np.any(diffs < 0):
-        print('update_glacier_mask: Error: subtraction of Bed DEM from output Surface DEM of RGM produced one or more negative values.  Exiting.\n')
-        sys.exit(0)
+        raise Exception(
+                            'update_glacier_mask: Error: Subtraction of Bed DEM from the output Surface DEM'
+                            ' of RGM produced one or more negative values.'
+                    )
+
     glacier_mask = np.zeros((num_rows_dem, num_cols_dem))
     glacier_mask[diffs > 0] = 1
     return glacier_mask
