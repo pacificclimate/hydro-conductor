@@ -9,6 +9,7 @@ from copy import deepcopy
 import pytest
 
 from conductor.cells import *
+from conductor.io import update_glacier_mask
 
 GLACIER_ID = Band.glacier_id
 OPEN_GROUND_ID = Band.open_ground_id
@@ -94,7 +95,7 @@ class TestsSimpleUnit:
         test_median_elevs_simple, test_median_elevs, test_area_fracs_simple, test_area_fracs, \
             test_area_fracs_by_band, test_veg_types = simple_unit_test_parms
 
-        cells, cell_ids, num_snow_bands, band_size, cellid_map, surf_dem, glacier_mask, \
+        cells, cell_ids, num_snow_bands, band_size, cellid_map, bed_dem, surf_dem, glacier_mask, \
             cell_band_pixel_elevations = toy_domain_64px_cells
 
         # Test that the correct number of Cells were instantiated
@@ -144,7 +145,7 @@ class TestsSimpleUnit:
 class TestsDynamic:
     def test_cells_dynamic(self, toy_domain_64px_cells):
 
-        cells, cell_ids, num_snow_bands, band_size, cellid_map, surf_dem, glacier_mask, \
+        cells, cell_ids, num_snow_bands, band_size, cellid_map, bed_dem, surf_dem, glacier_mask, \
             cell_band_pixel_elevations = toy_domain_64px_cells
 
         def test_existing_glacier_growth_within_band_replacing_all_open_ground(self):
@@ -173,7 +174,6 @@ class TestsDynamic:
             assert cells[cell_ids[0]][3].hrus[22].area_frac == new_glacier_area_frac
             assert cells[cell_ids[0]][3].hrus[22].root_zone_parms == expected_root_zone_parms['22']
 
-
         def test_new_glacier_growth_into_upper_dummy_band(self):
             """test_cells_dynamic -- Test #3: Simulates glacier growth to create a new elevation Band 4 (stealing one pixel from Band 3)"""
             new_glacier_area_frac = 0.015625 # 1/64 pixels in domain. 1/1 in Band 4
@@ -200,10 +200,15 @@ class TestsDynamic:
 @pytest.mark.incremental
 class TestsAreaFracUpdate:
     def test_update_area_fracs(self, toy_domain_64px_cells, toy_domain_64px_rgm_vic_map_file_readout):
-        cells, cell_ids, num_snow_bands, band_size, cellid_map, initial_surf_dem, initial_glacier_mask, \
-            cell_band_pixel_elevations = toy_domain_64px_cells
+        cells, cell_ids, num_snow_bands, band_size, cellid_map, bed_dem, initial_surf_dem, \
+        initial_glacier_mask, cell_band_pixel_elevations = toy_domain_64px_cells
 
         _, _, cell_areas, num_cols_dem, num_rows_dem = toy_domain_64px_rgm_vic_map_file_readout
+
+        # We'll use this copy to make modifications to as the DEM evolves through the incremental tests
+        surf_dem = deepcopy(initial_surf_dem)
+
+        dem_padding_thickness = 2 # thickness of np.NaN pads around DEM, glacier_mask, and cellid_map
 
         def test_no_changes(self):
             cells_orig = deepcopy(cells)
@@ -213,17 +218,99 @@ class TestsAreaFracUpdate:
 
             assert cells == cells_orig
 
-        test_no_changes(self)
+        def test_glacier_growth_over_some_open_ground_in_band(self):
+            """ Simulates Band 2 of cell '12345' losing some of its open ground area to glacier growth
+                
+                Initial surf_dem for cell '12345':
 
-        def test_glacier_growth_over_open_ground_and_vegetation_in_band(self):
-            """ Simulates Band 1 losing some of its open ground area to glacier growth
-                (confined to cell '12345' here) """
-            surf_dem = deepcopy(initial_surf_dem)
-            # TODO: modify surf_dem accordingly, and run update_area_fracs()
+                [   [2065, 2055, 2045, 2035, 2025, 2015, 2005, 2000],
+                    [2075, 2100, 2120, 2140, 2130, 2120, 2100, 2005],
+                    [2085, 2110, 2250, 2270, 2260, 2240, 2110, 2010],
+                    [2090, 2120, 2260, 2377, 2310, 2250, 2125, 2015],
+                    [2070, 2110, 2250, 2340, 2320, 2250, 2130, 2020],
+                    [2090, 2105, 2200, 2210, 2220, 2220, 2120, 2015],
+                    [2090, 2100, 2105, 2110, 2140, 2150, 2130, 2010],
+                    [2080, 2075, 2065, 2055, 2045, 2035, 2020, 2000]    ]
 
+                Changed elevations due to glacier growth:
 
-        def test_glacier_growth_over_open_ground_and_vegetation_in_band(self):
-            """ Simulates Band 1 losing all its open ground and some vegetated area to glacier growth"""
+                [   [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, 2230, 2240, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx]    ]
+                """
+            surf_dem[dem_padding_thickness + 5][dem_padding_thickness + 2 : dem_padding_thickness + 4] = [2230, 2240]
+
+            glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem)
+
+            update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
+                      surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+
+            assert cells['12345'][2].num_hrus == 2
+            assert cells['12345'][2].area_frac == 0.1875
+            assert cells['12345'][2].area_frac_open_ground == 0.03125
+            assert cells['12345'][2].area_frac_glacier == 0.15625
+
+        def test_glacier_growth_over_remaining_open_ground_in_band(self):
+            """ Simulates Band 2 of cell '12345' losing all its remaining open ground 
+
+                Changed elevations due to glacier growth (incremental from last test):
+
+                [   [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, 2240, 2230, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx]    ]
+
+            """
+            surf_dem[dem_padding_thickness + 5][dem_padding_thickness + 4 : dem_padding_thickness + 6] = [2240, 2230]
+
+            glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem)
+
+            update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
+                      surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+
+            assert cells['12345'][2].num_hrus == 1
+            assert cells['12345'][2].area_frac == 0.1875
+            assert cells['12345'][2].area_frac_open_ground == 0
+            assert cells['12345'][2].area_frac_glacier == 0.1875
+
+        def test_glacier_growth_over_some_open_ground_and_vegetation_in_band(self):
+            """ Simulates Band 1 of cell '12345' losing all its open ground and some vegetated area to glacier growth
+
+                [   [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, 2120, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, 2130, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, 2145, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, 2150, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, 2140, xxxx],
+                    [xxxx, xxxx, xxxx, 2140, 2160, 2160, 2150, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx]    ]
+            """
+            surf_dem[dem_padding_thickness + 1][dem_padding_thickness + 6] = 2120
+            surf_dem[dem_padding_thickness + 2][dem_padding_thickness + 6] = 2130
+            surf_dem[dem_padding_thickness + 3][dem_padding_thickness + 6] = 2145
+            surf_dem[dem_padding_thickness + 4][dem_padding_thickness + 6] = 2150
+            surf_dem[dem_padding_thickness + 5][dem_padding_thickness + 6] = 2140
+            surf_dem[dem_padding_thickness + 6][dem_padding_thickness + 3: dem_padding_thickness + 7] = [2140, 2160, 2160, 2150]
+
+            glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem)
+
+            update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
+                      surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+
+            assert cells['12345'][1].num_hrus == 2
+            assert cells['12345'][1].area_frac == 0.3125
+            assert cells['12345'][1].area_frac_open_ground == 0
+            assert cells['12345'][1].area_frac_glacier == 0.265625
+            assert cells['12345'][1].hrus[11].area_frac == 0.046875
 
         def test_glacier_growth_over_remaining_vegetation_in_band(self):
             """ Simulates Band 1 losing (some of) its only remaining non-glacier (vegetated) HRU to glacier growth"""
@@ -247,3 +334,8 @@ class TestsAreaFracUpdate:
         def test_attempt_new_glacier_growth_into_unavailable_higher_band(self):
             """test_cells_dynamic -- Test #4: Simulates a (failing) attempt to grow the glacier into a new elevation Band 5 (no 0 pad available)"""
             pass
+
+        test_no_changes(self)
+        test_glacier_growth_over_some_open_ground_in_band(self)
+        test_glacier_growth_over_remaining_open_ground_in_band(self)
+        test_glacier_growth_over_some_open_ground_and_vegetation_in_band(self)

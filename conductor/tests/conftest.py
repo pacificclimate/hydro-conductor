@@ -82,7 +82,7 @@ def sample_global_file_string():
 
 @pytest.fixture(scope="module")
 def simple_unit_test_parms():
-
+    """ Uses parameters broken out of the 64 pixel toy domain for unit tests """
     # initial median band elevations
     test_median_elevs_simple = [2040, 2120, 2250, 2330]
     test_median_elevs = {'12345': [2040, 2120, 2250, 2330],
@@ -114,12 +114,12 @@ def simple_unit_test_parms():
 
     test_veg_types = [11, 19, 22]
 
-
     return test_median_elevs_simple, test_median_elevs, test_area_fracs_simple, test_area_fracs, \
             test_area_fracs_by_band, test_veg_types
 
 @pytest.fixture(scope="module")
 def large_merge_cells_unit_test_parms():
+    """ Uses input from a large real-world set of VIC snow band and vegetation parameter files to test merge_cells() """
     fname = resource_filename('conductor', 'tests/input/snow_band.txt')
     elevation_cells = load_snb_parms(fname, 15)
     fname = resource_filename('conductor', 'tests/input/veg.txt')
@@ -146,13 +146,35 @@ def toy_domain_64px_cells():
     num_snow_bands = 5
     band_size = 100
 
-    # Spatial DEM layout
-    initial_dem_by_cells = { cell_ids[0]:                  
+    # Spatial DEM layouts
+    bed_dem_by_cells = { cell_ids[0]:                  
+                                np.array([[2065, 2055, 2045, 2035, 2025, 2015, 2005, 2000],
+                                        [2075, 2085, 2100, 2100, 2100, 2100, 2100, 2005],
+                                        [2085, 2100, 2210, 2230, 2220, 2200, 2110, 2010],
+                                        [2090, 2100, 2240, 2377, 2310, 2230, 2125, 2015],
+                                        [2070, 2110, 2230, 2340, 2320, 2230, 2130, 2020],
+                                        [2090, 2105, 2200, 2210, 2220, 2220, 2120, 2015],
+                                        [2090, 2100, 2105, 2110, 2140, 2150, 2130, 2010],
+                                        [2080, 2075, 2065, 2055, 2045, 2035, 2020, 2000] ]),
+                                # note: bed elev 2085 at position [1,1] above will be used to demonstrate
+                                # glacier receding to reveal more band area fraction for Band 0
+                            cell_ids[1]:
+                                np.array([[1970, 1975, 1975, 1975, 1975, 1965, 1960, 1960],
+                                        [1970, 2000, 2025, 2035, 2005, 2005, 2000, 1965],
+                                        [1975, 2000, 2100, 2125, 2130, 2110, 2000, 1970],
+                                        [1985, 2005, 2105, 2130, 2150, 2100, 2000, 1975],
+                                        [1990, 2010, 2110, 2120, 2110, 2105, 2005, 1980],
+                                        [1980, 2005, 2105, 2105, 2110, 2100, 2000, 1980],
+                                        [1970, 2000, 2000, 2020, 2035, 2025, 2000, 1970],
+                                        [1965, 1965, 1970, 1970, 1975, 1960, 1950, 1960] ])
+                    }
+
+    initial_surf_dem_by_cells = { cell_ids[0]:                  
                                 np.array([[2065, 2055, 2045, 2035, 2025, 2015, 2005, 2000],
                                         [2075, 2100, 2120, 2140, 2130, 2120, 2100, 2005],
                                         [2085, 2110, 2250, 2270, 2260, 2240, 2110, 2010],
                                         [2090, 2120, 2260, 2377, 2310, 2250, 2125, 2015],
-                                        [2070, 2110, 2250, 2340, 2320, 2250, 2130, 2020],
+                                        [2070, 2120, 2250, 2340, 2320, 2250, 2130, 2020],
                                         [2090, 2105, 2200, 2210, 2220, 2220, 2120, 2015],
                                         [2090, 2100, 2105, 2110, 2140, 2150, 2130, 2010],
                                         [2080, 2075, 2065, 2055, 2045, 2035, 2020, 2000] ]),
@@ -167,6 +189,7 @@ def toy_domain_64px_cells():
                                         [1970, 2000, 2000, 2020, 2035, 2025, 2000, 1970],
                                         [1965, 1965, 1970, 1970, 1975, 1960, 1950, 1960] ])
                     }
+
 
     initial_glacier_mask_by_cells = { cell_ids[0]: 
                                         np.array([[ 0, 0, 0, 0, 0, 0, 0, 0 ],
@@ -188,7 +211,7 @@ def toy_domain_64px_cells():
                                                   [ 0, 0, 0, 0, 0, 0, 0, 0 ]])
                                     }
 
-    def build_padded_dem_aligned_map(array_1, array_2, padding_thickness):
+    def build_padded_dem_aligned_map(array_1, array_2, padding_thickness, fill_value):
         ''' Helper function to create a map that is aligned with a DEM made up of two adjacent
             rectangular pixel arrays (representing 2 VIC cells), with NaN padding around
             the edges (simulating the output from get_rgm_pixel_mapping(), where some
@@ -196,9 +219,9 @@ def toy_domain_64px_cells():
             generate test instances of surf_dem, bed_dem, cellid_map, glacier_mask
         '''
         vertical_pad = np.empty((padding_thickness, 2*padding_thickness+len(array_1[0])+len(array_2[0])))
-        vertical_pad.fill(np.nan)
+        vertical_pad.fill(fill_value)
         horizontal_pad = np.empty((len(array_1), padding_thickness))
-        horizontal_pad.fill(np.nan)
+        horizontal_pad.fill(fill_value)
         padded_map = np.concatenate((array_1, array_2), axis=1)
         padded_map = np.concatenate((horizontal_pad, padded_map), axis=1)
         padded_map = np.concatenate((padded_map, horizontal_pad), axis=1)
@@ -212,18 +235,21 @@ def toy_domain_64px_cells():
     cellid_map_cell_0.fill(cell_ids[0])
     cellid_map_cell_1 = np.empty((8,8))
     cellid_map_cell_1.fill(cell_ids[1])
-    cellid_map = build_padded_dem_aligned_map(cellid_map_cell_0, cellid_map_cell_1, 2)
+    cellid_map = build_padded_dem_aligned_map(cellid_map_cell_0, cellid_map_cell_1, 2, 9999)
+
+    # Create bed_dem with padding of 2
+    bed_dem = build_padded_dem_aligned_map(bed_dem_by_cells[cell_ids[0]], bed_dem_by_cells[cell_ids[1]], 2, 9999)
 
     # Create initial surf_dem with padding of 2
-    surf_dem = build_padded_dem_aligned_map(initial_dem_by_cells[cell_ids[0]], initial_dem_by_cells[cell_ids[1]], 2)
+    surf_dem = build_padded_dem_aligned_map(initial_surf_dem_by_cells[cell_ids[0]], initial_surf_dem_by_cells[cell_ids[1]], 2, 9999)
     # Non-padded version of surf_dem:
-    #surf_dem = np.concatenate((initial_dem_by_cells[cell_ids[0]], initial_dem_by_cells[cell_ids[1]]), axis=1)
+    #surf_dem = np.concatenate((initial_surf_dem_by_cells[cell_ids[0]], initial_surf_dem_by_cells[cell_ids[1]]), axis=1)
 
     # Create initial glacier mask with padding of 2
-    glacier_mask = build_padded_dem_aligned_map(initial_glacier_mask_by_cells[cell_ids[0]], initial_glacier_mask_by_cells[cell_ids[1]], 2)
+    glacier_mask = build_padded_dem_aligned_map(initial_glacier_mask_by_cells[cell_ids[0]], initial_glacier_mask_by_cells[cell_ids[1]], 2, 9999)
 
-    # The toy DEM above, broken down by elevation bands.  Useful for checking median elevations
-    cell_band_pixel_elevations = {
+    # The toy surface DEM above, broken down by elevation bands.  Useful for checking median elevations
+    cell_band_surf_pixel_elevations = {
         cell_ids[0]: [
                     # band 0, median: 2040
                     [2065, 2055, 2045, 2035, 2025, 2015, 2005, 2000,
@@ -279,13 +305,13 @@ def toy_domain_64px_cells():
                     2105, 2105, 2110, 2100],
                     ] }
 
-    return cells, cell_ids, num_snow_bands, band_size, cellid_map, surf_dem, glacier_mask, \
-        cell_band_pixel_elevations
+    return cells, cell_ids, num_snow_bands, band_size, cellid_map, bed_dem, surf_dem, glacier_mask, \
+        cell_band_surf_pixel_elevations
 
 @pytest.fixture(scope="function")
 def toy_domain_64px_rgm_vic_map_file_readout(toy_domain_64px_cells):
 
-    cells, cell_ids, num_snow_bands, band_size, cellid_map, surf_dem, glacier_mask, \
+    cells, cell_ids, num_snow_bands, band_size, cellid_map, bed_dem, surf_dem, glacier_mask, \
         cell_band_pixel_elevations = toy_domain_64px_cells
 
     # Use this to verify output of get_rgm_pixel_mapping()
