@@ -15,7 +15,7 @@ import numpy as np
 import h5py
 from dateutil.relativedelta import relativedelta
 
-from conductor.io import get_rgm_pixel_mapping, read_gsa_headers, write_grid_to_gsa_file, get_mass_balance_polynomials
+from conductor.io import get_rgm_pixel_mapping, read_gsa_headers, write_grid_to_gsa_file, get_mass_balance_polynomials, update_glacier_mask
 from conductor.cells import Band, HydroResponseUnit
 from conductor.snbparams import load_snb_parms, save_snb_parms
 from conductor.vegparams import load_veg_parms, save_veg_parms
@@ -108,18 +108,6 @@ def mass_balances_to_rgm_grid(gmb_polys, pixel_to_cell_map, num_rows_dem, num_co
     except:
         print('mass_balances_to_rgm_grid: Error while processing pixel {} (row {} column {})'.format(pixel, row, col))
     return mass_balance_grid
-
-def update_glacier_mask(sdem, bdem, num_rows_dem, num_cols_dem):
-    """ Takes output Surface DEM from RGM and uses element-wise differencing 
-        with the Bed DEM to form an updated glacier mask 
-    """
-    diffs = sdem - bed_dem
-    if np.any(diffs < 0):
-        print('update_glacier_mask: Error: subtraction of Bed DEM from output Surface DEM of RGM produced one or more negative values.  Exiting.\n')
-        sys.exit(0)
-    glacier_mask = np.zeros((num_rows_dem, num_cols_dem))
-    glacier_mask[diffs > 0] = 1
-    return glacier_mask
 
 def run_ranges(startdate, enddate, glacier_start):
     '''Generator which yields date ranges (a 2-tuple) that represent
