@@ -229,6 +229,7 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
                 # Update area fractions for all HRUs in this Band  
                 glacier_found = False
                 open_ground_found = False
+                hrus_to_be_deleted = []
                 for veg_type, hru in band.hrus.items():
                     print('cell_id: {}, band_id: {}, veg_type: {}'.format(cell_id, band_id, veg_type))
                     if veg_type == Band.glacier_id:
@@ -239,7 +240,9 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
                         open_ground_found = True
                         # If open ground area fraction was reduced to 0, we delete the HRU
                         if new_open_ground_area_frac == 0:
-                            band.delete_hru(Band.open_ground_id)
+                            hrus_to_be_deleted.append(Band.open_ground_id)
+                            print('OPEN GROUND HRU ({}) MARKED FOR DELETION'.format(veg_type))
+                            # band.delete_hru(Band.open_ground_id)
                         else:
                             cell[band_id].hrus[veg_type].area_frac = new_open_ground_area_frac
                     else:
@@ -248,9 +251,15 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
                         delta_area_hru = delta_area_vegetated * (cell[band_id].hrus[veg_type].area_frac / veg_scaling_divisor)
                         new_hru_area_frac = cell[band_id].hrus[veg_type].area_frac + delta_area_hru
                         if new_hru_area_frac == 0: # HRU has disappeared, never to return (only open ground can come back in its place)
-                            band.delete_hru(veg_type)
+                            hrus_to_be_deleted.append(veg_type)
+                            print('VEGETATED HRU ({}) MARKED FOR DELETION'.format(veg_type))
+                            # band.delete_hru(veg_type)
                         else:
                             cell[band_id].hrus[veg_type].area_frac = new_hru_area_frac
+                
+                # Remove HRUs marked for deletion
+                for hru in hrus_to_be_deleted:
+                    band.delete_hru(hru)
                 # Create glacier HRU if it didn't already exist, if we have a non-zero new_glacier_area_frac. 
                 # If glacier area fraction was reduced to 0, we leave the "shadow glacier" HRU in place for VIC
                 if not glacier_found and (new_glacier_area_frac > 0):
