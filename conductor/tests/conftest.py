@@ -159,7 +159,7 @@ def toy_domain_64px_cells():
                                 # note: bed elev 2085 at position [1,1] above will be used to demonstrate
                                 # glacier receding to reveal more band area fraction for Band 0
                             cell_ids[1]:
-                                np.array([[1970, 1975, 1975, 1975, 1975, 1965, 1960, 1960],
+                                np.array([[1970, 1975, 1850, 1799, 1975, 1965, 1960, 1960],
                                         [1970, 2000, 2025, 2035, 2005, 2005, 2000, 1965],
                                         [1975, 2000, 2100, 2125, 2130, 2110, 2000, 1970],
                                         [1985, 2005, 2105, 2130, 2150, 2100, 2000, 1975],
