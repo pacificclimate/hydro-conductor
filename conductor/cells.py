@@ -211,8 +211,10 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
             # Update total area fraction for this Band
             new_band_area_frac = band_areas[cell_id][band_id] / cell_areas[cell_id] 
             new_glacier_area_frac = glacier_areas[cell_id][band_id] / cell_areas[cell_id]
-            # If the glacier HRU area fraction has changed for this band then we need to update all area fractions
-            if new_glacier_area_frac != cell[band_id].area_frac_glacier:
+            # We need to update all area fractions if either of these two cases is True:
+            # 1. If the glacier HRU area fraction has changed for this band, or
+            # 2. If the band's total area fraction has changed (i.e. a new band has been revealed on the low end)
+            if (new_glacier_area_frac != cell[band_id].area_frac_glacier) or (new_band_area_frac != cell[band_id].area_frac):
                 # Calculate new non-glacier area fraction for this band
                 new_non_glacier_area_frac = new_band_area_frac - new_glacier_area_frac
                 # Calculate new_residual area fraction
