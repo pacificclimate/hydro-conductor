@@ -161,16 +161,16 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
         # Check if any pixels fall outside of valid range of bands
         if len(np.where(flat_dem < cell[0].lower_bound)[0]) > 0:
             raise Exception(
-                'One or more RGM output DEM pixels lies below the lowest \
-                defined elevation band (< {}m) as defined by the Snow Band Parameter File \
-                for cell {}. You may need to add or shift the zero padding to accommodate this.'
-                ).format(cell[0].lower_bound, cell_id)
-        if len(np.where(flat_dem > cell[-1].upper_bound)[0]) > 0:
+                'One or more RGM output DEM pixels lies below the bounds of the lowest '\
+                'defined elevation band (< {}m) as defined by the Snow Band Parameter File '\
+                'for cell {}. You may need to add or shift the zero padding to accommodate this.'\
+                .format(cell[0].lower_bound, cell_id))
+        if len(np.where(flat_dem >= cell[-1].upper_bound)[0]) > 0:
             raise Exception(
-                'One or more RGM output DEM pixels lies above the highest \
-                defined elevation band (> {}m) as defined by the Snow Band Parameter File \
-                for cell {}. You may need to add or shift the zero padding to accommodate this.'
-                ).format(cell[-1].upper_bound, cell_id)
+                'One or more RGM output DEM pixels lies above the bounds of the highest '\
+                'defined elevation band (>= {}m) as defined by the Snow Band Parameter File '\
+                'for cell {}. You may need to add or shift the zero padding to accommodate this.'\
+                .format(cell[-1].upper_bound, cell_id))
 
         # Identify the bounds of the band area and glacier area bins for this cell
         # and update the band median elevations 
