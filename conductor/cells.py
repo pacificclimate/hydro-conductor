@@ -182,8 +182,6 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
                 band.median_elev = band.lower_bound
             else:
                 band.median_elev = np.median(band_pixels)
-            print ('band: {}, band.median_elev: {}, band.area_frac: {}, band.area_frac_glacier: {}'.format(band, band.median_elev, band.area_frac, band.area_frac_glacier))
-        print('band_bin_bounds: {}'.format(band_bin_bounds))
 
         # Select portion of glacier_mask pertaining to this cell
         cell_glacier_mask = np.ma.masked_array(glacier_mask)
@@ -195,16 +193,12 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
         # Do binning into band_areas[cell][band] and glacier_areas[cell][band] 
         # using data in flat_dem and flat_glacier_dem
         inds = np.digitize(flat_dem, band_bin_bounds)
-        print('band bin inds-1: {}'.format(inds-1))
         for idx, count in enumerate(np.bincount(inds-1)):
             band_areas[cell_id][idx] = count
 
         inds = np.digitize(flat_glacier_dem, band_bin_bounds)
-        print('glacier bin inds-1: {}'.format(inds-1))
         for idx, count in enumerate(np.bincount(inds-1)):
             glacier_areas[cell_id][idx] = count
-        print ('band_areas: {}'.format(band_areas))
-        print('glacier_areas: {}'.format(glacier_areas))
         
         # Update all Band and HRU area fractions in this cell
         for band_id, band in enumerate(cell):
@@ -219,10 +213,8 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
                 new_non_glacier_area_frac = new_band_area_frac - new_glacier_area_frac
                 # Calculate new_residual area fraction
                 new_residual_area_frac = new_non_glacier_area_frac - cell[band_id].area_frac_non_glacier
-    # NOTE: what should be done here for Bands just created above?  cells[cell][band_idx].area_frac_non_glacier = 0 & cells[cell][band_idx].area_frac_open_ground = 1 ?
                 # Calculate new open ground area fraction
-                new_open_ground_area_frac = np.max([0, (cell[band_id].area_frac_open_ground + new_residual_area_frac)])
-                
+                new_open_ground_area_frac = np.max([0, (cell[band_id].area_frac_open_ground + new_residual_area_frac)])     
                 # Use old proportions of vegetated areas for scaling their area fractions in this iteration
                 veg_scaling_divisor = cell[band_id].area_frac_non_glacier - cell[band_id].area_frac_open_ground
                 # Calculate the change in sum of vegetated area fractions
@@ -233,29 +225,23 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
                 open_ground_found = False
                 hrus_to_be_deleted = []
                 for veg_type, hru in band.hrus.items():
-                    print('cell_id: {}, band_id: {}, veg_type: {}'.format(cell_id, band_id, veg_type))
                     if veg_type == Band.glacier_id:
-                        print('glacier found')
                         glacier_found = True
+                        # If glacier area fraction was reduced to 0, we leave the "shadow glacier" HRU in place for VIC
                         cell[band_id].hrus[veg_type].area_frac = new_glacier_area_frac
                     elif veg_type == Band.open_ground_id:
                         open_ground_found = True
                         # If open ground area fraction was reduced to 0, we delete the HRU
                         if new_open_ground_area_frac == 0:
                             hrus_to_be_deleted.append(Band.open_ground_id)
-                            print('OPEN GROUND HRU ({}) MARKED FOR DELETION'.format(veg_type))
-                            # band.delete_hru(Band.open_ground_id)
                         else:
                             cell[band_id].hrus[veg_type].area_frac = new_open_ground_area_frac
                     else:
-                        print('veg section... cell_id: {}, band_id: {}, veg_type: {}'.format(cell_id, band_id, veg_type))
                         # Calculate change in HRU area fraction & update
                         delta_area_hru = delta_area_vegetated * (cell[band_id].hrus[veg_type].area_frac / veg_scaling_divisor)
                         new_hru_area_frac = cell[band_id].hrus[veg_type].area_frac + delta_area_hru
                         if new_hru_area_frac == 0: # HRU has disappeared, never to return (only open ground can come back in its place)
                             hrus_to_be_deleted.append(veg_type)
-                            print('VEGETATED HRU ({}) MARKED FOR DELETION'.format(veg_type))
-                            # band.delete_hru(veg_type)
                         else:
                             cell[band_id].hrus[veg_type].area_frac = new_hru_area_frac
                 
@@ -263,7 +249,6 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
                 for hru in hrus_to_be_deleted:
                     band.delete_hru(hru)
                 # Create glacier HRU if it didn't already exist, if we have a non-zero new_glacier_area_frac. 
-                # If glacier area fraction was reduced to 0, we leave the "shadow glacier" HRU in place for VIC
                 if not glacier_found and (new_glacier_area_frac > 0):
                     band.create_hru(Band.glacier_id, new_glacier_area_frac)
                 # If open ground was exposed in this band we need to add an open ground HRU

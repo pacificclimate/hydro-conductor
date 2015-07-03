@@ -219,7 +219,7 @@ class TestsAreaFracUpdate:
             assert cells == cells_orig
 
         def test_glacier_growth_over_some_open_ground_in_band(self):
-            """ Simulates Band 2 of cell '12345' losing some of its open ground area to glacier growth
+            """ Simulates Band 2 of cell '12345' losing some of its open ground area to glacier growth.
                 
                 Initial surf_dem for cell '12345':
 
@@ -255,8 +255,11 @@ class TestsAreaFracUpdate:
             assert cells['12345'][2].area_frac_open_ground == 0.03125
             assert cells['12345'][2].area_frac_glacier == 0.15625
 
+            # Total number of valid bands
+            assert len([band for band in cells['12345'] if band.num_hrus > 0]) == 4
+
         def test_glacier_growth_over_remaining_open_ground_in_band(self):
-            """ Simulates Band 2 of cell '12345' losing all its remaining open ground 
+            """ Simulates Band 2 of cell '12345' losing all its remaining open ground. 
 
                 Changed elevations due to glacier growth (incremental from last test):
 
@@ -395,8 +398,9 @@ class TestsAreaFracUpdate:
             """ Simulates glacier recession out of the lowest existing band of cell '23456', to reveal a yet
             lower elevation band (consisting of one pixel).
             
-            test_band_map = {'12345': [2000, 2100, 2200, 2300, 0], # allows for glacier growth at top
-                '23456': [0, 1900, 2000, 2100, 0]} # allows for glacier growth at top, and revelation of lower band at bottom
+            Available bands as per snow band parameter file:
+            '12345': [2000, 2100, 2200, 2300, 0] # allows for glacier growth at top
+            '23456': [0, 1900, 2000, 2100, 0] # allows for glacier growth at top, and revelation of lower band at bottom
 
                 [   [xxxx, xxxx, 1850, xxxx, xxxx, xxxx, xxxx, xxxx],
                     [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
@@ -407,6 +411,9 @@ class TestsAreaFracUpdate:
                     [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
                     [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx]    ]
             """
+            # Total number of valid bands before
+            assert len([band for band in cells['23456'] if band.num_hrus > 0]) == 3
+
             surf_dem[dem_padding_thickness + 0][dem_padding_thickness + 8 + 2] = 1850
 
             glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem)
@@ -426,23 +433,221 @@ class TestsAreaFracUpdate:
             assert cells['23456'][0].area_frac_open_ground == 0.015625
             assert cells['23456'][0].area_frac_glacier == 0           
       
+            # Total number of valid bands after
+            assert len([band for band in cells['23456'] if band.num_hrus > 0]) == 4
+
         def test_glacier_growth_into_new_lower_band(self):
-            """ cell '23456' """
+            """ Simulates glacier growing back over the pixel of the new lowest band in cell '23456'
+                (from the previous test), but at a lesser thickness such that the pixel is still within Band 0.
+
+                [   [xxxx, xxxx, 1880, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx]    ]
+            """
+            # Copy initial lowest band's area_frac, to use for re-initializing at end
+            initial_area_frac = cells['23456'][0].area_frac
+            surf_dem[dem_padding_thickness + 0][dem_padding_thickness + 8 + 2] = 1880
+
+            glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem)
+
+            update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
+                      surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+
+            assert cells['23456'][0].num_hrus == 1
+            assert cells['23456'][0].area_frac == 0.015625
+            assert cells['23456'][0].area_frac_open_ground == 0
+            assert cells['23456'][0].area_frac_glacier == 0.015625           
+
+            # Reinstate original elevation of changed pixel and remove created glacier HRU for next test 
+            surf_dem[dem_padding_thickness + 0][dem_padding_thickness + 8 + 2] = 1850
+            cells['23456'][0].delete_hru(22)
+            cells['23456'][0].create_hru(19, initial_area_frac)
+
+        def test_glacier_thickening_to_conceal_lowest_band_of_open_ground(self):
+            """ Simulates the glacier growing over open ground areas lying in the new lowest band 
+            of cell '23456' so thick that the pixels elevations in that area no longer belong to that band 
+            (i.e. all HRUs in the band must be deleted).
+                        
+                [   [xxxx, xxxx, 1905, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx]    ]
+            """
+            surf_dem[dem_padding_thickness + 0][dem_padding_thickness + 8 + 2] = 1905
+
+            glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem)
+
+            update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
+                      surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+
+            assert cells['23456'][0].num_hrus == 0 # we delete open ground HRUs
+            assert cells['23456'][0].lower_bound == 1800
+            assert cells['23456'][0].median_elev == 1800
+            assert cells['23456'][0].area_frac == 0
+            assert cells['23456'][0].area_frac_open_ground == 0
+            assert cells['23456'][0].area_frac_glacier == 0           
+ 
+            assert cells['23456'][1].num_hrus == 3
+            assert cells['23456'][1].area_frac == 0.4375
+            assert cells['23456'][1].area_frac_open_ground == 0.15625 
+            assert cells['23456'][1].area_frac_glacier == 0.03125           
+            assert cells['23456'][1].hrus[11].area_frac == 0.25   
+
+            # Total number of valid bands after (should not include the lowest one now, because HRU was deleted)
+            assert len([band for band in cells['23456'] if band.num_hrus > 0]) == 3
+
+            # Reinstate lowest band with single glaciated pixel at 1880m for the next test
+            surf_dem[dem_padding_thickness + 0][dem_padding_thickness + 8 + 2] = 1880
+            glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem)
+            update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
+                      surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
         def test_glacier_growth_into_new_higher_band(self):
-            """ cell '23456' """
+            """ Simulates glacier growing in thickness from the highest existing valid band in cell '23456'
+                into a new higher Band 4 (for which there is a 0 pad in the snow band file to accommodate it). 
+
+                [   [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, 2200, 2210, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx]    ]
+            """
+            surf_dem[dem_padding_thickness + 3][dem_padding_thickness + 8 + 3 : dem_padding_thickness + 8 + 5] = [2200, 2210]
+
+            glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem)
+
+            update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
+                      surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+
+            assert cells['23456'][4].num_hrus == 1
+            assert cells['23456'][4].area_frac == 0.03125
+            assert cells['23456'][4].area_frac_open_ground == 0
+            assert cells['23456'][4].area_frac_glacier == 0.03125   
+
+            # Total number of valid bands after
+            assert len([band for band in cells['23456'] if band.num_hrus > 0]) == 5
+
+        def test_attempt_new_glacier_shrink_into_unavailable_lower_band(self):
+            """ Simulates a (failing) attempt to grow the glacier into a new yet lower elevation band 
+                (where there is no 0 pad available in the snow band parameter file) in cell '23456' 
+
+                [   [xxxx, xxxx, xxxx, 1799, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx]    ]
+            """
+            surf_dem[dem_padding_thickness + 0][dem_padding_thickness + 8 + 3] = 1799
+
+            glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem)
+
+            with pytest.raises(Exception) as message:
+                update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
+                      surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+            assert 'One or more RGM output DEM pixels lies below the bounds of the lowest defined elevation band '\
+                '(< 1800.0m) as defined by the Snow Band Parameter File for cell 23456. You may '\
+                'need to add or shift the zero padding to accommodate this.' in str(message.value)
+
+            # Remove error condition by reinstating glacier in offending pixel in the surface DEM for the next test
+            surf_dem[dem_padding_thickness + 0][dem_padding_thickness + 8 + 3] = 1995
+            glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem)
+            update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
+                      surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
         def test_attempt_new_glacier_growth_into_unavailable_higher_band(self):
-            """ Simulates a (failing) attempt to grow the glacier into a new elevation Band 5 (no 0 pad available)
-                in cell '23456' """
-            pass
-
-        def test_glacier_growth_to_conceal_lowest_band(self):
-            """ Simulates the glacier covering the lowest band of cell '23456' thickly enough
-            that the pixels elevations in that area no longer belong to that band 
-            (i.e. all HRUs in the band must be deleted).
+            """ Simulates a (failing) attempt to grow the glacier into a new yet higher elevation band 
+                (where there is no 0 pad available in the snow band parameter file) in cell '23456' 
+            
+                [   [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, 2300, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx]    ]
             """
-            pass
+            surf_dem[dem_padding_thickness + 3][dem_padding_thickness + 8 + 3] = 2300
+
+            glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem)
+
+            with pytest.raises(Exception) as message:
+                update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
+                      surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+            assert 'One or more RGM output DEM pixels lies above the bounds of the highest '\
+                'defined elevation band (>= 2300.0m) as defined by the Snow Band Parameter File '\
+                'for cell 23456. You may need to add or shift the zero padding to '\
+                'accommodate this.' in str(message.value)
+
+           # Remove error condition by reinstating glacier in offending pixel in the surface DEM for the next test
+            surf_dem[dem_padding_thickness + 3][dem_padding_thickness + 8 + 3] = 2200
+            glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem)
+            update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
+                      surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+
+        def test_glacier_thickening_to_conceal_lowest_band_of_glacier(self):
+            """ Simulates the glacier thickening over areas lying in the lowest band of cell '23456' 
+            so much that the pixels elevations in that area no longer belong to that band 
+            (i.e. all HRUs in the band must be deleted, except glacier which is set to zero 
+            area fraction).
+                        
+                [   [xxxx, xxxx, 1900, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+                    [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx]    ]
+            """
+            surf_dem[dem_padding_thickness + 0][dem_padding_thickness + 8 + 2] = 1900
+
+            glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem)
+
+            update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
+                      surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+
+            assert cells['23456'][0].num_hrus == 1 # we never delete glacier HRUs, vis-a-vis VIC's shadow glaciers
+            assert cells['23456'][0].lower_bound == 1800
+            assert cells['23456'][0].median_elev == 1800
+            assert cells['23456'][0].area_frac == 0
+            assert cells['23456'][0].area_frac_open_ground == 0
+            assert cells['23456'][0].area_frac_glacier == 0           
+ 
+            assert cells['23456'][1].num_hrus == 3
+            assert cells['23456'][1].area_frac == 0.4375
+            assert cells['23456'][1].area_frac_open_ground == 0.15625 
+            assert cells['23456'][1].area_frac_glacier == 0.03125           
+            assert cells['23456'][1].hrus[11].area_frac == 0.25   
+
+            # Total number of valid bands after (should include the lowest one now, because of the glacier HRU)
+            assert len([band for band in cells['23456'] if band.num_hrus > 0]) == 5
+
+        def test_confirm_final_state(self):
+            """ Final test to confirm that the final state of both grid cells is as expected 
+                the sequence of operations performed upon them in the preceding tests. """
+            # assert cells['12345'][0].num_hrus == 3
+            # assert cells['12345'][0].lower_bound == 2000
+            # assert cells['12345'][0].median_elev == 1800
+            # assert cells['12345'][0].area_frac == 0
+            # assert cells['12345'][0].area_frac_open_ground == 0
+            # assert cells['12345'][0].area_frac_glacier == 0 
+
 
         test_no_changes(self)
         test_glacier_growth_over_some_open_ground_in_band(self)
@@ -452,3 +657,9 @@ class TestsAreaFracUpdate:
         test_glacier_growth_into_band_with_no_existing_glacier(self)
         test_glacier_receding_to_reveal_open_ground_in_band(self)
         test_existing_glacier_shrink_revealing_new_lower_band(self)
+        test_glacier_growth_into_new_lower_band(self)
+        test_glacier_thickening_to_conceal_lowest_band_of_open_ground(self)
+        test_glacier_growth_into_new_higher_band(self)
+        test_attempt_new_glacier_shrink_into_unavailable_lower_band(self)
+        test_attempt_new_glacier_growth_into_unavailable_higher_band(self)
+        test_glacier_thickening_to_conceal_lowest_band_of_glacier(self)
