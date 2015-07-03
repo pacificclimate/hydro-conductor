@@ -640,14 +640,90 @@ class TestsAreaFracUpdate:
 
         def test_confirm_final_state(self):
             """ Final test to confirm that the final state of both grid cells is as expected 
-                the sequence of operations performed upon them in the preceding tests. """
-            # assert cells['12345'][0].num_hrus == 3
-            # assert cells['12345'][0].lower_bound == 2000
-            # assert cells['12345'][0].median_elev == 1800
-            # assert cells['12345'][0].area_frac == 0
-            # assert cells['12345'][0].area_frac_open_ground == 0
-            # assert cells['12345'][0].area_frac_glacier == 0 
+                after the sequence of operations performed upon them in the preceding tests. """
+            assert cells['12345'][0].num_hrus == 3
+            assert cells['12345'][0].lower_bound == 2000
+            assert cells['12345'][0].median_elev == np.median([2065, 2055, 2045, 2035, 2025, 2015, 2005, 2030,\
+                                                            2040, 2010, 2015, 2020, 2015, 2010, 2000, 2080,\
+                                                            2075, 2065, 2055, 2045, 2035, 2020, 2075, 2085,\
+                                                            2090, 2070, 2090, 2090])
+            assert cells['12345'][0].area_frac == 28/64
+            assert cells['12345'][0].area_frac_open_ground == 14/64
+            assert cells['12345'][0].area_frac_glacier == 2/64
+            assert cells['12345'][0].hrus[11].area_frac == 12/64
 
+            assert cells['12345'][1].num_hrus == 2
+            assert cells['12345'][1].lower_bound == 2100
+            assert cells['12345'][1].median_elev == np.median([2100, 2120, 2140, 2130, 2120, 2120, 2130, 2145,\
+                                                            2150, 2140, 2150, 2100, 2105, 2140, 2160, 2160,\
+                                                            2110, 2120, 2120, 2115])
+            assert cells['12345'][1].area_frac == 20/64
+            assert cells['12345'][1].area_frac_open_ground == 2/64
+            assert cells['12345'][1].area_frac_glacier == 18/64
+
+            assert cells['12345'][2].num_hrus == 1
+            assert cells['12345'][2].lower_bound == 2200
+            assert cells['12345'][2].median_elev == np.median([2250, 2270, 2260, 2240, 2250, 2250, 2230, 2230,\
+                                                            2240, 2240, 2260, 2250])
+            assert cells['12345'][2].area_frac == 12/64
+            assert cells['12345'][2].area_frac_open_ground == 0/64
+            assert cells['12345'][2].area_frac_glacier == 12/64
+
+            assert cells['12345'][3].num_hrus == 1
+            assert cells['12345'][3].lower_bound == 2300
+            assert cells['12345'][3].median_elev == np.median([2377, 2310, 2340, 2320])
+            assert cells['12345'][3].area_frac == 4/64
+            assert cells['12345'][3].area_frac_open_ground == 4/64
+            assert cells['12345'][3].area_frac_glacier == 0/64
+
+            assert len([band for band in cells['12345'] if band.num_hrus > 0]) == 4
+
+            assert cells['23456'][0].num_hrus == 1 # the shadow glacier HRU for the currently invalid lowest band
+            assert cells['23456'][0].lower_bound == 1800
+            assert cells['23456'][0].median_elev == 1800
+            assert cells['23456'][0].area_frac == 0/64
+            assert cells['23456'][0].area_frac_open_ground == 0/64
+            assert cells['23456'][0].area_frac_glacier == 0/64
+
+            assert cells['23456'][1].num_hrus == 3
+            assert cells['23456'][1].lower_bound == 1900
+            assert cells['23456'][1].median_elev == np.median([1970, 1975, 1900, 1995, 1975, 1965, 1960, 1960,\
+                                                            1965, 1970, 1975, 1980, 1980, 1970, 1960, 1965, 1965,\
+                                                            1970, 1970, 1975, 1960, 1950, 1970, 1975, 1985, 1990,\
+                                                            1980, 1970])
+            assert cells['23456'][1].area_frac == 28/64
+            assert cells['23456'][1].area_frac_open_ground == 10/64
+            assert cells['23456'][1].area_frac_glacier == 2/64
+            assert cells['23456'][1].hrus[11].area_frac == 16/64
+
+            assert cells['23456'][2].num_hrus == 3
+            assert cells['23456'][2].lower_bound == 2000
+            assert cells['23456'][2].median_elev == np.median([2000, 2045, 2055, 2005, 2005, 2000, 2000, 2000, 2005,\
+                                                            2000, 2000, 2000, 2000, 2020, 2035, 2025, 2000, 2005,\
+                                                            2010, 2005])
+            assert cells['23456'][2].area_frac == 20/64
+            assert cells['23456'][2].area_frac_open_ground == 8/64
+            assert cells['23456'][2].area_frac_glacier == 2/64
+            assert cells['23456'][2].hrus[11].area_frac == 10/64
+
+            assert cells['23456'][3].num_hrus == 2
+            assert cells['23456'][3].lower_bound == 2100
+            assert cells['23456'][3].median_elev == np.median([2100, 2155, 2160, 2140, 2130, 2105, 2100, 2105, 2105,\
+                                                            2110, 2105, 2110, 2150, 2140])
+            assert cells['23456'][3].area_frac == 14/64
+            assert cells['23456'][3].area_frac_open_ground == 8/64
+            assert cells['23456'][3].area_frac_glacier == 6/64
+
+            assert cells['23456'][4].num_hrus == 1
+            assert cells['23456'][4].lower_bound == 2200
+            assert cells['23456'][4].median_elev == np.median([2200, 2210])
+            assert cells['23456'][4].area_frac == 2/64
+            assert cells['23456'][4].area_frac_open_ground == 0/64
+            assert cells['23456'][4].area_frac_glacier == 2/64
+
+            # This should include all 4 current bands, plus the formerly existing lowest one that
+            # now has a shadow glacier HRU 
+            assert len([band for band in cells['23456'] if band.num_hrus > 0]) == 5
 
         test_no_changes(self)
         test_glacier_growth_over_some_open_ground_in_band(self)
@@ -663,3 +739,4 @@ class TestsAreaFracUpdate:
         test_attempt_new_glacier_shrink_into_unavailable_lower_band(self)
         test_attempt_new_glacier_growth_into_unavailable_higher_band(self)
         test_glacier_thickening_to_conceal_lowest_band_of_glacier(self)
+        test_confirm_final_state(self)
