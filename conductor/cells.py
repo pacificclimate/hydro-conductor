@@ -139,6 +139,51 @@ class HydroResponseUnit(object):
     def __eq__(self, other):
         return (self.__class__ == other.__class__ and self.__dict__ == other.__dict__)
 
+class HruStateChange(object):
+    """ Class capturing changes in VIC HRU states after applying update_area_fracs()
+    """
+    def __init__(self, hru_band_index, hru_veg_index):
+        self.hru_band_index = {'HRU_BAND_INDEX': hru_band_index}
+        self.hru_veg_index = {'HRU_VEG_INDEX': hru_veg_index}
+        self.layer_ice_content = {'LAYER_ICE_CONTENT': 0}
+        self.layer_moist = {'LAYER_MOIST': 0}
+        self.hru_veg_var_dew = {'HRU_VEG_VAR_DEW': 0}
+        self.snow_canopy = {'SNOW_CANOPY': 0}
+        self.snow_density = {'SNOW_DENSITY': 0}
+        self.snow_depth = {'SNOW_DEPTH': 0}
+        self.snow_pack_water = {'SNOW_PACK_WATER': 0}
+        self.snow_surf_water = {'SNOW_SURF_WATER': 0}
+        self.snow_swq = {'SNOW_SWQ': 0}
+        self.glac_water_storage = {'GLAC_WATER_STORAGE': 0}
+        self.glac_cum_mass_balance = {'GLAC_CUM_MASS_BALANCE': 0}
+        self.energy_t = {'ENERGY_T': 0}
+        self.energy_tfoliage = {'ENERGY_TFOLIAGE': 0}
+        self.glac_surf_temp = {'GLAC_SURF_TEMP': 0}
+        self.snow_cold_content = {'SNOW_COLD_CONTENT': 0}
+        self.snow_pack_temp = {'SNOW_PACK_TEMP': 0}
+        self.snow_surf_temp = {'SNOW_SURF_TEMP': 0}
+        self.snow_albedo = {'SNOW_ALBEDO': 0}
+        self.snow_last_snow = {'SNOW_LAST_SNOW': 0}
+        self.snow_melting = {'SNOW_MELTING': 'FALSE'}
+        self.energy_tcanopy_fbcount = {'ENERGY_TCANOPY_FBCOUNT': 0}
+        self.energy_tsurf_fbcount = {'ENERGY_TSURF_FBCOUNT': 0}
+        self.glac_surf_temp_fbcount = {'GLAC_SURF_TEMP_FBCOUNT': 0}
+        self.snow_surf_temp_fbcount = {'SNOW_SURF_TEMP_FBCOUNT': 0}
+
+class CellStateChange(object):
+    """ Class capturing changes in VIC cell states after applying update_area_fracs(),
+        to be written back to the VIC state file before the next VIC iteration
+    """
+    def __init__(self, soil_dz_node, soil_zsum_node, veg_type_num, hru_state_changes=None):
+        self.soil_dz_node = soil_dz_node
+        self.soil_zsum_node = soil_zsum_node
+        self.veg_type_num = veg_type_num
+        self.hru_state_changes = 
+        if hru_state_changes is None:
+            hru_state_changes = []
+        self.hru_state_changes = hru_state_changes
+
+
 def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
                       surf_dem, num_rows_dem, num_cols_dem, glacier_mask):
     """ Applies the updated RGM DEM and glacier mask and calculates and updates all HRU area fractions 

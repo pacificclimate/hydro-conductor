@@ -99,3 +99,6 @@ def update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem):
     glacier_mask = np.zeros((num_rows_dem, num_cols_dem))
     glacier_mask[diffs > 0] = 1
     return glacier_mask
+
+def update_state_file(state, state_file, cell_state_changes):
+    
