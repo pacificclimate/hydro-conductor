@@ -4,8 +4,8 @@
    
    The format of the snow band file is one line per VIC cell:
    cell_id_0 area_frac_band_0 ... area_frac_band_N median_elev_band_0 ... median_elev_band_N
-   (and optionally, Pfactor_band_0 ... Pfactor_band_N  although VIC no longer uses these)
-   where N should be equal to num_snow_bands
+   (and optionally, Pfactor_band_0 ... Pfactor_band_N, although VIC no longer uses these
+    so we don't support them here) where N should be equal to num_snow_bands
 '''
 
 __all__ = ['load_snb_parms', 'save_snb_parms']
@@ -68,15 +68,9 @@ def load_snb_parms(snb_file, num_snow_bands):
                         '(deprecated) Pfactor values? If so, remove them.'
                         .format(len(split_line), snb_file, num_snow_bands)
                 )
-            elevs = [ int(z) for z in split_line[num_snow_bands+1:] ]
-            #left_padding = front_padding(elevs)
-# NOTE: we are now creating placeholder Bands in the zero-pad positions (calculating the
-# floor elevation for each and assigning it to the median_elev attribute)   
-            #bands = [ Band(z) for z in elevs if z ]
-# NOTE: we no longer need the PaddedDeque, as all possible band positions can be represented in a list
-            #cell = PaddedDeque(bands, num_snow_bands, left_padding=left_padding)
+            elevs = [ int(z) for z in split_line[num_snow_bands+1:] ] 
 
-            # Assign median (floor) elevations to 0-pad-derived bands
+            # Assign median (floor) elevations to 0-pad-derived dummy bands
             elevs = assign_dummy_band_elevations(elevs)
             
             # Cell consists of a list of Bands (both valid and placeholders for potential Bands)

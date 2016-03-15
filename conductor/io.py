@@ -101,4 +101,4 @@ def update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem):
     return glacier_mask
 
 def update_state_file(state, state_file, cell_state_changes):
-    
+    pass
