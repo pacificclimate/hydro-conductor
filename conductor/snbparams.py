@@ -3,9 +3,10 @@
   This module provides functions for reading/writing the VIC "Snow Band File",
 
   The format of the snow band file is one line per VIC cell:
-  cell_id_0 area_frac_band_0 ... area_frac_band_N median_elev_band_0 ... median_elev_band_N
-  (and optionally, Pfactor_band_0 ... Pfactor_band_N, although VIC no longer uses these
-  so we don't support them here) where N should be equal to num_snow_bands
+  cell_id_0 area_frac_band_0 ... area_frac_band_N median_elev_band_0 ...
+  median_elev_band_N (and optionally, Pfactor_band_0 ... Pfactor_band_N,
+  although VIC no longer uses these so we don't support them here) where
+  N should be equal to num_snow_bands
 """
 
 __all__ = ['load_snb_parms', 'save_snb_parms']
@@ -17,16 +18,16 @@ from conductor.cells import Band, HydroResponseUnit
 
 def load_snb_parms(snb_file, num_snow_bands):
   """ Reads in a Snow Band Parameter File and populates the median elevation
-    property for each band withing an existing set of VIC cells. Creates a 
-    band map to keep track of the lower bounds of each band (each spanning an 
-    elevation of band_size) and any zero pads provided by the user in the 
-    Snow Band Parameter File (zero pads are required by VIC, to allow for 
-    glacier growth/slide into previously non-existent elevations between 
+    property for each band withing an existing set of VIC cells. Creates a
+    band map to keep track of the lower bounds of each band (each spanning an
+    elevation of band_size) and any zero pads provided by the user in the
+    Snow Band Parameter File (zero pads are required by VIC, to allow for
+    glacier growth/slide into previously non-existent elevations between
     iterations).
   """
   def assign_dummy_band_elevations(elevs):
-    """ Replaces 0 pads in elevation list that is read in from the Snow Band 
-      Parameter File with floor elevations for the dummy bands they are 
+    """ Replaces 0 pads in elevation list that is read in from the Snow Band
+      Parameter File with floor elevations for the dummy bands they are
       placeholders for.
     """
     left_pads = 0

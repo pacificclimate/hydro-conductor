@@ -485,13 +485,13 @@ class TestsAreaFracUpdate:
       assert cells['23456'][1].area_frac_open_ground == 0.15625
       assert cells['23456'][1].area_frac_glacier == 0.015625
       assert cells['23456'][1].hrus[11].area_frac == 0.25
-     
+
       # New lowest band
       assert cells['23456'][0].num_hrus == 1
       assert cells['23456'][0].area_frac == 0.015625
       assert cells['23456'][0].area_frac_open_ground == 0.015625
       assert cells['23456'][0].area_frac_glacier == 0
-    
+
       # Total number of valid bands after
       assert len([band for band in cells['23456'] if band.num_hrus > 0]) == 4
 
@@ -561,7 +561,7 @@ class TestsAreaFracUpdate:
       assert cells['23456'][0].area_frac == 0
       assert cells['23456'][0].area_frac_open_ground == 0
       assert cells['23456'][0].area_frac_glacier == 0
- 
+
       assert cells['23456'][1].num_hrus == 3
       assert cells['23456'][1].area_frac == 0.4375
       assert cells['23456'][1].area_frac_open_ground == 0.15625 

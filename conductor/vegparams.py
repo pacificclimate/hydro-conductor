@@ -10,8 +10,8 @@ import csv
 from conductor.cells import Band, HydroResponseUnit
 
 def read_one_cell(f):
-  """read all data (elevation bands/hrus) from one cell and advance the
-     file pointer to the next
+  """Reads all data (elevation bands/hrus) for one cell and advance the
+    file pointer to the next cell.
   """
   try:
     cell_id, num_veg = f.readline().split()
@@ -31,7 +31,7 @@ def read_one_cell(f):
   return cell_id, hru_dict
 
 def load_veg_parms(filename):
-  """ Reads in VIC vegetation parameter file and creates and partially 
+  """ Reads in VIC vegetation parameter file and creates and partially
     initializes all VIC grid cells.
   """
   cells = OrderedDict()
@@ -47,8 +47,8 @@ def load_veg_parms(filename):
   return cells
 
 def save_veg_parms(cells, filename):
-  """ write the vegetation parameters out to a file of the same 
-    format as the original vegetation parameters file
+  """ Writes the vegetation parameters out to a file of the same format as the
+    original vegetation parameters file.
   """
   with open(filename, 'w') as f:
     writer = csv.writer(f, delimiter=' ')
