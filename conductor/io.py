@@ -75,15 +75,15 @@ def write_grid_to_gsa_file(grid, outfilename, num_cols_dem, num_rows_dem,\
     for row in grid:
       writer.writerow(row)
 
-def get_mass_balance_polynomials(state, state_file, cell_ids):
+def get_mass_balance_polynomials(state, cell_ids):
   """ Extracts the Glacier Mass Balance polynomial for each grid cell from an \
     open VIC state file """
   gmb_info = state['GLAC_MASS_BALANCE_INFO'][0]
   cell_count = len(gmb_info)
   if cell_count != len(cell_ids):
     print('get_mass_balance_polynomials: The number of VIC cells ({}) read \
-      from the state file {} and those read from the vegetation parameter file \
-      ({}) disagree. Exiting.\n'.format(cell_count, state_file, len(cell_ids)))
+      from the state file and those read from the vegetation parameter file \
+      ({}) disagree. Exiting.\n'.format(cell_count, len(cell_ids)))
     sys.exit(0)
   gmb_polys = {}
   for i in range(cell_count):
