@@ -635,9 +635,9 @@ class TestsAreaFracUpdate:
         update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
           surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
       assert 'One or more RGM output DEM pixels lies below the bounds of the \
-        lowest defined elevation band (< 1800.0m) as defined by the Snow Band \
-        Parameter File for cell 23456. You may need to add or shift the zero \
-        padding to accommodate this.' in str(message.value)
+lowest defined elevation band (< 1800.0m) as defined by the Snow Band \
+Parameter File for cell 23456. You may need to add or shift the zero \
+padding to accommodate this.' in str(message.value)
 
       # Remove error condition by reinstating glacier in offending pixel in
       # the surface DEM for the next test
@@ -671,9 +671,9 @@ class TestsAreaFracUpdate:
         update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
           surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
       assert 'One or more RGM output DEM pixels lies above the bounds of \
-        the highest defined elevation band (>= 2300.0m) as defined by the \
-        Snow Band Parameter File for cell 23456. You may need to add or shift \
-        the zero padding to accommodate this.' in str(message.value)
+the highest defined elevation band (>= 2300.0m) as defined by the \
+Snow Band Parameter File for cell 23456. You may need to add or shift \
+the zero padding to accommodate this.' in str(message.value)
 
        # Remove error condition by reinstating glacier in offending pixel in
        # the surface DEM for the next test
