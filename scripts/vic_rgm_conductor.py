@@ -242,10 +242,10 @@ def main():
     Band.glacier_root_zone_parms = glacier_root_zone_parms
     Band.open_ground_root_zone_parms = open_ground_root_zone_parms
 
-  # Merge all VIC cells info gathered from Snow Band and Vegetation Parameter
-  # files and custom parameters
+  # Create dictionary of cells by merging info gathered from Snow Band and
+  # Vegetation Parameter files and custom parameters
   cells = merge_cell_input(hru_cell_dict, elevation_cell_dict)
-  
+
   # TODO: Do a sanity check to make sure band area fractions in Snow Band
   # Parameters file add up to sum of HRU area fractions in Vegetation
   # Parameter File for each cell?
@@ -263,13 +263,14 @@ def main():
   # validity     
   dem_xmin, dem_xmax, dem_ymin, dem_ymax, num_rows, num_cols\
     = read_gsa_headers(bed_dem_file)
-  # Verify number of columns & rows agree with what's stated in the
+  # Verify that number of columns & rows agree with what's stated in the
   # pixel_to_cell_map_file
   assert (num_cols == num_cols_dem) and (num_rows == num_rows_dem),'Mismatch \
     of stated dimension(s) between Bed DEM in {} (num rows: {}, num columns: \
     {}) and the VIC-grid-to-RGM-pixel map in {} (num rows: {}, num columns: \
     {}). Exiting.\n'.format(bed_dem_file, num_rows, num_cols,\
     pixel_cell_map_file, num_rows_dem, num_cols_dem)
+
   # Read in the provided Bed Digital Elevation Map (BDEM) file to 2D bed_dem array
   bed_dem = np.loadtxt(bed_dem_file, skiprows=5)
 
@@ -282,9 +283,9 @@ def main():
     num columns: {}) and the VIC-grid-to-RGM-pixel map in {} (num rows: {}, \
     num columns: {}). Exiting.\n'.format(surf_dem_in_file, num_rows, num_cols,\
     pixel_cell_map_file, num_rows_dem, num_cols_dem)
+
   # Read in the provided Surface Digital Elevation Map (SDEM) file to 2D surf_dem array
   surf_dem_initial = np.loadtxt(surf_dem_in_file, skiprows=5)
-
   # Check agreement between elevation map from VIC-grid-to-RGM-pixel file and
   # the initial Surface DEM
   assert (np.equal(elevation_map, surf_dem_initial)), 'Values mismatch \
@@ -307,8 +308,9 @@ def main():
   # Apply the initial glacier mask and modify the band and glacier area
   # fractions accordingly
   update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
-            surf_dem_initial, num_rows_dem, num_cols_dem, glacier_mask)
+    surf_dem_initial, num_rows_dem, num_cols_dem, glacier_mask)
 
+  # Write temporary snow band and vegetation parameter files for first VIC run
   temp_snb = temp_files_path + 'snb_temp_'\
     + global_parms.startdate.isoformat() + '.txt'
   snbparams.save_snb_parms(cells, temp_snb, band_map)
@@ -316,7 +318,9 @@ def main():
     + global_parms.startdate.isoformat() + '.txt'
   vegparams.save_veg_parms(cells, temp_vpf)
 
-  # Run the coupled VIC-RGM model for the time range specified in the VIC
+# (initialisation done)
+
+#### Run the coupled VIC-RGM model for the time range specified in the VIC
   # global parameters file
   time_iterator = run_ranges(global_parms.startdate,
                  global_parms.enddate,
@@ -342,13 +346,16 @@ def main():
     subprocess.check_call([vic_full_path, "-g", temp_gpf], shell=False,\
       stderr=subprocess.STDOUT)
 
-    # 3. Open VIC NetCDF state file and get the most recent GMB polynomial for
-    # each grid cell being modeled
+    # 3. Open VIC NetCDF state file and load the most recent set of state
+    # variable values for all grid cells being modeled
     state_file = state_filename_prefix + "_" + start.isoformat() ## FIXME
     print('opening VIC state file {}'.format(state_file))
     state = h5py.File(state_file, 'r+')
     gmb_polys = get_mass_balance_polynomials(state, state_file, cell_ids)
-      
+# TODO: read in all variables to be assigned to CellMetadataState and HruState object members of each cell
+    # read_states(state, cells)
+
+
     # 4. Translate mass balances using grid cell GMB polynomials and current
     # veg_parm_file into a 2D RGM mass balance grid (MBG)
     mass_balance_grid = mass_balances_to_rgm_grid(gmb_polys, pixel_to_cell_map,\
@@ -359,7 +366,7 @@ def main():
     write_grid_to_gsa_file(mass_balance_grid, mbg_file, num_cols_dem,\
       num_rows_dem, dem_xmin, dem_xmax, dem_ymin, dem_ymax)
 
-    # 5. Run RGM for one year, passing MBG, BDEM, SDEM
+    # 5. Run RGM for one year, passing it the MBG, BDEM, SDEM
     subprocess.check_call([rgm_full_path, "-p", rgm_params_file, "-b",\
       bed_dem_file, "-d", surf_dem_in_file, "-m", mbg_file, "-o",\
       temp_files_path, "-s", "0", "-e", "0" ], shell=False,\
@@ -374,7 +381,7 @@ def main():
     temp_surf_dem_file = temp_files_path + 'rgm_surf_dem_out_'\
       + start.isoformat() + '.gsa'
     os.rename(rgm_surf_dem_out_file, temp_surf_dem_file)
-    # this will be fed back into RGM on next time step
+    # this will be fed back into RGM on next time step:
     surf_dem_in_file = temp_surf_dem_file
 
     # 7. Update glacier mask
@@ -394,7 +401,7 @@ def main():
     temp_vpf = temp_files_path + 'vpf_temp_' + start.isoformat() + '.txt'
     vegparams.save_veg_parms(cells, temp_vpf)
 
-    # 11 Update HRUs in VIC state file
+    # 11 Calculate changes to HRU state variables and update in VIC state file
       # don't forget to close the state file
 
     # Get ready for the next loop
