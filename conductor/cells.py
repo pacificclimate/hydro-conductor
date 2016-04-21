@@ -12,6 +12,7 @@ import numpy as np
 
 class Band(object):
   """Class capturing VIC cell parameters at the elevation band level
+    (aka "snow band")
   """
   # glacier_id and open_ground_id, glacier_root_zone_parms, 
   # open_ground_root_zone_parms, and band_size are defined on a *per-run*
@@ -32,6 +33,10 @@ class Band(object):
     return (self.__class__ == other.__class__ and self.__dict__ == other.__dict__)
 
   @property
+  def hru_keys_sorted(self):
+    return sorted([int(k) for k in self.hrus.keys()])
+
+  @property
   def lower_bound(self):
     return self.median_elev - self.median_elev % self.band_size
 
@@ -47,7 +52,7 @@ class Band(object):
   def area_frac(self): 
     """The Band area fraction, equal to the sum of HRU area fractions within
       this band, which should be equal to the total area fraction of the band
-      as represented in the Snow Band Parameters file
+      as represented in the Snow Band Parameters file (initial conditions)
     """
     if self.hrus:
       return sum([hru.area_frac for hru in self.hrus.values()])
@@ -73,7 +78,7 @@ class Band(object):
   def create_hru(self, veg_type, area_frac):
     """Creates a new HRU of veg_type
     """
-    # Append new_hru to existing list of HRUs for this band
+    # Append new hru to existing dict of HRUs for this band
     if veg_type == self.glacier_id:
       self.hrus[veg_type] = HydroResponseUnit(area_frac,\
         self.glacier_root_zone_parms)
@@ -87,10 +92,9 @@ class Band(object):
 #   #TODO: 1) if this is a vegetated/open type, check and redistribute moisture to replacement glacier HRU
 #          2) if this is a glacier type, redistribute to open ground HRU if it exists in this band, 
 #             or put it into an HRU in the next lowest band
-
-    if veg_type == Band.glacier_id:
-      try:
-        self.hrus[Band.open_ground_id]
+    # if veg_type == Band.glacier_id:
+    #   try:
+    #     self.hrus[Band.open_ground_id]
 
 
     # if we're already at the lowest band, raise an error
@@ -136,7 +140,7 @@ def merge_cell_input(hru_cell_dict, elevation_cell_dict):
   """Utility function to merge the dict of HRUs loaded via
     vegparams.load_veg_parms() with the list of Bands loaded at start-up via
     snbparams.load_snb_parms() into one unified structure capturing all VIC
-    cells' properties.
+    cells' initial properties (but not state).
   """ 
   missing_keys = hru_cell_dict.keys() ^ elevation_cell_dict.keys()
   if missing_keys:
@@ -155,13 +159,27 @@ def merge_cell_input(hru_cell_dict, elevation_cell_dict):
       cells[cell_id][band_id].hrus = hru_dict
   return cells
 
+class CellMetadataState(object):
+  """Class capturing the set of VIC cell metadata state variables that can
+    change in a yearly VIC run.
+  """
+  def __init__(self, soil_dz_node, soil_zsum_node, veg_type_num):
+    self.soil_dz_node = {'SOIL_DZ_NODE': soil_dz_node}
+    self.soil_zsum_node = {'SOIL_ZSUM_NODE': soil_zsum_node}
+    self.veg_type_num = {'VEG_TYPE_NUM': veg_type_num}
+  # NOTE: in order to attach a CellMetadataState member to each cell, we have to
+  # alter the structure of cells to be an OrderedDict of a new Cell class:
+  # cells[cell_id].bands[band_id].hrus...  and
+  # cells[cell_id].metadata_state
+
 class HydroResponseUnit(object):
   """Class capturing vegetation parameters at the single vegetation
-    tile (HRU) level (of which there can be many per band)
+    tile (HRU) level (of which there can be many per band).
   """
   def __init__(self, area_frac, root_zone_parms):
     self.area_frac = area_frac
     self.root_zone_parms = root_zone_parms
+    self.hru_state = HruState()
   def __repr__(self):
     return '{}({}, {})'.format(self.__class__.__name__,
                    self.area_frac, self.root_zone_parms)
@@ -171,51 +189,82 @@ class HydroResponseUnit(object):
   def __eq__(self, other):
     return (self.__class__==other.__class__ and self.__dict__==other.__dict__)
 
-class HruStateChange(object):
-  """Class capturing changes in VIC HRU states after applying
-    update_area_fracs()
+class HruState(object):
+  """Class capturing the set of VIC HRU state variables.
   """
-  def __init__(self, hru_band_index, hru_veg_index):
-     # self.hru_band_index = {'HRU_BAND_INDEX': hru_band_index}
-     # self.hru_veg_index = {'HRU_VEG_INDEX': hru_veg_index}
-    self.layer_ice_content = {'LAYER_ICE_CONTENT': 0}
-    self.layer_moist = {'LAYER_MOIST': 0}
-    self.hru_veg_var_dew = {'HRU_VEG_VAR_DEW': 0}
-    self.snow_canopy = {'SNOW_CANOPY': 0}
+  def __init__(self):
+    # state variables with dimensions (lat, lon)
     self.snow_density = {'SNOW_DENSITY': 0}
-    self.snow_depth = {'SNOW_DEPTH': 0}
-    self.snow_pack_water = {'SNOW_PACK_WATER': 0}
-    self.snow_surf_water = {'SNOW_SURF_WATER': 0}
-    self.snow_swq = {'SNOW_SWQ': 0}
+    self.snow_depth = {'SNOW_DEPTH': 0}  
     self.glac_water_storage = {'GLAC_WATER_STORAGE': 0}
     self.glac_cum_mass_balance = {'GLAC_CUM_MASS_BALANCE': 0}
-    self.energy_t = {'ENERGY_T': 0}
     self.energy_tfoliage = {'ENERGY_TFOLIAGE': 0}
     self.glac_surf_temp = {'GLAC_SURF_TEMP': 0}
-    self.snow_cold_content = {'SNOW_COLD_CONTENT': 0}
-    self.snow_pack_temp = {'SNOW_PACK_TEMP': 0}
-    self.snow_surf_temp = {'SNOW_SURF_TEMP': 0}
     self.snow_albedo = {'SNOW_ALBEDO': 0}
-    self.snow_last_snow = {'SNOW_LAST_SNOW': 0}
-    self.snow_melting = {'SNOW_MELTING': 'FALSE'}
     self.energy_tcanopy_fbcount = {'ENERGY_TCANOPY_FBCOUNT': 0}
     self.energy_tsurf_fbcount = {'ENERGY_TSURF_FBCOUNT': 0}
     self.glac_surf_temp_fbcount = {'GLAC_SURF_TEMP_FBCOUNT': 0}
     self.snow_surf_temp_fbcount = {'SNOW_SURF_TEMP_FBCOUNT': 0}
 
-class CellStateChange(object):
-  """Class capturing changes in VIC cell states after
-    applying update_area_fracs(), to be written back to the VIC state file
-    before the next VIC iteration.
+    # state variables with dimensions (lat, lon, hru)
+    self.hru_band_index = {'HRU_BAND_INDEX': -1}
+    self.hru_veg_index = {'HRU_VEG_INDEX': -1}
+    self.snow_canopy = {'SNOW_CANOPY': 0}
+    self.snow_pack_water = {'SNOW_PACK_WATER': 0}
+    self.snow_surf_water = {'SNOW_SURF_WATER': 0}
+    self.snow_swq = {'SNOW_SWQ': 0}
+    self.snow_cold_content = {'SNOW_COLD_CONTENT': 0}
+    self.snow_pack_temp = {'SNOW_PACK_TEMP': 0}
+    self.snow_surf_temp = {'SNOW_SURF_TEMP': 0}
+    self.snow_last_snow = {'SNOW_LAST_SNOW': 0}
+    self.snow_melting = {'SNOW_MELTING': 'FALSE'}
+
+    # state variables with dimensions (lat, lon, hru, dist)
+    self.hru_veg_var_wdew = {'HRU_VEG_VAR_WDEW': 0}
+
+    # state variables with dimensions (lat, lon, hru, dist, Nlayers)
+    self.layer_ice_content = {'LAYER_ICE_CONTENT': 0}
+    self.layer_moist = {'LAYER_MOIST': 0}
+
+    # state variables with dimensions (lat, lon, hru, Nnodes)
+    self.energy_t = {'ENERGY_T': 0}
+
+
+def read_states(state, cells):
+  """Reads the most recent state variables from the VIC state file produced by
+    the most recent VIC run and updates the CellMetadataState and
+    HruState object members of each cell.
   """
-  def __init__(self, soil_dz_node, soil_zsum_node, veg_type_num,\
-    hru_state_changes=None):
-    self.soil_dz_node = soil_dz_node
-    self.soil_zsum_node = soil_zsum_node
-    self.veg_type_num = veg_type_num
-    # if hru_state_changes is None:
-    #     hru_state_changes = []
-    # self.hru_state_changes = hru_state_changes
+  num_lons = len(state['lon'])
+  def get_2D_cell_indices(count):
+    """Returns the 2D lat/lon indices of the cell for accessing it from the state file"""
+    return count // num_lons, count % num_lons
+
+  cell_idx = 0
+  for cell_id, cell in cells.items():
+  #   cell[cell_id].metadata_state = CellMetadataState(state['SOIL_DZ_NODE'][0],\
+  #     state['SOIL_ZSUM_NODE'][0], state['VEG_TYPE_NUM'][0])
+    #print('cell: {}'.format(cell))
+    cell_lat_idx, cell_lon_idx = get_2D_cell_indices(cell_idx)
+    cell_hru_idx = 0
+    for band in cell:
+      #print('band: {}, hrus in band: {}'.format(band, band.hrus))
+      for hru_veg_type in band.hru_keys_sorted: # HRUs are sorted by ascending veg_type_num in VIC state file
+        # read all state variables with dimensions (lat, lon, hru)
+        band.hrus[hru_veg_type].hru_state.hru_band_index = state['HRU_BAND_INDEX'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
+        band.hrus[hru_veg_type].hru_state.hru_veg_index = state['HRU_VEG_INDEX'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
+        band.hrus[hru_veg_type].hru_state.snow_swq = state['SNOW_SWQ'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
+        band.hrus[hru_veg_type].hru_state.snow_canopy = state['SNOW_CANOPY'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
+        band.hrus[hru_veg_type].hru_state.snow_pack_water = state['SNOW_PACK_WATER'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
+        band.hrus[hru_veg_type].hru_state.snow_surf_water = state['SNOW_SURF_WATER'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
+        band.hrus[hru_veg_type].hru_state.snow_cold_content = state['SNOW_COLD_CONTENT'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
+        band.hrus[hru_veg_type].hru_state.snow_pack_temp = state['SNOW_PACK_TEMP'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
+        band.hrus[hru_veg_type].hru_state.snow_surf_temp = state['SNOW_SURF_TEMP'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
+        band.hrus[hru_veg_type].hru_state.snow_last_snow = state['SNOW_LAST_SNOW'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
+        band.hrus[hru_veg_type].hru_state.snow_melting = state['SNOW_MELTING'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
+        cell_hru_idx += 1
+    cell_idx += 1
+
 
 
 def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
@@ -325,7 +374,8 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         elif new_glacier_area_frac > 0:
           band.create_hru(Band.glacier_id, new_glacier_area_frac)
 
-        open_ground_hrus = ...
+# NOTE: what was this about?...
+        # open_ground_hrus = ...
 
         # Update area fractions for all HRUs in this Band  
         glacier_found = False
