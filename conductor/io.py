@@ -75,6 +75,8 @@ def write_grid_to_gsa_file(grid, outfilename, num_cols_dem, num_rows_dem,\
     for row in grid:
       writer.writerow(row)
 
+# TODO: replace this with general read_state function, which gets GLAC_MASS_BALANCE_INFO
+# (as well as the rest of the state variables)
 def get_mass_balance_polynomials(state, cell_ids):
   """ Extracts the Glacier Mass Balance polynomial for each grid cell from an \
     open VIC state file """
