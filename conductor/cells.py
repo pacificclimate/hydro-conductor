@@ -10,6 +10,29 @@ from collections import OrderedDict
 from copy import deepcopy
 import numpy as np
 
+class Cell(object):
+  """Class capturing VIC cells
+  """
+  def __init__(self, bands):
+    self.cell_state = CellState()
+    self.bands = bands
+
+
+class CellState(object):
+  """Class capturing the set of VIC cell state and metadata variables that can
+    change in a yearly VIC run.
+  """
+  def __init__(self):
+    self.variables = {
+      'SOIL_DZ_NODE': [],
+      'SOIL_ZSUM_NODE': [],
+      'GRID_CELL':-1,
+      'NUM_BANDS': 0,
+      'VEG_TYPE_NUM': 0,
+      'GLAC_MASS_BALANCE_INFO': [],
+      'ENERGY_T_FBCOUNT': 0
+    }
+
 class Band(object):
   """Class capturing VIC cell parameters at the elevation band level
     (aka "snow band")
@@ -123,62 +146,6 @@ class Band(object):
                           self.median_elev,
                           len(self.hrus))
 
-
-def apply_custom_root_zone_parms(hru_cell_dict, glacier_root_zone_parms,\
-  open_ground_root_zone_parms):
-  """Utility function to apply user-supplied custom root zone parameters
-    to glacier and/or open ground HRUs at initialization time.
-  """
-  for cell in hru_cell_dict.keys():
-    for key in hru_cell_dict[cell]:
-      if glacier_root_zone_parms and (key[1] == global_parms.glacier_id):
-        hru_cell_dict[cell][key].root_zone_parms = glacier_root_zone_parms
-      if open_ground_root_zone_parms and (key[1] == global_parms.open_ground_id):
-        hru_cell_dict[cell][key].root_zone_parms = open_ground_root_zone_parms
-
-def merge_cell_input(hru_cell_dict, elevation_cell_dict):
-  """Utility function to merge the dict of HRUs loaded via
-    vegparams.load_veg_parms() with the list of Bands loaded at start-up via
-    snbparams.load_snb_parms() into one unified structure capturing all VIC
-    cells' initial properties (but not state).
-  """ 
-  missing_keys = hru_cell_dict.keys() ^ elevation_cell_dict.keys()
-  if missing_keys:
-    raise Exception("One or more cell IDs were found in one input file,"
-        "but not the other. IDs: {}".format(missing_keys))
-
-  # initialize new cell container
-  cells = deepcopy(elevation_cell_dict)
-  # FIXME: this is a little awkward
-  for cell_id, hru_dict in hru_cell_dict.items():
-    band_ids = { band_id for band_id, _ in hru_dict.keys() }
-    band_dict = { band_id: {} for band_id in band_ids }
-    for (band_id, veg_type), hru in hru_dict.items():
-      band_dict[band_id][veg_type] = hru
-    for band_id, hru_dict in band_dict.items():
-      cells[cell_id][band_id].hrus = hru_dict
-  return cells
-
-class CellState(object):
-  """Class capturing the set of VIC cell state and metadata variables that can
-    change in a yearly VIC run.
-  """
-  def __init__(self):
-    self.variables = {
-      'SOIL_DZ_NODE': [],
-      'SOIL_ZSUM_NODE': [],
-      'GRID_CELL':-1,
-      'NUM_BANDS': 0,
-      'VEG_TYPE_NUM': 0,
-      'GLAC_MASS_BALANCE_INFO': [],
-      'ENERGY_T_FBCOUNT': 0
-    }
-
-  # NOTE: in order to attach a CellState member to each cell, we have to
-  # alter the structure of cells to be an OrderedDict of a new Cell class:
-  # cells[cell_id].bands[band_id].hrus...  and
-  # cells[cell_id].cell_state
-
 class HydroResponseUnit(object):
   """Class capturing vegetation parameters at the single vegetation
     tile (HRU) level (of which there can be many per band).
@@ -236,6 +203,46 @@ class HruState(object):
     }
     # TODO: fill in any remaining state variables from the "miscellaneous" list
 
+def apply_custom_root_zone_parms(hru_cell_dict, glacier_root_zone_parms,\
+  open_ground_root_zone_parms):
+  """Utility function to apply user-supplied custom root zone parameters
+    to glacier and/or open ground HRUs at initialization time.
+  """
+  for cell in hru_cell_dict.keys():
+    for key in hru_cell_dict[cell]:
+      if glacier_root_zone_parms and (key[1] == global_parms.glacier_id):
+        hru_cell_dict[cell][key].root_zone_parms = glacier_root_zone_parms
+      if open_ground_root_zone_parms and (key[1] == global_parms.open_ground_id):
+        hru_cell_dict[cell][key].root_zone_parms = open_ground_root_zone_parms
+
+def merge_cell_input(hru_cell_dict, elevation_cell_dict):
+  """Utility function to merge the dict of HRUs loaded via
+    vegparams.load_veg_parms() with the list of Bands loaded at start-up via
+    snbparams.load_snb_parms() into one unified structure capturing all VIC
+    cells' initial properties (but not state).
+  """ 
+  missing_keys = hru_cell_dict.keys() ^ elevation_cell_dict.keys()
+  if missing_keys:
+    raise Exception("One or more cell IDs were found in one input file,"
+        "but not the other. IDs: {}".format(missing_keys))
+
+  print('elevation_cell_dict before deepcopy: {}'.format(elevation_cell_dict))
+  # initialize new cell container
+  #cells = deepcopy(elevation_cell_dict)
+  cells = OrderedDict()
+  for cell_id in elevation_cell_dict:
+    cells[cell_id] = Cell(deepcopy(elevation_cell_dict[cell_id]))
+    print('cells[{}].bands: {}'.format(cell_id, cells[cell_id].bands))
+  print('cells after deepcopy: {}'.format(cells))
+  # FIXME: this is a little awkward
+  for cell_id, hru_dict in hru_cell_dict.items():
+    band_ids = { band_id for band_id, _ in hru_dict.keys() }
+    band_dict = { band_id: {} for band_id in band_ids }
+    for (band_id, veg_type), hru in hru_dict.items():
+      band_dict[band_id][veg_type] = hru
+    for band_id, hru_dict in band_dict.items():
+      cells[cell_id].bands[band_id].hrus = hru_dict
+  return cells
 
 def read_states(state, cells):
   """Reads the most recent state variables from the VIC state file produced by
@@ -247,31 +254,25 @@ def read_states(state, cells):
     """Returns the 2D lat/lon indices of the cell for accessing it from the state file"""
     return count // num_lons, count % num_lons
 
-  # read dimensions from state file needed for indexing some of the state variables
-  # Nlayers = len(state['Nlayers'])
-  # Nnodes = len(state['Nnodes'])
-  # dist = len(state['dist'])
-
   cell_idx = 0
   for cell_id, cell in cells.items():
     cell_lat_idx, cell_lon_idx = get_2D_cell_indices(cell_idx)
     cell_hru_idx = 0
-
     #print('cell: {}'.format(cell))
 
     # read all cell state variables with dimensions (lat, lon)
     # Maybe use as a sanity check against currently loaded cells?
-    # cells[cell_id].cell_state['SOIL_DZ_NODE'] = state['SOIL_DZ_NODE'][cell_lat_idx][cell_lon_idx]
-    # cells[cell_id].cell_state['SOIL_ZSUM_NODE'] = state['SOIL_ZSUM_NODE'][cell_lat_idx][cell_lon_idx]
-    # cells[cell_id].cell_state['GRID_CELL'] = state['GRID_CELL'][cell_lat_idx][cell_lon_idx]
-    # cells[cell_id].cell_state['NUM_BANDS'] = state['NUM_BANDS'][cell_lat_idx][cell_lon_idx]
-    # cells[cell_id].cell_state['VEG_TYPE_NUM'] = state['VEG_TYPE_NUM'][cell_lat_idx][cell_lon_idx]
-    # cells[cell_id].cell_state['GLAC_MASS_BALANCE_INFO'] = state['GLAC_MASS_BALANCE_INFO'][cell_lat_idx][cell_lon_idx]
+    cells[cell_id].cell_state.variables['SOIL_DZ_NODE'] = state['SOIL_DZ_NODE'][cell_lat_idx][cell_lon_idx]
+    cells[cell_id].cell_state.variables['SOIL_ZSUM_NODE'] = state['SOIL_ZSUM_NODE'][cell_lat_idx][cell_lon_idx]
+    cells[cell_id].cell_state.variables['GRID_CELL'] = state['GRID_CELL'][cell_lat_idx][cell_lon_idx]
+    cells[cell_id].cell_state.variables['NUM_BANDS'] = state['NUM_BANDS'][cell_lat_idx][cell_lon_idx]
+    cells[cell_id].cell_state.variables['VEG_TYPE_NUM'] = state['VEG_TYPE_NUM'][cell_lat_idx][cell_lon_idx]
+    cells[cell_id].cell_state.variables['GLAC_MASS_BALANCE_INFO'] = state['GLAC_MASS_BALANCE_INFO'][cell_lat_idx][cell_lon_idx]
 
-    # # HRU program terms state variables with dimensions (lat, lon, nNodes)
-    # cells[cell_id].cell_state['ENERGY_T_FBCOUNT'] = state['ENERGY_T_FBCOUNT'][cell_lat_idx][cell_lon_idx]
+    # HRU program terms state variables with dimensions (lat, lon, nNodes)
+    cells[cell_id].cell_state.variables['ENERGY_T_FBCOUNT'] = state['ENERGY_T_FBCOUNT'][cell_lat_idx][cell_lon_idx]
 
-    for band in cell:
+    for band in cell.bands:
       #print('band: {}, hrus in band: {}'.format(band, band.hrus))
       for hru_veg_type in band.hru_keys_sorted: # HRUs are sorted by ascending veg_type_num in VIC state file
         # read all HRU state variables with dimensions (lat, lon, hru)
@@ -280,8 +281,6 @@ def read_states(state, cells):
           band.hrus[hru_veg_type].hru_state.variables[variable] = state[variable][cell_lat_idx][cell_lon_idx][cell_hru_idx]
         cell_hru_idx += 1
     cell_idx += 1
-
-
 
 def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
   surf_dem, num_rows_dem, num_cols_dem, glacier_mask):
