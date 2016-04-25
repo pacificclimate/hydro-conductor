@@ -159,18 +159,25 @@ def merge_cell_input(hru_cell_dict, elevation_cell_dict):
       cells[cell_id][band_id].hrus = hru_dict
   return cells
 
-class CellMetadataState(object):
-  """Class capturing the set of VIC cell metadata state variables that can
+class CellState(object):
+  """Class capturing the set of VIC cell state and metadata variables that can
     change in a yearly VIC run.
   """
-  def __init__(self, soil_dz_node, soil_zsum_node, veg_type_num):
-    self.soil_dz_node = {'SOIL_DZ_NODE': soil_dz_node}
-    self.soil_zsum_node = {'SOIL_ZSUM_NODE': soil_zsum_node}
-    self.veg_type_num = {'VEG_TYPE_NUM': veg_type_num}
-  # NOTE: in order to attach a CellMetadataState member to each cell, we have to
+  def __init__(self):
+    self.variables = {
+      'SOIL_DZ_NODE': [],
+      'SOIL_ZSUM_NODE': [],
+      'GRID_CELL':-1,
+      'NUM_BANDS': 0,
+      'VEG_TYPE_NUM': 0,
+      'GLAC_MASS_BALANCE_INFO': [],
+      'ENERGY_T_FBCOUNT': 0
+    }
+
+  # NOTE: in order to attach a CellState member to each cell, we have to
   # alter the structure of cells to be an OrderedDict of a new Cell class:
   # cells[cell_id].bands[band_id].hrus...  and
-  # cells[cell_id].metadata_state
+  # cells[cell_id].cell_state
 
 class HydroResponseUnit(object):
   """Class capturing vegetation parameters at the single vegetation
@@ -193,59 +200,40 @@ class HruState(object):
   """Class capturing the set of VIC HRU state variables.
   """
   def __init__(self):
-    # HRU metadata state variables with dimensions (lat, lon, hru)
-    self.hru_band_index = -1
-    self.hru_veg_index = -1
-
-    # HRU water balance state variables with dimensions (lat, lon, hru)
-    self.snow_canopy = 0
-    self.snow_density = 0
-    self.snow_depth = 0 
-    self.snow_pack_water = 0
-    self.snow_surf_water = 0
-    self.snow_swq = 0
-
-    # HRU glacier water storage state variable with dimensions (lat, lon, hru)
-    self.glac_water_storage = 0
-
-    # HRU glacier mass balance state variable with dimensions (lat, lon, hru)
-    self.glac_cum_mass_balance = 0
-
-    # HRU snow pack, glacier and soil energy state variables with dimensions
-    # (lat, lon, hru, Nnodes)
-    self.energy_t = 0
-
-    # HRU water balance state variables with dimensions 
-    # (lat, lon, hru, dist, Nlayers)
-    self.layer_ice_content = 0
-    self.layer_moist = 0
-
-    # HRU water balance state variables with dimensions (lat, lon, hru, dist)
-    self.hru_veg_var_wdew = 0
-
-    # HRU water balance state variables with dimensions (lat, lon, hru)
-    self.energy_tfoliage = 0
-    self.glac_surf_temp = 0
-    self.snow_cold_content = 0
-    self.snow_pack_temp = 0
-    self.snow_surf_temp = 0
-
-    # HRU snow surface properties state variables with dimensions
-    #(lat, lon, hru)
-    self.snow_albedo = 0
-    self.snow_last_snow = 0
-    self.snow_melting = 'FALSE'
-
-    # HRU program terms state variables with dimensions (lat, lon, hru)
-    self.energy_tcanopy_fbcount = 0
-    self.energy_tfoliage_fbcount = 0
-    self.energy_tsurf_fbcount = 0
-    self.glac_surf_temp_fbcount = 0
-    self.snow_surf_temp_fbcount = 0
-
-    # HRU program terms state variables with dimensions (lat, lon, nNodes)
-    self.energy_t_fbcount = 0
-
+    self.variables = {
+      # HRU state variables with dimensions (lat, lon, hru)
+      'HRU_BAND_INDEX': -1,
+      'HRU_VEG_INDEX': -1,
+      # These two have dimensions (lat, lon, hru, dist, Nlayers)
+      'LAYER_ICE_CONTENT': [[]],
+      'LAYER_MOIST': [[]],
+      # HRU_VEG_VAR_WDEW has dimensions (lat, lon, hru, dist)
+      'HRU_VEG_VAR_WDEW' : [],
+      # HRU state variables with dimensions (lat, lon, hru)
+      'SNOW_CANOPY': 0,
+      'SNOW_DENSITY': 0,
+      'SNOW_DEPTH': 0,
+      'SNOW_PACK_WATER': 0,
+      'SNOW_SURF_WATER': 0,
+      'SNOW_SWQ': 0,
+      'GLAC_WATER_STORAGE': 0,
+      'GLAC_CUM_MASS_BALANCE': 0,
+      # ENERGY_T has dimensions (lat, lon, hru, Nnodes)
+      'ENERGY_T': [],
+      # HRU state variables with dimensions (lat, lon, hru)
+      'ENERGY_TFOLIAGE': 0,
+      'GLAC_SURF_TEMP': 0,
+      'SNOW_COLD_CONTENT': 0,
+      'SNOW_PACK_TEMP': 0,
+      'SNOW_SURF_TEMP': 0,
+      'SNOW_ALBEDO': 0,
+      'SNOW_LAST_SNOW': 0,
+      'SNOW_MELTING': 'FALSE',
+      'ENERGY_TCANOPY_FBCOUNT': 0,
+      'ENERGY_TSURF_FBCOUNT': 0,
+      'GLAC_SURF_TEMP_FBCOUNT': 0,
+      'SNOW_SURF_TEMP_FBCOUNT': 0,
+    }
     # TODO: fill in any remaining state variables from the "miscellaneous" list
 
 
@@ -260,67 +248,36 @@ def read_states(state, cells):
     return count // num_lons, count % num_lons
 
   # read dimensions from state file needed for indexing some of the state variables
-  Nlayers = len(state['Nlayers'])
-  Nnodes = len(state['Nnodes'])
-  dist = len(state['dist'])
-
-  # read all global metadata state variables. Maybe use as a sanity check against current cells
-  # global_meta['GRID_CELL'] = state['GRID_CELL'][:]
-  # global_meta['NUM_BANDS'] = state['NUM_BANDS'][:]
-  # global_meta['VEG_TYPE_NUM'] = state['VEG_TYPE_NUM'][:]
-  # global_meta['GLAC_MASS_BALANCE_INFO'] = state['GLAC_MASS_BALANCE_INFO'][:]
+  # Nlayers = len(state['Nlayers'])
+  # Nnodes = len(state['Nnodes'])
+  # dist = len(state['dist'])
 
   cell_idx = 0
   for cell_id, cell in cells.items():
     cell_lat_idx, cell_lon_idx = get_2D_cell_indices(cell_idx)
     cell_hru_idx = 0
 
-    # read all cell metadata state variables with dimensions (lat, lon)
-    #  cell[cell_id].metadata_state = CellMetadataState(state['SOIL_DZ_NODE'][0],\
-    #     state['SOIL_ZSUM_NODE'][0], state['VEG_TYPE_NUM'][0])
     #print('cell: {}'.format(cell))
 
-    # HRU program terms state variables with dimensions (lat, lon, nNodes)
-    #self.energy_tcanopy_fbcount = {'ENERGY_T_FBCOUNT': 0}
+    # read all cell state variables with dimensions (lat, lon)
+    # Maybe use as a sanity check against currently loaded cells?
+    # cells[cell_id].cell_state['SOIL_DZ_NODE'] = state['SOIL_DZ_NODE'][cell_lat_idx][cell_lon_idx]
+    # cells[cell_id].cell_state['SOIL_ZSUM_NODE'] = state['SOIL_ZSUM_NODE'][cell_lat_idx][cell_lon_idx]
+    # cells[cell_id].cell_state['GRID_CELL'] = state['GRID_CELL'][cell_lat_idx][cell_lon_idx]
+    # cells[cell_id].cell_state['NUM_BANDS'] = state['NUM_BANDS'][cell_lat_idx][cell_lon_idx]
+    # cells[cell_id].cell_state['VEG_TYPE_NUM'] = state['VEG_TYPE_NUM'][cell_lat_idx][cell_lon_idx]
+    # cells[cell_id].cell_state['GLAC_MASS_BALANCE_INFO'] = state['GLAC_MASS_BALANCE_INFO'][cell_lat_idx][cell_lon_idx]
 
+    # # HRU program terms state variables with dimensions (lat, lon, nNodes)
+    # cells[cell_id].cell_state['ENERGY_T_FBCOUNT'] = state['ENERGY_T_FBCOUNT'][cell_lat_idx][cell_lon_idx]
 
     for band in cell:
       #print('band: {}, hrus in band: {}'.format(band, band.hrus))
       for hru_veg_type in band.hru_keys_sorted: # HRUs are sorted by ascending veg_type_num in VIC state file
         # read all HRU state variables with dimensions (lat, lon, hru)
-        band.hrus[hru_veg_type].hru_state.hru_band_index = state['HRU_BAND_INDEX'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
-        band.hrus[hru_veg_type].hru_state.hru_veg_index = state['HRU_VEG_INDEX'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
-        band.hrus[hru_veg_type].hru_state.snow_canopy = state['SNOW_CANOPY'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
-        band.hrus[hru_veg_type].hru_state.snow_density = state['SNOW_DENSITY'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
-        band.hrus[hru_veg_type].hru_state.snow_depth = state['SNOW_DEPTH'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
-        band.hrus[hru_veg_type].hru_state.snow_pack_water = state['SNOW_PACK_WATER'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
-        band.hrus[hru_veg_type].hru_state.snow_surf_water = state['SNOW_SURF_WATER'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
-        band.hrus[hru_veg_type].hru_state.snow_swq = state['SNOW_SWQ'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
-        band.hrus[hru_veg_type].hru_state.glac_water_storage = state['GLAC_WATER_STORAGE'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
-        band.hrus[hru_veg_type].hru_state.glac_cum_mass_balance = state['GLAC_CUM_MASS_BALANCE'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
-        band.hrus[hru_veg_type].hru_state.energy_tfoliage = state['ENERGY_TFOLIAGE'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
-        band.hrus[hru_veg_type].hru_state.glac_surf_temp = state['GLAC_SURF_TEMP'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
-        band.hrus[hru_veg_type].hru_state.snow_cold_content = state['SNOW_COLD_CONTENT'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
-        band.hrus[hru_veg_type].hru_state.snow_pack_temp = state['SNOW_PACK_TEMP'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
-        band.hrus[hru_veg_type].hru_state.snow_surf_temp = state['SNOW_SURF_TEMP'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
-        band.hrus[hru_veg_type].hru_state.snow_albedo = state['SNOW_ALBEDO'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
-        band.hrus[hru_veg_type].hru_state.snow_last_snow = state['SNOW_LAST_SNOW'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
-        band.hrus[hru_veg_type].hru_state.snow_melting = state['SNOW_MELTING'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
-        band.hrus[hru_veg_type].hru_state.energy_tcanopy_fbcount = state['ENERGY_TCANOPY_FBCOUNT'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
-        band.hrus[hru_veg_type].hru_state.energy_tsurf_fbcount = state['ENERGY_TSURF_FBCOUNT'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
-        band.hrus[hru_veg_type].hru_state.glac_surf_temp_fbcount = state['GLAC_SURF_TEMP_FBCOUNT'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
-        band.hrus[hru_veg_type].hru_state.snow_surf_temp_fbcount = state['SNOW_SURF_TEMP_FBCOUNT'][cell_lat_idx][cell_lon_idx][cell_hru_idx]
-
-        # read all HRU state variables with dimensions (lat, lon, hru, Nnodes)
-#        self.energy_t = state['ENERGY_T': 0}
-
-        # read all HRU state variables with dimensions (lat, lon, hru, dist)
-#        self.hru_veg_var_wdew = state['HRU_VEG_VAR_WDEW': 0}
-
-        # read all HRU state variables with dimensions (lat, lon, hru, dist, Nlayers)
-#        self.layer_ice_content = state['LAYER_ICE_CONTENT': 0}
-#        self.layer_moist = state['LAYER_MOIST': 0}
-
+        for variable in band.hrus[hru_veg_type].hru_state.variables:
+          print('reading state variable {}'.format(variable))
+          band.hrus[hru_veg_type].hru_state.variables[variable] = state[variable][cell_lat_idx][cell_lon_idx][cell_hru_idx]
         cell_hru_idx += 1
     cell_idx += 1
 
