@@ -32,7 +32,6 @@ class CellState(object):
       'NUM_BANDS': 0,
       'VEG_TYPE_NUM': 0,
       'GLAC_MASS_BALANCE_INFO': [],
-      'ENERGY_T_FBCOUNT': 0
     }
 
   def __eq__(self, other):
@@ -177,8 +176,8 @@ class HruState(object):
       'HRU_BAND_INDEX': -1,
       'HRU_VEG_INDEX': -1,
       # These two have dimensions (lat, lon, hru, dist, Nlayers)
-      'LAYER_ICE_CONTENT': [[]],
-      'LAYER_MOIST': [[]],
+      'LAYER_ICE_CONTENT': [],
+      'LAYER_MOIST': [],
       # HRU_VEG_VAR_WDEW has dimensions (lat, lon, hru, dist)
       'HRU_VEG_VAR_WDEW' : [],
       # HRU state variables with dimensions (lat, lon, hru)
@@ -190,8 +189,9 @@ class HruState(object):
       'SNOW_SWQ': 0,
       'GLAC_WATER_STORAGE': 0,
       'GLAC_CUM_MASS_BALANCE': 0,
-      # ENERGY_T has dimensions (lat, lon, hru, Nnodes)
+      # HRU state variables with dimensions (lat, lon, hru, Nnodes)
       'ENERGY_T': [],
+      'ENERGY_T_FBCOUNT': []
       # HRU state variables with dimensions (lat, lon, hru)
       'ENERGY_TFOLIAGE': 0,
       'GLAC_SURF_TEMP': 0,
@@ -426,3 +426,6 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
                   new_non_glacier_area_frac, sum_test,
                   new_band_area_frac)
           )
+
+def update_state(cells):
+  pass
