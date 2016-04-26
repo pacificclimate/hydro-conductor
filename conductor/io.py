@@ -75,29 +75,6 @@ def write_grid_to_gsa_file(grid, outfilename, num_cols_dem, num_rows_dem,\
     for row in grid:
       writer.writerow(row)
 
-# TODO: replace this with general read_state function, which gets GLAC_MASS_BALANCE_INFO
-# (as well as the rest of the state variables)
-def get_mass_balance_polynomials(state, cell_ids):
-  """ Extracts the Glacier Mass Balance polynomial for each grid cell from an \
-    open VIC state file """
-  gmb_info = state['GLAC_MASS_BALANCE_INFO'][0]
-  cell_count = len(gmb_info)
-  if cell_count != len(cell_ids):
-    print('get_mass_balance_polynomials: The number of VIC cells ({}) read \
-      from the state file and those read from the vegetation parameter file \
-      ({}) disagree. Exiting.\n'.format(cell_count, len(cell_ids)))
-    sys.exit(0)
-  gmb_polys = {}
-  for i in range(cell_count):
-    cell_id = str(int(gmb_info[i][0]))
-    if cell_id not in cell_ids:
-      print('get_mass_balance_polynomials: Cell ID {} was not found in the \
-        list of VIC cell IDs read from the vegetation parameters file. \
-        Exiting.\n'.format(cell_id))
-      sys.exit(0)
-    gmb_polys[cell_id] = [gmb_info[i][1], gmb_info[i][2], gmb_info[i][3]]
-  return gmb_polys
-
 def update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem):
   """ Takes output Surface DEM from RGM and uses element-wise differencing 
     with the Bed DEM to form an updated glacier mask 
@@ -112,6 +89,40 @@ def update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem):
   glacier_mask = np.zeros((num_rows_dem, num_cols_dem))
   glacier_mask[diffs > 0] = 1
   return glacier_mask
+
+def read_state(state, cells):
+  """Reads the most recent state variables from the VIC state file produced by
+    the most recent VIC run and updates the CellMetadataState and
+    HruState object members of each cell.
+  """
+  num_lons = len(state['lon'])
+  def get_2D_cell_indices(count):
+    """Returns the 2D lat/lon indices of the cell for accessing it from the state file"""
+    return count // num_lons, count % num_lons
+
+  cell_idx = 0
+  for cell_id, cell in cells.items():
+    cell_lat_idx, cell_lon_idx = get_2D_cell_indices(cell_idx)
+    cell_hru_idx = 0
+    # read all cell state variables with dimensions (lat, lon)
+    # Maybe use as a sanity check against currently loaded cells?
+    cells[cell_id].cell_state.variables['SOIL_DZ_NODE'] = state['SOIL_DZ_NODE'][cell_lat_idx][cell_lon_idx]
+    cells[cell_id].cell_state.variables['SOIL_ZSUM_NODE'] = state['SOIL_ZSUM_NODE'][cell_lat_idx][cell_lon_idx]
+    cells[cell_id].cell_state.variables['GRID_CELL'] = state['GRID_CELL'][cell_lat_idx][cell_lon_idx]
+    cells[cell_id].cell_state.variables['NUM_BANDS'] = state['NUM_BANDS'][cell_lat_idx][cell_lon_idx]
+    cells[cell_id].cell_state.variables['VEG_TYPE_NUM'] = state['VEG_TYPE_NUM'][cell_lat_idx][cell_lon_idx]
+    cells[cell_id].cell_state.variables['GLAC_MASS_BALANCE_INFO'] = state['GLAC_MASS_BALANCE_INFO'][cell_lat_idx][cell_lon_idx]
+    # HRU program terms state variables with dimensions (lat, lon, nNodes)
+    cells[cell_id].cell_state.variables['ENERGY_T_FBCOUNT'] = state['ENERGY_T_FBCOUNT'][cell_lat_idx][cell_lon_idx]
+
+    for band in cell.bands:
+      for hru_veg_type in band.hru_keys_sorted: # HRUs are sorted by ascending veg_type_num in VIC state file
+        # read all HRU state variables with dimensions (lat, lon, hru)
+        for variable in band.hrus[hru_veg_type].hru_state.variables:
+          print('reading state variable {}'.format(variable))
+          band.hrus[hru_veg_type].hru_state.variables[variable] = state[variable][cell_lat_idx][cell_lon_idx][cell_hru_idx]
+        cell_hru_idx += 1
+    cell_idx += 1
 
 def update_state_file(state, state_file, cell_state_changes):
   pass

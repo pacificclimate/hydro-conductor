@@ -246,44 +246,6 @@ def merge_cell_input(hru_cell_dict, elevation_cell_dict):
       cells[cell_id].bands[band_id].hrus = hru_dict
   return cells
 
-def read_states(state, cells):
-  """Reads the most recent state variables from the VIC state file produced by
-    the most recent VIC run and updates the CellMetadataState and
-    HruState object members of each cell.
-  """
-  num_lons = len(state['lon'])
-  def get_2D_cell_indices(count):
-    """Returns the 2D lat/lon indices of the cell for accessing it from the state file"""
-    return count // num_lons, count % num_lons
-
-  cell_idx = 0
-  for cell_id, cell in cells.items():
-    cell_lat_idx, cell_lon_idx = get_2D_cell_indices(cell_idx)
-    cell_hru_idx = 0
-    #print('cell: {}'.format(cell))
-
-    # read all cell state variables with dimensions (lat, lon)
-    # Maybe use as a sanity check against currently loaded cells?
-    cells[cell_id].cell_state.variables['SOIL_DZ_NODE'] = state['SOIL_DZ_NODE'][cell_lat_idx][cell_lon_idx]
-    cells[cell_id].cell_state.variables['SOIL_ZSUM_NODE'] = state['SOIL_ZSUM_NODE'][cell_lat_idx][cell_lon_idx]
-    cells[cell_id].cell_state.variables['GRID_CELL'] = state['GRID_CELL'][cell_lat_idx][cell_lon_idx]
-    cells[cell_id].cell_state.variables['NUM_BANDS'] = state['NUM_BANDS'][cell_lat_idx][cell_lon_idx]
-    cells[cell_id].cell_state.variables['VEG_TYPE_NUM'] = state['VEG_TYPE_NUM'][cell_lat_idx][cell_lon_idx]
-    cells[cell_id].cell_state.variables['GLAC_MASS_BALANCE_INFO'] = state['GLAC_MASS_BALANCE_INFO'][cell_lat_idx][cell_lon_idx]
-
-    # HRU program terms state variables with dimensions (lat, lon, nNodes)
-    cells[cell_id].cell_state.variables['ENERGY_T_FBCOUNT'] = state['ENERGY_T_FBCOUNT'][cell_lat_idx][cell_lon_idx]
-
-    for band in cell.bands:
-      #print('band: {}, hrus in band: {}'.format(band, band.hrus))
-      for hru_veg_type in band.hru_keys_sorted: # HRUs are sorted by ascending veg_type_num in VIC state file
-        # read all HRU state variables with dimensions (lat, lon, hru)
-        for variable in band.hrus[hru_veg_type].hru_state.variables:
-          print('reading state variable {}'.format(variable))
-          band.hrus[hru_veg_type].hru_state.variables[variable] = state[variable][cell_lat_idx][cell_lon_idx][cell_hru_idx]
-        cell_hru_idx += 1
-    cell_idx += 1
-
 def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
   surf_dem, num_rows_dem, num_cols_dem, glacier_mask):
   """Applies the updated RGM DEM and glacier mask and calculates and updates

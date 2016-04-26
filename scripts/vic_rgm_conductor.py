@@ -9,6 +9,7 @@ import csv
 import collections
 from collections import OrderedDict
 import os
+import shutil
 import subprocess
 import sys
 from warnings import warn
@@ -18,7 +19,7 @@ import h5py
 from dateutil.relativedelta import relativedelta
 
 from conductor.io import get_rgm_pixel_mapping, read_gsa_headers,\
-  write_grid_to_gsa_file, get_mass_balance_polynomials, update_glacier_mask
+  write_grid_to_gsa_file, update_glacier_mask, read_state
 from conductor.cells import Band, HydroResponseUnit
 from conductor.snbparams import load_snb_parms, save_snb_parms
 from conductor.vegparams import load_veg_parms, save_veg_parms
@@ -326,11 +327,9 @@ def main():
                  global_parms.enddate,
                  global_parms.glacier_accum_startdate)
   for start, end in time_iterator:
-    print('\nRunning VIC from {} to {}'.format(start, end))
-
     # 1. Write / Update temporary Global Parameters File, temp_gpf
     temp_gpf = temp_files_path + 'gpf_temp_{}.txt'.format(start.isoformat())
-
+    print('\nRunning VIC from {} to {}, using global parameter file {}'.format(start, end, temp_gpf))
     # set global parameters for this VIC run
     global_parms.vegparm = temp_vpf
     global_parms.snow_band = '{} {}'.format(num_snow_bands, temp_snb)
@@ -339,7 +338,6 @@ def main():
     global_parms.statedate = end
 
     global_parms.write(temp_gpf)
-    print('invoking VIC with global parameter file {}'.format(temp_gpf))
 
     # 2. Run VIC for a year.  This will save VIC model state at the end of the
     # year, along with a Glacier Mass Balance (GMB) polynomial for each cell
@@ -350,11 +348,18 @@ def main():
     # variable values for all grid cells being modeled
     state_file = state_filename_prefix + "_" + start.isoformat() ## FIXME
     print('opening VIC state file {}'.format(state_file))
+    # leave the state file open for modification later
     state = h5py.File(state_file, 'r+')
-    gmb_polys = get_mass_balance_polynomials(state, state_file, cell_ids)
-# TODO: read in all variables to be assigned to CellMetadataState and HruState object members of each cell
-    # read_states(state, cells)
-
+    # read/update states of all cells
+    read_state(state, cells)
+    if output_trace_files: # keep a copy of the original state file from VIC
+        shutil.copy(state_file, state_file + '_orig')
+    # pull Glacier Mass Balance polynomials out of cell states
+    gmb_polys = {}
+    for cell_id in cells:
+        # leave off the "fit error" term at the end of the GMB polynomial
+        # TODO: generalize this to handle variable length GMB polynomials
+        gmb_polys[cell_id] = cells[cell_id].cell_state.variables['GLAC_MASS_BALANCE_INFO'][0:3]
 
     # 4. Translate mass balances using grid cell GMB polynomials and current
     # veg_parm_file into a 2D RGM mass balance grid (MBG)
@@ -401,8 +406,9 @@ def main():
     temp_vpf = temp_files_path + 'vpf_temp_' + start.isoformat() + '.txt'
     vegparams.save_veg_parms(cells, temp_vpf)
 
-    # 11 Calculate changes to HRU state variables and update in VIC state file
+    # 11 Calculate changes to HRU state variables and modify the VIC state file
       # don't forget to close the state file
+    state.close()
 
     # Get ready for the next loop
     global_parms.init_state = "{}_{}.txt".format(global_parms.statename,\
