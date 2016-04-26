@@ -242,8 +242,8 @@ def main():
     Band.glacier_root_zone_parms = glacier_root_zone_parms
     Band.open_ground_root_zone_parms = open_ground_root_zone_parms
 
-  # Create dictionary of cells by merging info gathered from Snow Band and
-  # Vegetation Parameter files and custom parameters
+  # Create Ordered dictionary of Cell objects by merging info gathered from
+  # Snow Band and Vegetation Parameter files and custom parameters
   cells = merge_cell_input(hru_cell_dict, elevation_cell_dict)
 
   # TODO: Do a sanity check to make sure band area fractions in Snow Band

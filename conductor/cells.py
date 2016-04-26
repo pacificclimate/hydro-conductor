@@ -17,6 +17,8 @@ class Cell(object):
     self.cell_state = CellState()
     self.bands = bands
 
+  def __eq__(self, other):
+    return (self.__class__ == other.__class__ and self.__dict__ == other.__dict__)
 
 class CellState(object):
   """Class capturing the set of VIC cell state and metadata variables that can
@@ -32,6 +34,9 @@ class CellState(object):
       'GLAC_MASS_BALANCE_INFO': [],
       'ENERGY_T_FBCOUNT': 0
     }
+
+  def __eq__(self, other):
+    return (self.__class__ == other.__class__ and self.__dict__ == other.__dict__)
 
 class Band(object):
   """Class capturing VIC cell parameters at the elevation band level
@@ -202,6 +207,8 @@ class HruState(object):
       'SNOW_SURF_TEMP_FBCOUNT': 0,
     }
     # TODO: fill in any remaining state variables from the "miscellaneous" list
+  def __eq__(self, other):
+    return (self.__class__ == other.__class__ and self.__dict__ == other.__dict__)
 
 def apply_custom_root_zone_parms(hru_cell_dict, glacier_root_zone_parms,\
   open_ground_root_zone_parms):
@@ -225,15 +232,10 @@ def merge_cell_input(hru_cell_dict, elevation_cell_dict):
   if missing_keys:
     raise Exception("One or more cell IDs were found in one input file,"
         "but not the other. IDs: {}".format(missing_keys))
-
-  print('elevation_cell_dict before deepcopy: {}'.format(elevation_cell_dict))
   # initialize new cell container
-  #cells = deepcopy(elevation_cell_dict)
   cells = OrderedDict()
   for cell_id in elevation_cell_dict:
     cells[cell_id] = Cell(deepcopy(elevation_cell_dict[cell_id]))
-    print('cells[{}].bands: {}'.format(cell_id, cells[cell_id].bands))
-  print('cells after deepcopy: {}'.format(cells))
   # FIXME: this is a little awkward
   for cell_id, hru_dict in hru_cell_dict.items():
     band_ids = { band_id for band_id, _ in hru_dict.keys() }
@@ -308,23 +310,23 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
     flat_dem = masked_dem[~masked_dem.mask]
 
     # Check if any pixels fall outside of valid range of bands
-    if len(np.where(flat_dem < cell[0].lower_bound)[0]) > 0:
+    if len(np.where(flat_dem < cell.bands[0].lower_bound)[0]) > 0:
       raise Exception(
         'One or more RGM output DEM pixels lies below the bounds of the lowest '\
         'defined elevation band (< {}m) as defined by the Snow Band Parameter File '\
         'for cell {}. You may need to add or shift the zero padding to accommodate this.'\
-        .format(cell[0].lower_bound, cell_id))
-    if len(np.where(flat_dem >= cell[-1].upper_bound)[0]) > 0:
+        .format(cell.bands[0].lower_bound, cell_id))
+    if len(np.where(flat_dem >= cell.bands[-1].upper_bound)[0]) > 0:
       raise Exception(
         'One or more RGM output DEM pixels lies above the bounds of the highest '\
         'defined elevation band (>= {}m) as defined by the Snow Band Parameter File '\
         'for cell {}. You may need to add or shift the zero padding to accommodate this.'\
-        .format(cell[-1].upper_bound, cell_id))
+        .format(cell.bands[-1].upper_bound, cell_id))
 
     # Identify the bounds of the band area and glacier area bins for this cell
     # and update the band median elevations 
     band_bin_bounds = []
-    for band in cell:
+    for band in cell.bands:
       band_bin_bounds.append(band.lower_bound)
       band_pixels = flat_dem[np.where((flat_dem >= band.lower_bound) &\
         (flat_dem < band.upper_bound))]
@@ -354,7 +356,7 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
     # Update all Band and HRU area fractions in this cell
 # TODO: reverse the order to iterate from top band downward, also making the one below it 
 # available for special water/energy redistribution cases
-    for band_id, band in enumerate(cell):
+    for band_id, band in enumerate(cell.bands):
       # Update total area fraction for this Band
       new_band_area_frac=band_areas[cell_id][band_id]/cell_areas[cell_id] 
       new_glacier_area_frac=glacier_areas[cell_id][band_id]/cell_areas[cell_id]

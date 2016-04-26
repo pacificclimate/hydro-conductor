@@ -86,13 +86,13 @@ class TestsSimpleUnit:
     def test_merge_cell_input(self):
       cells = merge_cell_input(hru_cells, elevation_cells)
       assert len(cells) == 6
-      assert len(cells['369560']) == 15
-      zs = [ band.median_elev for band in cells['368470'] ]
+      assert len(cells['369560'].bands) == 15
+      zs = [ band.median_elev for band in cells['368470'].bands ]
       assert zs == expected_zs
-      afs = { band.hrus[19].area_frac for band in cells['368470'] \
+      afs = { band.hrus[19].area_frac for band in cells['368470'].bands \
         if 19 in band.hrus }
       assert afs == expected_afs
-      assert cells['368470'][0].num_hrus == 2
+      assert cells['368470'].bands[0].num_hrus == 2
 
     test_band_simple(self)
     test_hru_simple(self)
@@ -119,48 +119,48 @@ class TestsSimpleUnit:
     assert len(cells) == len(cell_ids)
     # Test that the correct number of Bands was instantiated for each cell 
     # (including dummy bands)
-    assert len(cells[cell_ids[0]]) == num_snow_bands
-    assert len(cells[cell_ids[1]]) == num_snow_bands
+    assert len(cells[cell_ids[0]].bands) == num_snow_bands
+    assert len(cells[cell_ids[1]].bands) == num_snow_bands
     # Test that the number of HRUs in the valid bands are correct (including
     # dummy bands)
-    assert cells[cell_ids[0]][0].num_hrus == expected_num_hrus[cell_ids[0]][0]
-    assert cells[cell_ids[0]][1].num_hrus == expected_num_hrus[cell_ids[0]][1]
-    assert cells[cell_ids[0]][2].num_hrus == expected_num_hrus[cell_ids[0]][2]
-    assert cells[cell_ids[0]][3].num_hrus == expected_num_hrus[cell_ids[0]][3]
-    assert cells[cell_ids[0]][4].num_hrus == expected_num_hrus[cell_ids[0]][4]
+    assert cells[cell_ids[0]].bands[0].num_hrus == expected_num_hrus[cell_ids[0]][0]
+    assert cells[cell_ids[0]].bands[1].num_hrus == expected_num_hrus[cell_ids[0]][1]
+    assert cells[cell_ids[0]].bands[2].num_hrus == expected_num_hrus[cell_ids[0]][2]
+    assert cells[cell_ids[0]].bands[3].num_hrus == expected_num_hrus[cell_ids[0]][3]
+    assert cells[cell_ids[0]].bands[4].num_hrus == expected_num_hrus[cell_ids[0]][4]
 
-    assert cells[cell_ids[1]][0].num_hrus == expected_num_hrus[cell_ids[1]][0]
-    assert cells[cell_ids[1]][1].num_hrus == expected_num_hrus[cell_ids[1]][1]
-    assert cells[cell_ids[1]][2].num_hrus == expected_num_hrus[cell_ids[1]][2]
-    assert cells[cell_ids[1]][3].num_hrus == expected_num_hrus[cell_ids[1]][3]
-    assert cells[cell_ids[1]][4].num_hrus == expected_num_hrus[cell_ids[1]][4]
+    assert cells[cell_ids[1]].bands[0].num_hrus == expected_num_hrus[cell_ids[1]][0]
+    assert cells[cell_ids[1]].bands[1].num_hrus == expected_num_hrus[cell_ids[1]][1]
+    assert cells[cell_ids[1]].bands[2].num_hrus == expected_num_hrus[cell_ids[1]][2]
+    assert cells[cell_ids[1]].bands[3].num_hrus == expected_num_hrus[cell_ids[1]][3]
+    assert cells[cell_ids[1]].bands[4].num_hrus == expected_num_hrus[cell_ids[1]][4]
 
     # Test that area fractions and root zone parameters for each HRU in each 
     # band of one cell are correct
-    assert cells[cell_ids[0]][0].hrus[11].area_frac == test_area_fracs[cell_ids[0]][0]
-    assert cells[cell_ids[0]][0].hrus[19].area_frac == test_area_fracs[cell_ids[0]][1]
-    assert cells[cell_ids[0]][1].hrus[11].area_frac == test_area_fracs[cell_ids[0]][2]
-    assert cells[cell_ids[0]][1].hrus[19].area_frac == test_area_fracs[cell_ids[0]][3]
-    assert cells[cell_ids[0]][1].hrus[22].area_frac == test_area_fracs[cell_ids[0]][4]
-    assert cells[cell_ids[0]][2].hrus[19].area_frac == test_area_fracs[cell_ids[0]][5]
-    assert cells[cell_ids[0]][2].hrus[22].area_frac == test_area_fracs[cell_ids[0]][6]
-    assert cells[cell_ids[0]][3].hrus[19].area_frac == test_area_fracs[cell_ids[0]][7]
+    assert cells[cell_ids[0]].bands[0].hrus[11].area_frac == test_area_fracs[cell_ids[0]][0]
+    assert cells[cell_ids[0]].bands[0].hrus[19].area_frac == test_area_fracs[cell_ids[0]][1]
+    assert cells[cell_ids[0]].bands[1].hrus[11].area_frac == test_area_fracs[cell_ids[0]][2]
+    assert cells[cell_ids[0]].bands[1].hrus[19].area_frac == test_area_fracs[cell_ids[0]][3]
+    assert cells[cell_ids[0]].bands[1].hrus[22].area_frac == test_area_fracs[cell_ids[0]][4]
+    assert cells[cell_ids[0]].bands[2].hrus[19].area_frac == test_area_fracs[cell_ids[0]][5]
+    assert cells[cell_ids[0]].bands[2].hrus[22].area_frac == test_area_fracs[cell_ids[0]][6]
+    assert cells[cell_ids[0]].bands[3].hrus[19].area_frac == test_area_fracs[cell_ids[0]][7]
 
-    assert cells[cell_ids[0]][0].hrus[11].root_zone_parms == expected_root_zone_parms['11']
-    assert cells[cell_ids[0]][0].hrus[19].root_zone_parms == expected_root_zone_parms['19']
-    assert cells[cell_ids[0]][1].hrus[11].root_zone_parms == expected_root_zone_parms['11']
-    assert cells[cell_ids[0]][1].hrus[19].root_zone_parms == expected_root_zone_parms['19']
-    assert cells[cell_ids[0]][1].hrus[22].root_zone_parms == expected_root_zone_parms['22']
-    assert cells[cell_ids[0]][2].hrus[19].root_zone_parms == expected_root_zone_parms['19']
-    assert cells[cell_ids[0]][2].hrus[22].root_zone_parms == expected_root_zone_parms['22']
-    assert cells[cell_ids[0]][3].hrus[19].root_zone_parms == expected_root_zone_parms['19']
+    assert cells[cell_ids[0]].bands[0].hrus[11].root_zone_parms == expected_root_zone_parms['11']
+    assert cells[cell_ids[0]].bands[0].hrus[19].root_zone_parms == expected_root_zone_parms['19']
+    assert cells[cell_ids[0]].bands[1].hrus[11].root_zone_parms == expected_root_zone_parms['11']
+    assert cells[cell_ids[0]].bands[1].hrus[19].root_zone_parms == expected_root_zone_parms['19']
+    assert cells[cell_ids[0]].bands[1].hrus[22].root_zone_parms == expected_root_zone_parms['22']
+    assert cells[cell_ids[0]].bands[2].hrus[19].root_zone_parms == expected_root_zone_parms['19']
+    assert cells[cell_ids[0]].bands[2].hrus[22].root_zone_parms == expected_root_zone_parms['22']
+    assert cells[cell_ids[0]].bands[3].hrus[19].root_zone_parms == expected_root_zone_parms['19']
 
     for band_id in expected_band_ids[cell_ids[0]]:
       # Test that the number of HRUs reported for each Band in a cell is correct
-      assert cells[cell_ids[0]][band_id].num_hrus\
+      assert cells[cell_ids[0]].bands[band_id].num_hrus\
         == expected_num_hrus[cell_ids[0]][band_id]
       # Test that all HRU area fractions within a Band add up to original input
-      assert sum(hru.area_frac for hru in cells[cell_ids[0]][band_id].hrus.values())\
+      assert sum(hru.area_frac for hru in cells[cell_ids[0]].bands[band_id].hrus.values())\
         == sum(test_area_fracs_by_band[cell_ids[0]][str(band_id)])
 
 @pytest.mark.incremental
@@ -176,12 +176,12 @@ class TestsDynamic:
       """
       new_glacier_area_frac = 0.1875 # 12/64 pixels in toy problem domain, 12/12 pixels for Band 2
       # Glacier HRU area fraction change:
-      cells[cell_ids[0]][2].hrus[22].area_frac = new_glacier_area_frac
+      cells[cell_ids[0]].bands[2].hrus[22].area_frac = new_glacier_area_frac
       # open ground HRU is now gone:
       new_open_ground_area_frac = 0 # not used
-      cells[cell_ids[0]][2].delete_hru(OPEN_GROUND_ID)
+      cells[cell_ids[0]].bands[2].delete_hru(OPEN_GROUND_ID)
       # Check that there is only one HRU left in this band
-      assert cells[cell_ids[0]][2].num_hrus == 1
+      assert cells[cell_ids[0]].bands[2].num_hrus == 1
 
     def test_new_glacier_growth_into_band_and_replacing_all_open_ground(self):
       """test_cells_dynamic -- Test #2: Simulates glacier expansion to replace
@@ -191,15 +191,15 @@ class TestsDynamic:
       new_glacier_area_frac = 0.0625 
       # open ground HRU is now gone:
       new_open_ground_area_frac = 0
-      cells[cell_ids[0]][3].delete_hru(OPEN_GROUND_ID)
+      cells[cell_ids[0]].bands[3].delete_hru(OPEN_GROUND_ID)
       # Confirm that there are (temporarily) no HRUs in this band
-      assert cells[cell_ids[0]][3].num_hrus == 0
+      assert cells[cell_ids[0]].bands[3].num_hrus == 0
       # create new glacier HRU:
-      cells[cell_ids[0]][3].create_hru(GLACIER_ID, new_glacier_area_frac)
+      cells[cell_ids[0]].bands[3].create_hru(GLACIER_ID, new_glacier_area_frac)
       # Check that there is only the one glacier HRU in this band
-      assert cells[cell_ids[0]][3].num_hrus == 1
-      assert cells[cell_ids[0]][3].hrus[22].area_frac == new_glacier_area_frac
-      assert cells[cell_ids[0]][3].hrus[22].root_zone_parms\
+      assert cells[cell_ids[0]].bands[3].num_hrus == 1
+      assert cells[cell_ids[0]].bands[3].hrus[22].area_frac == new_glacier_area_frac
+      assert cells[cell_ids[0]].bands[3].hrus[22].root_zone_parms\
         == expected_root_zone_parms['22']
 
     def test_new_glacier_growth_into_upper_dummy_band(self):
@@ -209,24 +209,24 @@ class TestsDynamic:
       new_glacier_area_frac = 0.015625 # 1/64 pixels in domain. 1/1 in Band 4
       # For consistency over whole domain, adjust Band 3 to compensate
       # (this is normally taken care of by update of band_areas):
-      cells[cell_ids[0]][3].hrus[22].area_frac -= 0.015625
+      cells[cell_ids[0]].bands[3].hrus[22].area_frac -= 0.015625
       # (area_frac should now be 0.0625 - 0.015625 = 0.046875)
 
       # Confirm that there are currently no HRUs in the new band         
-      assert cells[cell_ids[0]][4].num_hrus == 0
+      assert cells[cell_ids[0]].bands[4].num_hrus == 0
       # Create the corresponding new glacier HRU
-      cells[cell_ids[0]][4].create_hru(GLACIER_ID, new_glacier_area_frac)
+      cells[cell_ids[0]].bands[4].create_hru(GLACIER_ID, new_glacier_area_frac)
       # Confirm that this new HRU was correctly instantiated
-      assert cells[cell_ids[0]][4].num_hrus == 1
-      assert cells[cell_ids[0]][4].hrus[22].area_frac == new_glacier_area_frac
-      assert cells[cell_ids[0]][4].hrus[22].root_zone_parms\
+      assert cells[cell_ids[0]].bands[4].num_hrus == 1
+      assert cells[cell_ids[0]].bands[4].hrus[22].area_frac == new_glacier_area_frac
+      assert cells[cell_ids[0]].bands[4].hrus[22].root_zone_parms\
         == expected_root_zone_parms['22']
       # Confirm this Band's total area_frac is equal to that of its one HRU, 
       # and related quantities
-      assert cells[cell_ids[0]][4].area_frac == new_glacier_area_frac
-      assert cells[cell_ids[0]][4].area_frac_glacier == new_glacier_area_frac
-      assert cells[cell_ids[0]][4].area_frac_non_glacier == 0
-      assert cells[cell_ids[0]][4].area_frac_open_ground == 0
+      assert cells[cell_ids[0]].bands[4].area_frac == new_glacier_area_frac
+      assert cells[cell_ids[0]].bands[4].area_frac_glacier == new_glacier_area_frac
+      assert cells[cell_ids[0]].bands[4].area_frac_non_glacier == 0
+      assert cells[cell_ids[0]].bands[4].area_frac_open_ground == 0
 
     test_existing_glacier_growth_within_band_replacing_all_open_ground(self)
     test_new_glacier_growth_into_band_and_replacing_all_open_ground(self)
@@ -294,13 +294,13 @@ class TestsAreaFracUpdate:
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
-      assert cells['12345'][2].num_hrus == 2
-      assert cells['12345'][2].area_frac == 0.1875
-      assert cells['12345'][2].area_frac_open_ground == 0.03125
-      assert cells['12345'][2].area_frac_glacier == 0.15625
+      assert cells['12345'].bands[2].num_hrus == 2
+      assert cells['12345'].bands[2].area_frac == 0.1875
+      assert cells['12345'].bands[2].area_frac_open_ground == 0.03125
+      assert cells['12345'].bands[2].area_frac_glacier == 0.15625
 
       # Total number of valid bands
-      assert len([band for band in cells['12345'] if band.num_hrus > 0]) == 4
+      assert len([band for band in cells['12345'].bands if band.num_hrus > 0]) == 4
 
     def test_glacier_growth_over_remaining_open_ground_in_band(self):
       """ Simulates Band 2 of cell '12345' losing all its remaining open ground. 
@@ -326,10 +326,10 @@ class TestsAreaFracUpdate:
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
-      assert cells['12345'][2].num_hrus == 1
-      assert cells['12345'][2].area_frac == 0.1875
-      assert cells['12345'][2].area_frac_open_ground == 0
-      assert cells['12345'][2].area_frac_glacier == 0.1875
+      assert cells['12345'].bands[2].num_hrus == 1
+      assert cells['12345'].bands[2].area_frac == 0.1875
+      assert cells['12345'].bands[2].area_frac_open_ground == 0
+      assert cells['12345'].bands[2].area_frac_glacier == 0.1875
 
     def test_glacier_growth_over_some_open_ground_and_vegetation_in_band(self):
       """ Simulates Band 1 of cell '12345' losing all its open ground and some 
@@ -359,11 +359,11 @@ class TestsAreaFracUpdate:
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
-      assert cells['12345'][1].num_hrus == 2
-      assert cells['12345'][1].area_frac == 0.3125
-      assert cells['12345'][1].area_frac_open_ground == 0
-      assert cells['12345'][1].area_frac_glacier == 0.265625
-      assert cells['12345'][1].hrus[11].area_frac == 0.046875
+      assert cells['12345'].bands[1].num_hrus == 2
+      assert cells['12345'].bands[1].area_frac == 0.3125
+      assert cells['12345'].bands[1].area_frac_open_ground == 0
+      assert cells['12345'].bands[1].area_frac_glacier == 0.265625
+      assert cells['12345'].bands[1].hrus[11].area_frac == 0.046875
 
     def test_glacier_growth_over_remaining_vegetation_in_band(self):
       """ Simulates Band 1 of cell '12345' losing its remaining vegetated
@@ -389,10 +389,10 @@ class TestsAreaFracUpdate:
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
-      assert cells['12345'][1].num_hrus == 1
-      assert cells['12345'][1].area_frac == 0.3125
-      assert cells['12345'][1].area_frac_open_ground == 0
-      assert cells['12345'][1].area_frac_glacier == 0.3125
+      assert cells['12345'].bands[1].num_hrus == 1
+      assert cells['12345'].bands[1].area_frac == 0.3125
+      assert cells['12345'].bands[1].area_frac_open_ground == 0
+      assert cells['12345'].bands[1].area_frac_glacier == 0.3125
 
     def test_glacier_growth_into_band_with_no_existing_glacier(self):
       """ Simulates Band 0 of cell '12345' acquiring a new glacier HRU.
@@ -416,11 +416,11 @@ class TestsAreaFracUpdate:
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
-      assert cells['12345'][0].num_hrus == 3
-      assert cells['12345'][0].area_frac == 0.4375
-      assert cells['12345'][0].area_frac_open_ground == 0.21875
-      assert cells['12345'][0].area_frac_glacier == 0.03125
-      assert cells['12345'][0].hrus[11].area_frac == 0.1875           
+      assert cells['12345'].bands[0].num_hrus == 3
+      assert cells['12345'].bands[0].area_frac == 0.4375
+      assert cells['12345'].bands[0].area_frac_open_ground == 0.21875
+      assert cells['12345'].bands[0].area_frac_glacier == 0.03125
+      assert cells['12345'].bands[0].hrus[11].area_frac == 0.1875           
 
     def test_glacier_receding_to_reveal_open_ground_in_band(self):
       """ Simulates Band 1 of cell '12345', which is completely covered in
@@ -445,10 +445,10 @@ class TestsAreaFracUpdate:
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
-      assert cells['12345'][1].num_hrus == 2
-      assert cells['12345'][1].area_frac == 0.3125
-      assert cells['12345'][1].area_frac_open_ground == 0.03125
-      assert cells['12345'][1].area_frac_glacier == 0.28125
+      assert cells['12345'].bands[1].num_hrus == 2
+      assert cells['12345'].bands[1].area_frac == 0.3125
+      assert cells['12345'].bands[1].area_frac_open_ground == 0.03125
+      assert cells['12345'].bands[1].area_frac_glacier == 0.28125
 
     def test_existing_glacier_shrink_revealing_new_lower_band(self):
       """ Simulates glacier recession out of the lowest existing band of cell
@@ -470,7 +470,7 @@ class TestsAreaFracUpdate:
         ]
       """
       # Total number of valid bands before
-      assert len([band for band in cells['23456'] if band.num_hrus > 0]) == 3
+      assert len([band for band in cells['23456'].bands if band.num_hrus > 0]) == 3
 
       surf_dem[dem_padding_thickness + 0][dem_padding_thickness + 8 + 2] = 1850
 
@@ -480,20 +480,20 @@ class TestsAreaFracUpdate:
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
-      assert cells['23456'][1].num_hrus == 3
-      assert cells['23456'][1].area_frac == 0.421875
-      assert cells['23456'][1].area_frac_open_ground == 0.15625
-      assert cells['23456'][1].area_frac_glacier == 0.015625
-      assert cells['23456'][1].hrus[11].area_frac == 0.25
+      assert cells['23456'].bands[1].num_hrus == 3
+      assert cells['23456'].bands[1].area_frac == 0.421875
+      assert cells['23456'].bands[1].area_frac_open_ground == 0.15625
+      assert cells['23456'].bands[1].area_frac_glacier == 0.015625
+      assert cells['23456'].bands[1].hrus[11].area_frac == 0.25
 
       # New lowest band
-      assert cells['23456'][0].num_hrus == 1
-      assert cells['23456'][0].area_frac == 0.015625
-      assert cells['23456'][0].area_frac_open_ground == 0.015625
-      assert cells['23456'][0].area_frac_glacier == 0
+      assert cells['23456'].bands[0].num_hrus == 1
+      assert cells['23456'].bands[0].area_frac == 0.015625
+      assert cells['23456'].bands[0].area_frac_open_ground == 0.015625
+      assert cells['23456'].bands[0].area_frac_glacier == 0
 
       # Total number of valid bands after
-      assert len([band for band in cells['23456'] if band.num_hrus > 0]) == 4
+      assert len([band for band in cells['23456'].bands if band.num_hrus > 0]) == 4
 
     def test_glacier_growth_into_new_lower_band(self):
       """ Simulates glacier growing back over the pixel of the new lowest band
@@ -511,7 +511,7 @@ class TestsAreaFracUpdate:
         ]
       """
       # Copy initial lowest band's area_frac, to use for re-initializing at end
-      initial_area_frac = cells['23456'][0].area_frac
+      initial_area_frac = cells['23456'].bands[0].area_frac
       surf_dem[dem_padding_thickness + 0][dem_padding_thickness + 8 + 2] = 1880
 
       glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,\
@@ -520,16 +520,16 @@ class TestsAreaFracUpdate:
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
-      assert cells['23456'][0].num_hrus == 1
-      assert cells['23456'][0].area_frac == 0.015625
-      assert cells['23456'][0].area_frac_open_ground == 0
-      assert cells['23456'][0].area_frac_glacier == 0.015625
+      assert cells['23456'].bands[0].num_hrus == 1
+      assert cells['23456'].bands[0].area_frac == 0.015625
+      assert cells['23456'].bands[0].area_frac_open_ground == 0
+      assert cells['23456'].bands[0].area_frac_glacier == 0.015625
 
       # Reinstate original elevation of changed pixel and remove created
       # glacier HRU for next test 
       surf_dem[dem_padding_thickness + 0][dem_padding_thickness + 8 + 2] = 1850
-      cells['23456'][0].delete_hru(22)
-      cells['23456'][0].create_hru(19, initial_area_frac)
+      cells['23456'].bands[0].delete_hru(22)
+      cells['23456'].bands[0].create_hru(19, initial_area_frac)
 
     def test_glacier_thickening_to_conceal_lowest_band_of_open_ground(self):
       """ Simulates the glacier growing over open ground areas lying in the
@@ -555,22 +555,22 @@ class TestsAreaFracUpdate:
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
-      assert cells['23456'][0].num_hrus == 0 # we delete open ground HRUs
-      assert cells['23456'][0].lower_bound == 1800
-      assert cells['23456'][0].median_elev == 1800
-      assert cells['23456'][0].area_frac == 0
-      assert cells['23456'][0].area_frac_open_ground == 0
-      assert cells['23456'][0].area_frac_glacier == 0
+      assert cells['23456'].bands[0].num_hrus == 0 # we delete open ground HRUs
+      assert cells['23456'].bands[0].lower_bound == 1800
+      assert cells['23456'].bands[0].median_elev == 1800
+      assert cells['23456'].bands[0].area_frac == 0
+      assert cells['23456'].bands[0].area_frac_open_ground == 0
+      assert cells['23456'].bands[0].area_frac_glacier == 0
 
-      assert cells['23456'][1].num_hrus == 3
-      assert cells['23456'][1].area_frac == 0.4375
-      assert cells['23456'][1].area_frac_open_ground == 0.15625 
-      assert cells['23456'][1].area_frac_glacier == 0.03125
-      assert cells['23456'][1].hrus[11].area_frac == 0.25
+      assert cells['23456'].bands[1].num_hrus == 3
+      assert cells['23456'].bands[1].area_frac == 0.4375
+      assert cells['23456'].bands[1].area_frac_open_ground == 0.15625 
+      assert cells['23456'].bands[1].area_frac_glacier == 0.03125
+      assert cells['23456'].bands[1].hrus[11].area_frac == 0.25
 
       # Total number of valid bands after (should not include the lowest one
       # now, because HRU was deleted)
-      assert len([band for band in cells['23456'] if band.num_hrus > 0]) == 3
+      assert len([band for band in cells['23456'].bands if band.num_hrus > 0]) == 3
 
       # Reinstate lowest band with single glaciated pixel at 1880m for the next test
       surf_dem[dem_padding_thickness + 0][dem_padding_thickness + 8 + 2] = 1880
@@ -603,13 +603,13 @@ class TestsAreaFracUpdate:
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
-      assert cells['23456'][4].num_hrus == 1
-      assert cells['23456'][4].area_frac == 0.03125
-      assert cells['23456'][4].area_frac_open_ground == 0
-      assert cells['23456'][4].area_frac_glacier == 0.03125
+      assert cells['23456'].bands[4].num_hrus == 1
+      assert cells['23456'].bands[4].area_frac == 0.03125
+      assert cells['23456'].bands[4].area_frac_open_ground == 0
+      assert cells['23456'].bands[4].area_frac_glacier == 0.03125
 
       # Total number of valid bands after
-      assert len([band for band in cells['23456'] if band.num_hrus > 0]) == 5
+      assert len([band for band in cells['23456'].bands if band.num_hrus > 0]) == 5
 
     def test_attempt_new_glacier_shrink_into_unavailable_lower_band(self):
       """ Simulates a (failing) attempt to grow the glacier into a new yet
@@ -707,114 +707,114 @@ the zero padding to accommodate this.' in str(message.value)
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
       # we never delete glacier HRUs, vis-a-vis VIC's shadow glaciers:
-      assert cells['23456'][0].num_hrus == 1
-      assert cells['23456'][0].lower_bound == 1800
-      assert cells['23456'][0].median_elev == 1800
-      assert cells['23456'][0].area_frac == 0
-      assert cells['23456'][0].area_frac_open_ground == 0
-      assert cells['23456'][0].area_frac_glacier == 0
+      assert cells['23456'].bands[0].num_hrus == 1
+      assert cells['23456'].bands[0].lower_bound == 1800
+      assert cells['23456'].bands[0].median_elev == 1800
+      assert cells['23456'].bands[0].area_frac == 0
+      assert cells['23456'].bands[0].area_frac_open_ground == 0
+      assert cells['23456'].bands[0].area_frac_glacier == 0
  
-      assert cells['23456'][1].num_hrus == 3
-      assert cells['23456'][1].area_frac == 0.4375
-      assert cells['23456'][1].area_frac_open_ground == 0.15625
-      assert cells['23456'][1].area_frac_glacier == 0.03125
-      assert cells['23456'][1].hrus[11].area_frac == 0.25
+      assert cells['23456'].bands[1].num_hrus == 3
+      assert cells['23456'].bands[1].area_frac == 0.4375
+      assert cells['23456'].bands[1].area_frac_open_ground == 0.15625
+      assert cells['23456'].bands[1].area_frac_glacier == 0.03125
+      assert cells['23456'].bands[1].hrus[11].area_frac == 0.25
 
       # Total number of valid bands after (should include the lowest one now,
       # because of the glacier HRU)
-      assert len([band for band in cells['23456'] if band.num_hrus > 0]) == 5
+      assert len([band for band in cells['23456'].bands if band.num_hrus > 0]) == 5
 
     def test_confirm_final_state(self):
       """ Final test to confirm that the final state of both grid cells is as
         expected after the sequence of operations performed upon them in the
         preceding tests.
       """
-      assert cells['12345'][0].num_hrus == 3
-      assert cells['12345'][0].lower_bound == 2000
-      assert cells['12345'][0].median_elev == \
+      assert cells['12345'].bands[0].num_hrus == 3
+      assert cells['12345'].bands[0].lower_bound == 2000
+      assert cells['12345'].bands[0].median_elev == \
         np.median([2065, 2055, 2045, 2035, 2025, 2015, 2005, 2030, 2040, 2010,\
           2015, 2020, 2015, 2010, 2000, 2080, 2075, 2065, 2055, 2045, 2035,\
           2020, 2075, 2085, 2090, 2070, 2090, 2090])
-      assert cells['12345'][0].area_frac == 28/64
-      assert cells['12345'][0].area_frac_open_ground == 14/64
-      assert cells['12345'][0].area_frac_glacier == 2/64
-      assert cells['12345'][0].hrus[11].area_frac == 12/64
+      assert cells['12345'].bands[0].area_frac == 28/64
+      assert cells['12345'].bands[0].area_frac_open_ground == 14/64
+      assert cells['12345'].bands[0].area_frac_glacier == 2/64
+      assert cells['12345'].bands[0].hrus[11].area_frac == 12/64
 
-      assert cells['12345'][1].num_hrus == 2
-      assert cells['12345'][1].lower_bound == 2100
-      assert cells['12345'][1].median_elev == \
+      assert cells['12345'].bands[1].num_hrus == 2
+      assert cells['12345'].bands[1].lower_bound == 2100
+      assert cells['12345'].bands[1].median_elev == \
         np.median([2100, 2120, 2140, 2130, 2120, 2120, 2130, 2145, 2150, 2140,\
           2150, 2100, 2105, 2140, 2160, 2160, 2110, 2120, 2120, 2115])
-      assert cells['12345'][1].area_frac == 20/64
-      assert cells['12345'][1].area_frac_open_ground == 2/64
-      assert cells['12345'][1].area_frac_glacier == 18/64
+      assert cells['12345'].bands[1].area_frac == 20/64
+      assert cells['12345'].bands[1].area_frac_open_ground == 2/64
+      assert cells['12345'].bands[1].area_frac_glacier == 18/64
 
-      assert cells['12345'][2].num_hrus == 1
-      assert cells['12345'][2].lower_bound == 2200
-      assert cells['12345'][2].median_elev == \
+      assert cells['12345'].bands[2].num_hrus == 1
+      assert cells['12345'].bands[2].lower_bound == 2200
+      assert cells['12345'].bands[2].median_elev == \
         np.median([2250, 2270, 2260, 2240, 2250, 2250, 2230, 2230, 2240, 2240,\
           2260, 2250])
-      assert cells['12345'][2].area_frac == 12/64
-      assert cells['12345'][2].area_frac_open_ground == 0/64
-      assert cells['12345'][2].area_frac_glacier == 12/64
+      assert cells['12345'].bands[2].area_frac == 12/64
+      assert cells['12345'].bands[2].area_frac_open_ground == 0/64
+      assert cells['12345'].bands[2].area_frac_glacier == 12/64
 
-      assert cells['12345'][3].num_hrus == 1
-      assert cells['12345'][3].lower_bound == 2300
-      assert cells['12345'][3].median_elev == np.median([2377, 2310, 2340, 2320])
-      assert cells['12345'][3].area_frac == 4/64
-      assert cells['12345'][3].area_frac_open_ground == 4/64
-      assert cells['12345'][3].area_frac_glacier == 0/64
+      assert cells['12345'].bands[3].num_hrus == 1
+      assert cells['12345'].bands[3].lower_bound == 2300
+      assert cells['12345'].bands[3].median_elev == np.median([2377, 2310, 2340, 2320])
+      assert cells['12345'].bands[3].area_frac == 4/64
+      assert cells['12345'].bands[3].area_frac_open_ground == 4/64
+      assert cells['12345'].bands[3].area_frac_glacier == 0/64
 
-      assert len([band for band in cells['12345'] if band.num_hrus > 0]) == 4
+      assert len([band for band in cells['12345'].bands if band.num_hrus > 0]) == 4
 
       # the shadow glacier HRU for the currently invalid lowest band:
-      assert cells['23456'][0].num_hrus == 1
-      assert cells['23456'][0].lower_bound == 1800
-      assert cells['23456'][0].median_elev == 1800
-      assert cells['23456'][0].area_frac == 0/64
-      assert cells['23456'][0].area_frac_open_ground == 0/64
-      assert cells['23456'][0].area_frac_glacier == 0/64
+      assert cells['23456'].bands[0].num_hrus == 1
+      assert cells['23456'].bands[0].lower_bound == 1800
+      assert cells['23456'].bands[0].median_elev == 1800
+      assert cells['23456'].bands[0].area_frac == 0/64
+      assert cells['23456'].bands[0].area_frac_open_ground == 0/64
+      assert cells['23456'].bands[0].area_frac_glacier == 0/64
 
-      assert cells['23456'][1].num_hrus == 3
-      assert cells['23456'][1].lower_bound == 1900
-      assert cells['23456'][1].median_elev == \
+      assert cells['23456'].bands[1].num_hrus == 3
+      assert cells['23456'].bands[1].lower_bound == 1900
+      assert cells['23456'].bands[1].median_elev == \
         np.median([1970, 1975, 1900, 1995, 1975, 1965, 1960, 1960, 1965, 1970,\
           1975, 1980, 1980, 1970, 1960, 1965, 1965, 1970, 1970, 1975, 1960,\
           1950, 1970, 1975, 1985, 1990, 1980, 1970])
-      assert cells['23456'][1].area_frac == 28/64
-      assert cells['23456'][1].area_frac_open_ground == 10/64
-      assert cells['23456'][1].area_frac_glacier == 2/64
-      assert cells['23456'][1].hrus[11].area_frac == 16/64
+      assert cells['23456'].bands[1].area_frac == 28/64
+      assert cells['23456'].bands[1].area_frac_open_ground == 10/64
+      assert cells['23456'].bands[1].area_frac_glacier == 2/64
+      assert cells['23456'].bands[1].hrus[11].area_frac == 16/64
 
-      assert cells['23456'][2].num_hrus == 3
-      assert cells['23456'][2].lower_bound == 2000
-      assert cells['23456'][2].median_elev == \
+      assert cells['23456'].bands[2].num_hrus == 3
+      assert cells['23456'].bands[2].lower_bound == 2000
+      assert cells['23456'].bands[2].median_elev == \
         np.median([2000, 2045, 2055, 2005, 2005, 2000, 2000, 2000, 2005, 2000,\
           2000, 2000, 2000, 2020, 2035, 2025, 2000, 2005, 2010, 2005])
-      assert cells['23456'][2].area_frac == 20/64
-      assert cells['23456'][2].area_frac_open_ground == 8/64
-      assert cells['23456'][2].area_frac_glacier == 2/64
-      assert cells['23456'][2].hrus[11].area_frac == 10/64
+      assert cells['23456'].bands[2].area_frac == 20/64
+      assert cells['23456'].bands[2].area_frac_open_ground == 8/64
+      assert cells['23456'].bands[2].area_frac_glacier == 2/64
+      assert cells['23456'].bands[2].hrus[11].area_frac == 10/64
 
-      assert cells['23456'][3].num_hrus == 2
-      assert cells['23456'][3].lower_bound == 2100
-      assert cells['23456'][3].median_elev == \
+      assert cells['23456'].bands[3].num_hrus == 2
+      assert cells['23456'].bands[3].lower_bound == 2100
+      assert cells['23456'].bands[3].median_elev == \
         np.median([2100, 2155, 2160, 2140, 2130, 2105, 2100, 2105, 2105, 2110,\
           2105, 2110, 2150, 2140])
-      assert cells['23456'][3].area_frac == 14/64
-      assert cells['23456'][3].area_frac_open_ground == 8/64
-      assert cells['23456'][3].area_frac_glacier == 6/64
+      assert cells['23456'].bands[3].area_frac == 14/64
+      assert cells['23456'].bands[3].area_frac_open_ground == 8/64
+      assert cells['23456'].bands[3].area_frac_glacier == 6/64
 
-      assert cells['23456'][4].num_hrus == 1
-      assert cells['23456'][4].lower_bound == 2200
-      assert cells['23456'][4].median_elev == np.median([2200, 2210])
-      assert cells['23456'][4].area_frac == 2/64
-      assert cells['23456'][4].area_frac_open_ground == 0/64
-      assert cells['23456'][4].area_frac_glacier == 2/64
+      assert cells['23456'].bands[4].num_hrus == 1
+      assert cells['23456'].bands[4].lower_bound == 2200
+      assert cells['23456'].bands[4].median_elev == np.median([2200, 2210])
+      assert cells['23456'].bands[4].area_frac == 2/64
+      assert cells['23456'].bands[4].area_frac_open_ground == 0/64
+      assert cells['23456'].bands[4].area_frac_glacier == 2/64
 
       # This should include all 4 current bands, plus the formerly existing lowest one that
       # now has a shadow glacier HRU 
-      assert len([band for band in cells['23456'] if band.num_hrus > 0]) == 5
+      assert len([band for band in cells['23456'].bands if band.num_hrus > 0]) == 5
 
     test_no_changes(self)
     test_glacier_growth_over_some_open_ground_in_band(self)
