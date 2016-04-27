@@ -191,7 +191,7 @@ class HruState(object):
       'GLAC_CUM_MASS_BALANCE': 0,
       # HRU state variables with dimensions (lat, lon, hru, Nnodes)
       'ENERGY_T': [],
-      'ENERGY_T_FBCOUNT': []
+      'ENERGY_T_FBCOUNT': [],
       # HRU state variables with dimensions (lat, lon, hru)
       'ENERGY_TFOLIAGE': 0,
       'GLAC_SURF_TEMP': 0,
@@ -205,8 +205,17 @@ class HruState(object):
       'ENERGY_TSURF_FBCOUNT': 0,
       'GLAC_SURF_TEMP_FBCOUNT': 0,
       'SNOW_SURF_TEMP_FBCOUNT': 0,
+      # remaining state variables from the "miscellaneous" list (lat, lon, hru)
+      'GLAC_QNET': 0,
+      'GLAC_SURF_TEMP_FBFLAG': 0,
+      'GLAC_VAPOR_FLUX': 0,
+      'SNOW_CANOPY_ALBEDO': 0,
+      'SNOW_SURFACE_FLUX': 0,
+      'SNOW_SURF_TEMP_FBFLAG': 0,
+      'SNOW_TMP_INT_STORAGE': 0,
+      'SNOW_VAPOR_FLUX': 0
     }
-    # TODO: fill in any remaining state variables from the "miscellaneous" list
+    
   def __eq__(self, other):
     return (self.__class__ == other.__class__ and self.__dict__ == other.__dict__)
 
