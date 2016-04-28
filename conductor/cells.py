@@ -9,6 +9,7 @@
 from collections import OrderedDict
 from copy import deepcopy
 import numpy as np
+import itertools
 
 class Cell(object):
   """Class capturing VIC cells
@@ -260,6 +261,12 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
   """Applies the updated RGM DEM and glacier mask and calculates and updates
     all HRU area fractions for all elevation bands within the VIC cells.
   """
+  def reverse_enumerate(iterable):
+    """
+    Enumerate over an iterable in reverse order while retaining proper indexes
+    """
+    return itertools.zip_longest(reversed(range(len(iterable))), reversed(iterable))
+
   # Create temporary band area and glacier area bins:
   # count of pixels; a proxy for area, within each band:
   band_areas = {}
@@ -327,10 +334,10 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
     # Update all Band and HRU area fractions in this cell
 # TODO: reverse the order to iterate from top band downward, also making the one below it 
 # available for special water/energy redistribution cases
-    for band_id, band in enumerate(cell.bands):
+    for band_id, band in reverse_enumerate(cell.bands):
       # Update total area fraction for this Band
-      new_band_area_frac=band_areas[cell_id][band_id]/cell_areas[cell_id] 
-      new_glacier_area_frac=glacier_areas[cell_id][band_id]/cell_areas[cell_id]
+      new_band_area_frac = band_areas[cell_id][band_id]/cell_areas[cell_id]
+      new_glacier_area_frac = glacier_areas[cell_id][band_id]/cell_areas[cell_id]
 
       # QUESTION: what to do if new_band_area_frac == 0? Skip the "if" statement below and delete all HRUs in this band?
       # This pertains to State update spec where BAND_DISAPPEARS == TRUE.  Also, a new_band_area_frac of 0 could lead to a negative new_non_glacier_area_frac
@@ -436,5 +443,8 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
                   new_band_area_frac)
           )
 
-def update_state(cells):
+def update_hru_state(hru, case):
+  """ Updates the set of state variables for a given HRU based on which of the
+    5 cases from the State Update Spec 3.0 is true.
+  """
   pass
