@@ -31,7 +31,7 @@ class CellState(object):
       'GRID_CELL':-1,
       'NUM_BANDS': 0,
       'VEG_TYPE_NUM': 0,
-      'GLAC_MASS_BALANCE_INFO': [],
+      'GLAC_MASS_BALANCE_EQN_TERMS': [],
     }
 
   def __eq__(self, other):
