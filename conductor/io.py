@@ -106,20 +106,13 @@ def read_state(state, cells):
     cell_hru_idx = 0
     # read all cell state variables with dimensions (lat, lon)
     # Maybe use as a sanity check against currently loaded cells?
-    cells[cell_id].cell_state.variables['SOIL_DZ_NODE'] = state['SOIL_DZ_NODE'][cell_lat_idx][cell_lon_idx]
-    cells[cell_id].cell_state.variables['SOIL_ZSUM_NODE'] = state['SOIL_ZSUM_NODE'][cell_lat_idx][cell_lon_idx]
-    cells[cell_id].cell_state.variables['GRID_CELL'] = state['GRID_CELL'][cell_lat_idx][cell_lon_idx]
-    cells[cell_id].cell_state.variables['NUM_BANDS'] = state['NUM_BANDS'][cell_lat_idx][cell_lon_idx]
-    cells[cell_id].cell_state.variables['VEG_TYPE_NUM'] = state['VEG_TYPE_NUM'][cell_lat_idx][cell_lon_idx]
-    cells[cell_id].cell_state.variables['GLAC_MASS_BALANCE_INFO'] = state['GLAC_MASS_BALANCE_INFO'][cell_lat_idx][cell_lon_idx]
-    # HRU program terms state variables with dimensions (lat, lon, nNodes)
-    cells[cell_id].cell_state.variables['ENERGY_T_FBCOUNT'] = state['ENERGY_T_FBCOUNT'][cell_lat_idx][cell_lon_idx]
+    for variable in cell.cell_state.variables:
+      cell.cell_state.variables[variable] = state[variable][cell_lat_idx][cell_lon_idx]
 
     for band in cell.bands:
       for hru_veg_type in band.hru_keys_sorted: # HRUs are sorted by ascending veg_type_num in VIC state file
         # read all HRU state variables with dimensions (lat, lon, hru)
         for variable in band.hrus[hru_veg_type].hru_state.variables:
-          print('reading state variable {}'.format(variable))
           band.hrus[hru_veg_type].hru_state.variables[variable] = state[variable][cell_lat_idx][cell_lon_idx][cell_hru_idx]
         cell_hru_idx += 1
     cell_idx += 1
