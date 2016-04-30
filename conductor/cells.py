@@ -342,9 +342,7 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
     for idx, count in enumerate(np.bincount(inds-1)):
       glacier_areas[cell_id][idx] = count
     
-    # Update all Band and HRU area fractions in this cell
-# TODO: reverse the order to iterate from top band downward, also making the one below it 
-# available for special water/energy redistribution cases
+    ### Band loop: Update all Band area fractions in this cell
     for band_id, band in reverse_enumerate(cell.bands):
       # Update total area fraction for this Band
       new_band_area_frac = band_areas[cell_id][band_id]/cell_areas[cell_id]
@@ -378,12 +376,13 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         if Band.glacier_id in band.hrus:
           band.hrus[Band.glacier_id].area_frac = new_glacier_area_frac
         elif new_glacier_area_frac > 0:
+          # CASE 1. HRU state defaults are automatically set upon HRU creation
           band.create_hru(Band.glacier_id, new_glacier_area_frac)
 
 # NOTE: what was this about?...
         # open_ground_hrus = ...
 
-        # Update area fractions for all HRUs in this Band  
+        ### HRU loop: Update area fractions for all HRUs in this Band 
         glacier_found = False
         open_ground_found = False
         hrus_to_be_deleted = []
@@ -393,31 +392,39 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
           if veg_type == Band.glacier_id:
             glacier_found = True
             band.hrus[veg_type].area_frac = new_glacier_area_frac
-            # If glacier area fraction was reduced to 0, we leave the "shadow
-            # glacier" HRU in place for VIC
             if new_glacier_area_frac == 0:
-#                           # TODO: State update CASE 4a: add state to open ground
-              pass
+              #CASE 4a: glacier HRU disappears - implies OPEN expanding.
+              #Add state to open ground but leave the "shadow glacier" 
+              #HRU in place for VIC (do not call delete_hru)
+              update_hru_state(hru, 4)
           elif veg_type == Band.open_ground_id:
             open_ground_found = True
-            # If open ground area fraction was reduced to 0, we delete the HRU
             if new_open_ground_area_frac == 0:
+              # OPEN ground area fraction was reduced to 0; delete the HRU
               hrus_to_be_deleted.append(veg_type)
-#                           # TODO: State update CASE 4b: add state to glacier
-              pass
+              # CASE 4b: non-glacier disappears - implies GLACIER expanding.
+              # Add state to GLACIER.
+              update_hru_state(hru, 4)
             else:
               band.hrus[veg_type].area_frac = new_open_ground_area_frac
-          else:
+          else: # applies to non-GLACIER, non-OPEN HRUs
             # Calculate change in HRU area fraction & update
             delta_area_hru = delta_area_vegetated * (band.hrus[veg_type].area_frac / veg_scaling_divisor)
             new_hru_area_frac = band.hrus[veg_type].area_frac + delta_area_hru
-            if new_hru_area_frac == 0: # HRU has disappeared, never to return (only open ground can come back in its place)
+            if new_hru_area_frac == 0:
+              # HRU has disappeared, never to return (only open ground can
+              # come back in its place)
               hrus_to_be_deleted.append(veg_type)
-#                           # TODO: State update CASE 4b: add state to glacier
-              pass
-
-            else:
+              # CASE 4b: non-glacier disappears - implies GLACIER expanding.
+              # Add state to GLACIER.
+              update_hru_state(hru, 4)
+            elif new_hru_area_frac > 0:
               band.hrus[veg_type].area_frac = new_hru_area_frac
+            else:
+              raise Exception(
+              'Error: cell {}, band {}: HRU {} has a negative area fraction ({})'
+              .format(cell_id, band_id, veg_type, new_hru_area_frac)
+              )
           if band.hrus[veg_type].area_frac != previous_hru_area_frac:
 #                       # TODO: State update CASE 3
             pass
@@ -491,4 +498,20 @@ def update_hru_state(hru, case):
   """ Updates the set of state variables for a given HRU based on which of the
     5 cases from the State Update Spec 3.0 is true.
   """
-  pass
+  if case == '1':
+    print('update_hru_state: case 1')
+  elif case == '2':
+    print('update_hru_state: case 2')
+  elif case == '3':
+    print('update_hru_state: case 3')
+  elif case == '4':
+    if hru.veg_type == Band.glacier_id:
+      print('update_hru_state: case 4a')
+    else:
+      print('update_hru_state: case 4b')
+  elif case == '5a':
+    print('update_hru_state: case 5a')
+  elif case == '5b':
+    print('update_hru_state: case 5b')
+  elif case == '5c':
+    print('update_hru_state: case 5c')

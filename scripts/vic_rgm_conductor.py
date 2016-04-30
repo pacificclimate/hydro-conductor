@@ -350,7 +350,7 @@ def main():
     print('opening VIC state file {}'.format(state_file))
     # leave the state file open for modification later
     state = h5py.File(state_file, 'r+')
-    # read/update states of all cells
+    # read new states of all cells
     read_state(state, cells)
     if output_trace_files: # keep a copy of the original state file from VIC
         shutil.copy(state_file, state_file + '_orig')
@@ -407,7 +407,8 @@ def main():
     vegparams.save_veg_parms(cells, temp_vpf)
 
     # 11 Calculate changes to HRU state variables and modify the VIC state file
-      # don't forget to close the state file
+    #update_state(cells)
+    #write_state(cells, state)
     state.close()
 
     # Get ready for the next loop
