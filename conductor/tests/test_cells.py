@@ -331,7 +331,7 @@ class TestsAreaFracUpdate:
       assert cells['12345'].bands[2].area_frac_open_ground == 0
       assert cells['12345'].bands[2].area_frac_glacier == 0.1875
 
-    def test_glacier_growth_over_some_open_ground_and_vegetation_in_band(self):
+    def test_glacier_growth_over_remaining_open_ground_and_some_vegetation_in_band(self):
       """ Simulates Band 1 of cell '12345' losing all its open ground and some 
         vegetated area to glacier growth.
         [
@@ -420,7 +420,7 @@ class TestsAreaFracUpdate:
       assert cells['12345'].bands[0].area_frac == 0.4375
       assert cells['12345'].bands[0].area_frac_open_ground == 0.21875
       assert cells['12345'].bands[0].area_frac_glacier == 0.03125
-      assert cells['12345'].bands[0].hrus[11].area_frac == 0.1875           
+      assert cells['12345'].bands[0].hrus[11].area_frac == 0.1875
 
     def test_glacier_receding_to_reveal_open_ground_in_band(self):
       """ Simulates Band 1 of cell '12345', which is completely covered in
@@ -819,7 +819,7 @@ the zero padding to accommodate this.' in str(message.value)
     test_no_changes(self)
     test_glacier_growth_over_some_open_ground_in_band(self)
     test_glacier_growth_over_remaining_open_ground_in_band(self)
-    test_glacier_growth_over_some_open_ground_and_vegetation_in_band(self)
+    test_glacier_growth_over_remaining_open_ground_and_some_vegetation_in_band(self)
     test_glacier_growth_over_remaining_vegetation_in_band(self)
     test_glacier_growth_into_band_with_no_existing_glacier(self)
     test_glacier_receding_to_reveal_open_ground_in_band(self)
