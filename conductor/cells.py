@@ -577,8 +577,7 @@ def update_hru_state(source_hru, dest_hru, case, new_area_fracs):
     print('update_hru_state: case 3')
     for var in source_hru.hru_state.variables:
       if var in spec_1_vars:
-        # dest_hru.hru_state.variables[var] = source_hru.hru_state.variables[var]
-        carry_over(dest_hru.hru_state.variables[var], source_hru.hru_state.variables[var])
+        carry_over(source_hru.hru_state.variables[var], dest_hru.hru_state.variables[var])
       elif var in spec_2_vars:
         dest_hru.hru_state.variables[var] = source_hru.hru_state.variables[var] * (source_hru.area_frac / new_area_fracs['new_hru_area_frac'])
       elif var in spec_3_vars: # SNOW_DENSITY
@@ -589,16 +588,16 @@ def update_hru_state(source_hru, dest_hru, case, new_area_fracs):
       elif var in spec_4_vars:
         dest_hru.hru_state.variables[var] = source_hru.hru_state.variables[var] * (source_hru.area_frac / new_area_fracs['new_hru_area_frac'])
       elif var in spec_5_vars:
-        carry_over(dest_hru.hru_state.variables[var], source_hru.hru_state.variables[var])
+        carry_over(source_hru.hru_state.variables[var], dest_hru.hru_state.variables[var])
       elif var in spec_6_vars: # SNOW_COLD_CONTENT
         dest_hru.hru_state.variables[var] = (dest_hru.hru_state.variables['SNOW_SURF_TEMP'] * (min(MAX_SURFACE_SWE, dest_hru.hru_state.variables['SNOW_SWQ'])) * CH_ICE)
       elif var in spec_7_vars:
-        carry_over(dest_hru.hru_state.variables[var], source_hru.hru_state.variables[var])
+        carry_over(source_hru.hru_state.variables[var], dest_hru.hru_state.variables[var])
       elif var in spec_8_vars:
         # is spec 8 really its own class of variables? ask Markus
         pass
       elif var in spec_9_vars:
-        carry_over(dest_hru.hru_state.variables[var], source_hru.hru_state.variables[var])
+        carry_over(source_hru.hru_state.variables[var], dest_hru.hru_state.variables[var])
   elif case == '4a':
     print('update_hru_state: case 4a')
   elif case == '4b':
