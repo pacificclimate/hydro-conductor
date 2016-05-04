@@ -126,27 +126,7 @@ class Band(object):
   def delete_hru(self, veg_type):
     """Deletes an HRU of veg_type within the Band
     """
-#   #TODO: 1) if this is a vegetated/open type, check and redistribute moisture to replacement glacier HRU
-#          2) if this is a glacier type, redistribute to open ground HRU if it exists in this band, 
-#             or put it into an HRU in the next lowest band
-    # if veg_type == Band.glacier_id:
-    #   try:
-    #     self.hrus[Band.open_ground_id]
-
-
-    # if we're already at the lowest band, raise an error
-
-    # if band.area_frac == 0:
-      #try:
-        #  if any HRUs within this band are left, if not push to the next lower band
-        # receive_water(band-1)
-      # except:
-        # 
-
     del self.hrus[veg_type]
-
-  def receive_water():
-    pass
 
   def __del__(self):
     """ delete Band """
@@ -177,56 +157,59 @@ class HydroResponseUnit(object):
   def __eq__(self, other):
     return (self.__class__==other.__class__ and self.__dict__==other.__dict__)
 
+  def __ne__(self, other):
+    return not self.__eq__(other)
+
 class HruState(object):
   """Class capturing the set of VIC HRU state variables.
   """
   def __init__(self):
     # variables is an OrderedDict because there is temporal dependence in the
     # state update among some of them when update_hru_state() is called
-    self.variables = OrderedDict({
+    self.variables = OrderedDict([
       # HRU state variables with dimensions (lat, lon, hru)
-      'HRU_BAND_INDEX': -1,
-      'HRU_VEG_INDEX': -1,
+      ('HRU_BAND_INDEX', -1),
+      ('HRU_VEG_INDEX', -1),
       # These two have dimensions (lat, lon, hru, dist, Nlayers)
-      'LAYER_ICE_CONTENT': [],
-      'LAYER_MOIST': [],
+      ('LAYER_ICE_CONTENT', []),
+      ('LAYER_MOIST', []),
       # HRU_VEG_VAR_WDEW has dimensions (lat, lon, hru, dist)
-      'HRU_VEG_VAR_WDEW' : [],
+      ('HRU_VEG_VAR_WDEW' , []),
       # HRU state variables with dimensions (lat, lon, hru)
-      'SNOW_SWQ': 0,
-      'SNOW_DEPTH': 0,
-      'SNOW_DENSITY': 0,
-      'SNOW_CANOPY': 0,
-      'SNOW_PACK_WATER': 0,
-      'SNOW_SURF_WATER': 0,
-      'GLAC_WATER_STORAGE': 0,
-      'GLAC_CUM_MASS_BALANCE': 0,
+      ('SNOW_SWQ', 0),
+      ('SNOW_DEPTH', 0),
+      ('SNOW_DENSITY', 0),
+      ('SNOW_CANOPY', 0),
+      ('SNOW_PACK_WATER', 0),
+      ('SNOW_SURF_WATER', 0),
+      ('GLAC_WATER_STORAGE', 0),
+      ('GLAC_CUM_MASS_BALANCE', 0),
       # HRU state variables with dimensions (lat, lon, hru, Nnodes)
-      'ENERGY_T': [],
-      'ENERGY_T_FBCOUNT': [],
+      ('ENERGY_T', []),
+      ('ENERGY_T_FBCOUNT', []),
       # HRU state variables with dimensions (lat, lon, hru)
-      'ENERGY_TFOLIAGE': 0,
-      'GLAC_SURF_TEMP': 0,
-      'SNOW_SURF_TEMP': 0,
-      'SNOW_COLD_CONTENT': 0,
-      'SNOW_PACK_TEMP': 0,
-      'SNOW_ALBEDO': 0,
-      'SNOW_LAST_SNOW': 0,
-      'SNOW_MELTING': 0,
-      'ENERGY_TFOLIAGE_FBCOUNT': 0,
-      'ENERGY_TCANOPY_FBCOUNT': 0,
-      'ENERGY_TSURF_FBCOUNT': 0,
-      'GLAC_SURF_TEMP_FBCOUNT': 0,
-      'SNOW_SURF_TEMP_FBCOUNT': 0,
+      ('ENERGY_TFOLIAGE', 0),
+      ('GLAC_SURF_TEMP', 0),
+      ('SNOW_SURF_TEMP', 0),
+      ('SNOW_COLD_CONTENT', 0),
+      ('SNOW_PACK_TEMP', 0),
+      ('SNOW_ALBEDO', 0),
+      ('SNOW_LAST_SNOW', 0),
+      ('SNOW_MELTING', 0),
+      ('ENERGY_TFOLIAGE_FBCOUNT', 0),
+      ('ENERGY_TCANOPY_FBCOUNT', 0),
+      ('ENERGY_TSURF_FBCOUNT', 0),
+      ('GLAC_SURF_TEMP_FBCOUNT', 0),
+      ('SNOW_SURF_TEMP_FBCOUNT', 0),
       # remaining state variables from the "miscellaneous" list (lat, lon, hru)
-      'GLAC_SURF_TEMP_FBFLAG': 0,
-      'GLAC_VAPOR_FLUX': 0,
-      'SNOW_CANOPY_ALBEDO': 0,
-      'SNOW_SURFACE_FLUX': 0,
-      'SNOW_SURF_TEMP_FBFLAG': 0,
-      'SNOW_TMP_INT_STORAGE': 0,
-      'SNOW_VAPOR_FLUX': 0
-    })
+      ('GLAC_SURF_TEMP_FBFLAG', 0),
+      ('GLAC_VAPOR_FLUX', 0),
+      ('SNOW_CANOPY_ALBEDO', 0),
+      ('SNOW_SURFACE_FLUX', 0),
+      ('SNOW_SURF_TEMP_FBFLAG', 0),
+      ('SNOW_TMP_INT_STORAGE', 0),
+      ('SNOW_VAPOR_FLUX', 0)
+    ])
     
   def __repr__(self):
     return '{} (\n  '.format(self.__class__.__name__) + ' \n  '\
@@ -235,6 +218,42 @@ class HruState(object):
 
   def __eq__(self, other):
     return (self.__class__ == other.__class__ and self.__dict__ == other.__dict__)
+
+  def __ne__(self, other):
+    return not self.__eq__(other)
+
+# Following are the state variables split into sets according to their update
+# method specification, as detailed in the VIC State Updating Spec 3.0.
+spec_1_vars = ['NUM_BANDS', 'SOIL_DZ_NODE', 'SOIL_ZSUM_NODE',\
+  'VEG_TYPE_NUM', 'HRU_BAND_INDEX', 'HRU_VEG_INDEX']
+
+spec_2_vars = ['LAYER_ICE_CONTENT', 'LAYER_MOIST',\
+  'HRU_VEG_VAR_WDEW', 'SNOW_CANOPY', 'SNOW_DEPTH',\
+  'SNOW_PACK_WATER', 'SNOW_SURF_WATER', 'SNOW_SWQ',\
+  'SNOW_PACK_TEMP', 'SNOW_SURF_TEMP']
+
+spec_3_vars = ['SNOW_DENSITY']
+
+spec_4_vars = ['GLAC_WATER_STORAGE']
+
+spec_5_vars = ['GLAC_CUM_MASS_BALANCE']
+
+spec_6_vars = ['SNOW_COLD_CONTENT']
+
+spec_7_vars = ['SNOW_ALBEDO']
+
+spec_8_vars = ['SNOW_LAST_SNOW', 'SNOW_MELTING']
+
+spec_9_vars = ['ENERGY_T', 'ENERGY_TFOLIAGE', 'GLAC_SURF_TEMP',\
+  'ENERGY_TCANOPY_FBCOUNT', 'ENERGY_TFOLIAGE_FBCOUNT','ENERGY_TSURF_FBCOUNT',\
+  'GLAC_SURF_TEMP_FBCOUNT', 'SNOW_SURF_TEMP_FBCOUNT',\
+  # miscellaneous vars:
+  'GLAC_SURF_TEMP_FBFLAG', 'GLAC_VAPOR_FLUX',\
+  'SNOW_CANOPY_ALBEDO', 'SNOW_SURFACE_FLUX', 'SNOW_SURF_TEMP_FBFLAG',\
+  'SNOW_TMP_INT_STORAGE', 'SNOW_VAPOR_FLUX']
+# NOTE: MAY STILL NEED TO ADD DEFERRED VARS TO SPEC_9_VARS
+
+spec_10_vars = ['SNOW_CANOPY', 'SNOW_SWQ', 'GLAC_WATER_STORAGE']
 
 def apply_custom_root_zone_parms(hru_cell_dict, glacier_root_zone_parms,\
   open_ground_root_zone_parms):
@@ -529,39 +548,6 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
                   new_non_glacier_area_frac, sum_test,
                   new_band_area_frac)
           )
-
-# Following are the state variables split into sets according to their update
-# method specification, as detailed in the VIC State Updating Spec 3.0.
-spec_1_vars = ['NUM_BANDS', 'SOIL_DZ_NODE', 'SOIL_ZSUM_NODE',\
-  'VEG_TYPE_NUM', 'HRU_BAND_INDEX', 'HRU_VEG_INDEX']
-
-spec_2_vars = ['LAYER_ICE_CONTENT', 'LAYER_MOIST',\
-  'HRU_VEG_VAR_WDEW', 'SNOW_CANOPY', 'SNOW_DEPTH',\
-  'SNOW_PACK_WATER', 'SNOW_SURF_WATER', 'SNOW_SWQ',\
-  'SNOW_PACK_TEMP', 'SNOW_SURF_TEMP']
-
-spec_3_vars = ['SNOW_DENSITY',]
-
-spec_4_vars = ['GLAC_WATER_STORAGE']
-
-spec_5_vars = ['GLAC_CUM_MASS_BALANCE']
-
-spec_6_vars = ['SNOW_COLD_CONTENT']
-
-spec_7_vars = ['SNOW_ALBEDO']
-
-spec_8_vars = ['SNOW_LAST_SNOW', 'SNOW_MELTING']
-
-spec_9_vars = ['ENERGY_T', 'ENERGY_TFOLIAGE', 'GLAC_SURF_TEMP',\
-  'ENERGY_TCANOPY_FBCOUNT', 'ENERGY_TFOLIAGE_FBCOUNT','ENERGY_TSURF_FBCOUNT',\
-  'GLAC_SURF_TEMP_FBCOUNT', 'SNOW_SURF_TEMP_FBCOUNT',\
-  # miscellaneous vars:
-  'GLAC_SURF_TEMP_FBFLAG', 'GLAC_VAPOR_FLUX',\
-  'SNOW_CANOPY_ALBEDO', 'SNOW_SURFACE_FLUX', 'SNOW_SURF_TEMP_FBFLAG',\
-  'SNOW_TMP_INT_STORAGE', 'SNOW_VAPOR_FLUX']
-# NOTE: MAY STILL NEED TO ADD DEFERRED VARS TO SPEC_9_VARS
-
-spec_10_vars = ['SNOW_CANOPY', 'SNOW_SWQ', 'GLAC_WATER_STORAGE']
 
 def update_hru_state(source_hru, dest_hru, case, new_area_fracs):
   """ Updates the set of state variables for a given HRU based on which of the
