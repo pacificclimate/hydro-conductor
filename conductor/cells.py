@@ -133,12 +133,12 @@ class Band(object):
     pass
 
   def __repr__(self):
-    return '{}({}, {})'.format(self.__class__.__name__, self.median_elev,
-                   repr(self.hrus))
+    return '{}({}, {} {})'.format(self.__class__.__name__, self.area_frac,\
+      self.median_elev, repr(self.hrus))
   def __str__(self):
-    return '{}(@{} meters with {} HRUs)'.format(self.__class__.__name__,
-                          self.median_elev,
-                          len(self.hrus))
+    return '{}({:.2f}% @{} meters with HRUs {})'.\
+      format(self.__class__.__name__, self.area_frac*100, self.median_elev,\
+      len(self.hrus))
 
 class HydroResponseUnit(object):
   """Class capturing vegetation parameters at the single vegetation
@@ -477,8 +477,8 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
             # but area fractions differ
             print('update_area_fracs: open ground area fraction has changed, but is still > 0')
             update_hru_state(band.hrus[Band.open_ground_id], band.hrus[Band.open_ground_id],'3', new_area_fracs)
-        if Band.open_ground_id in band.hrus and Band.open_ground_id not in hrus_to_be_deleted:
-          # update open ground HRU's area fraction
+        if Band.open_ground_id in band.hrus:
+          # update open ground HRU's area fraction.  HRU will get deleted later if this is 0
           band.hrus[Band.open_ground_id].area_frac = new_open_ground_area_frac
 
         print('update_area_fracs: bottom of band-level calcs, just before HRU loop. \
@@ -565,9 +565,6 @@ def update_hru_state(source_hru, dest_hru, case, new_area_fracs):
   """ Updates the set of state variables for a given HRU based on which of the
     5 cases from the State Update Spec 3.0 is true.
   """
-   # {'new_glacier_area_frac': new_glacier_area_frac,\
-   #            'new_open_ground_area_frac': new_glacier_area_frac,\
-   #            'new_hru_area_frac': new_glacier_area_frac})
   def carry_over(source, dest):
     dest = source
 
