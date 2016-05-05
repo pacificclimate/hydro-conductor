@@ -450,6 +450,34 @@ class TestsAreaFracUpdate:
       assert cells['12345'].bands[1].area_frac_open_ground == 0.03125
       assert cells['12345'].bands[1].area_frac_glacier == 0.28125
 
+    def test_glacier_receding_further_in_band(self):
+      """ Simulates Band 1 of cell '12345' ceding additional area to open ground
+        (2 pixels which were open and tree types at the very beginning)
+        [
+          [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+          [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+          [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+          [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+          [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+          [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+          [xxxx, xxxx, xxxx, 2110, 2140, xxxx, xxxx, xxxx],
+          [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx]
+        ]
+      """
+      surf_dem[dem_padding_thickness + 6][dem_padding_thickness + 3 :\
+        dem_padding_thickness + 5] = [2110, 2140]
+
+      glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,\
+        num_cols_dem)
+
+      update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
+        surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+
+      assert cells['12345'].bands[1].num_hrus == 2
+      assert cells['12345'].bands[1].area_frac == 0.3125
+      assert cells['12345'].bands[1].area_frac_open_ground == 0.0625
+      assert cells['12345'].bands[1].area_frac_glacier == 0.25
+
     def test_existing_glacier_shrink_revealing_new_lower_band(self):
       """ Simulates glacier recession out of the lowest existing band of cell
         '23456', to reveal a yet lower elevation band (consisting of one pixel).
@@ -778,10 +806,10 @@ the zero padding to accommodate this.' in str(message.value)
       assert cells['12345'].bands[1].lower_bound == 2100
       assert cells['12345'].bands[1].median_elev == \
         np.median([2100, 2120, 2140, 2130, 2120, 2120, 2130, 2145, 2150, 2140,\
-          2150, 2100, 2105, 2140, 2160, 2160, 2110, 2120, 2120, 2115])
+          2150, 2100, 2105, 2110, 2140, 2160, 2110, 2120, 2120, 2115])
       assert cells['12345'].bands[1].area_frac == 20/64
-      assert cells['12345'].bands[1].area_frac_open_ground == 2/64
-      assert cells['12345'].bands[1].area_frac_glacier == 18/64
+      assert cells['12345'].bands[1].area_frac_open_ground == 4/64
+      assert cells['12345'].bands[1].area_frac_glacier == 16/64
 
       assert cells['12345'].bands[2].num_hrus == 1
       assert cells['12345'].bands[2].lower_bound == 2200
@@ -858,6 +886,8 @@ the zero padding to accommodate this.' in str(message.value)
     test_glacier_growth_over_remaining_vegetation_in_band(self)
     test_glacier_growth_into_band_with_no_existing_glacier(self)
     test_glacier_receding_to_reveal_open_ground_in_band(self)
+    test_glacier_receding_further_in_band(self)
+
     test_existing_glacier_shrink_revealing_new_lower_band(self)
     test_glacier_growth_into_new_lower_band(self)
     test_glacier_thickening_to_conceal_lowest_band_of_open_ground(self)
