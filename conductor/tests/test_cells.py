@@ -724,6 +724,40 @@ the zero padding to accommodate this.' in str(message.value)
       # because of the glacier HRU)
       assert len([band for band in cells['23456'].bands if band.num_hrus > 0]) == 5
 
+    def test_glacier_receding_from_top_band_leaving_band_area_as_zero(self):
+      """ Simulates the glacier receding out of the highest band of cell
+        '23456' entirely, which consisted only of glacier HRUs, thus
+        leaving that band's area fraction as zero
+                    
+        [   [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+            [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+            [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+            [xxxx, xxxx, xxxx, 2150, 2170, xxxx, xxxx, xxxx],
+            [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+            [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+            [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+            [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx]    ]
+      """
+      surf_dem[dem_padding_thickness + 3][dem_padding_thickness + 8 + 3 : dem_padding_thickness + 8 + 5] = [2150, 2170]
+
+      glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem)
+
+      update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
+                surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+
+      assert cells['23456'].bands[4].num_hrus == 1 # shadow glacier HRU remains
+      assert cells['23456'].bands[4].area_frac == 0
+      assert cells['23456'].bands[4].area_frac_open_ground == 0
+      assert cells['23456'].bands[4].area_frac_glacier == 0
+
+      assert cells['23456'].bands[3].num_hrus == 2
+      assert cells['23456'].bands[3].area_frac == 0.25
+      assert cells['23456'].bands[3].area_frac_open_ground == 0.125
+      assert cells['23456'].bands[3].area_frac_glacier == 0.125
+
+      # Total number of valid bands after
+      assert len([band for band in cells['23456'].bands if band.num_hrus > 0]) == 5
+
     def test_confirm_final_state(self):
       """ Final test to confirm that the final state of both grid cells is as
         expected after the sequence of operations performed upon them in the
@@ -798,22 +832,23 @@ the zero padding to accommodate this.' in str(message.value)
 
       assert cells['23456'].bands[3].num_hrus == 2
       assert cells['23456'].bands[3].lower_bound == 2100
-      assert cells['23456'].bands[3].median_elev == \
-        np.median([2100, 2155, 2160, 2140, 2130, 2105, 2100, 2105, 2105, 2110,\
-          2105, 2110, 2150, 2140])
-      assert cells['23456'].bands[3].area_frac == 14/64
+      assert cells['23456'].bands[3].median_elev == np.median([2100, 2155, 2160, 2140,\
+                                                         2105, 2150, 2170, 2130,\
+                                                         2110, 2150, 2140, 2105,\
+                                                         2105, 2105, 2110, 2100])
+      assert cells['23456'].bands[3].area_frac == 16/64
       assert cells['23456'].bands[3].area_frac_open_ground == 8/64
-      assert cells['23456'].bands[3].area_frac_glacier == 6/64
+      assert cells['23456'].bands[3].area_frac_glacier == 8/64
 
-      assert cells['23456'].bands[4].num_hrus == 1
+      assert cells['23456'].bands[4].num_hrus == 1 # shadow glacier HRU
       assert cells['23456'].bands[4].lower_bound == 2200
-      assert cells['23456'].bands[4].median_elev == np.median([2200, 2210])
-      assert cells['23456'].bands[4].area_frac == 2/64
+      assert cells['23456'].bands[4].median_elev == 2200
+      assert cells['23456'].bands[4].area_frac == 0/64
       assert cells['23456'].bands[4].area_frac_open_ground == 0/64
-      assert cells['23456'].bands[4].area_frac_glacier == 2/64
+      assert cells['23456'].bands[4].area_frac_glacier == 0/64
 
-      # This should include all 4 current bands, plus the formerly existing lowest one that
-      # now has a shadow glacier HRU 
+      # This should include all bands, including the lowest and highest,
+      # now each consisting of a shadow glacier HRU
       assert len([band for band in cells['23456'].bands if band.num_hrus > 0]) == 5
 
     test_no_changes(self)
@@ -830,4 +865,5 @@ the zero padding to accommodate this.' in str(message.value)
     test_attempt_new_glacier_shrink_into_unavailable_lower_band(self)
     test_attempt_new_glacier_growth_into_unavailable_higher_band(self)
     test_glacier_thickening_to_conceal_lowest_band_of_glacier(self)
+    test_glacier_receding_from_top_band_leaving_band_area_as_zero(self)
     test_confirm_final_state(self)
