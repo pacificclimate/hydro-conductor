@@ -258,9 +258,12 @@ class TestsAreaFracUpdate:
       assert cells == cells_orig
 
     def test_glacier_growth_over_some_open_ground_in_band(self):
-      """ Simulates Band 2 of cell '12345' losing some of its open ground area
-        to glacier growth.
+      """ Simulates Band 2 of cell '12345' losing some of its open ground
+        area to glacier growth.
         
+        Should trigger state update CASE 3 (for glacier HRU expansion)
+        as per State Update Spec 3.0
+
         Initial surf_dem for cell '12345':
         [
           [2065, 2055, 2045, 2035, 2025, 2015, 2005, 2000],
@@ -305,6 +308,9 @@ class TestsAreaFracUpdate:
     def test_glacier_growth_over_remaining_open_ground_in_band(self):
       """ Simulates Band 2 of cell '12345' losing all its remaining open ground. 
 
+        This should trigger state update CASE 3 (glacier expansion) and
+        CASE 4b (loss of remaining open ground in band)
+
         Changed elevations due to glacier growth (incremental from last test):
         [
           [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
@@ -334,6 +340,11 @@ class TestsAreaFracUpdate:
     def test_glacier_growth_over_remaining_open_ground_and_some_vegetation_in_band(self):
       """ Simulates Band 1 of cell '12345' losing all its open ground and some 
         vegetated area to glacier growth.
+
+        This should trigger state update CASE 3 (glacier expansion) and
+        CASE 4b (loss of remaining open ground in band) and CASE 3 again
+        (loss of some vegetation)
+
         [
           [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
           [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, 2120, xxxx],
@@ -368,6 +379,10 @@ class TestsAreaFracUpdate:
     def test_glacier_growth_over_remaining_vegetation_in_band(self):
       """ Simulates Band 1 of cell '12345' losing its remaining vegetated
         HRU to glacier growth.
+
+        This should trigger state update CASE 3 (glacier expansion) and
+        CASE 4b (loss of remaining vegetation in band)
+
         [
           [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
           [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
@@ -396,6 +411,10 @@ class TestsAreaFracUpdate:
 
     def test_glacier_growth_into_band_with_no_existing_glacier(self):
       """ Simulates Band 0 of cell '12345' acquiring a new glacier HRU.
+
+        This should trigger state update CASE 1 (trivial - a new
+        glacier HRU is created) and CASE 3 (loss of some open ground)
+
         [
           [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, 2030],
           [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, 2040],
@@ -425,6 +444,10 @@ class TestsAreaFracUpdate:
     def test_glacier_receding_to_reveal_open_ground_in_band(self):
       """ Simulates Band 1 of cell '12345', which is completely covered in
         glacier, ceding some area to open ground.
+
+        This should trigger state update CASE 3 (glacier expansion)
+        and CASE 1 (trivial - a new open ground HRU is created)
+
         [
           [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
           [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
@@ -451,8 +474,12 @@ class TestsAreaFracUpdate:
       assert cells['12345'].bands[1].area_frac_glacier == 0.28125
 
     def test_glacier_receding_further_in_band(self):
-      """ Simulates Band 1 of cell '12345' ceding additional area to open ground
-        (2 pixels which were open and tree types at the very beginning)
+      """ Simulates Band 1 of cell '12345' ceding additional area to open
+        ground (2 pixels which were open and tree types at the very beginning)
+
+        This should trigger state update CASE 3 (glacier shrink) and
+        CASE 3 again (open ground expansion)
+
         [
           [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
           [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
@@ -481,11 +508,15 @@ class TestsAreaFracUpdate:
     def test_existing_glacier_shrink_revealing_new_lower_band(self):
       """ Simulates glacier recession out of the lowest existing band of cell
         '23456', to reveal a yet lower elevation band (consisting of one pixel).
-      
-      Available bands as per snow band parameter file:
-      '12345': [2000, 2100, 2200, 2300, 0] # allows for glacier growth at top
-      '23456': [0, 1900, 2000, 2100, 0] # allows for glacier growth at top,
-      and revelation of lower band at bottom
+
+        Available bands as per snow band parameter file:
+        '12345': [2000, 2100, 2200, 2300, 0] # allows for glacier growth at top
+        '23456': [0, 1900, 2000, 2100, 0] # allows for glacier growth at top,
+        and revelation of lower band at bottom
+
+        This should trigger state update CASE 3 (glacier shrink) and
+        CASE 1 (trivial - open ground HRU creation at newly revealed band)
+
         [
           [xxxx, xxxx, 1850, xxxx, xxxx, xxxx, xxxx, xxxx],
           [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
@@ -527,6 +558,11 @@ class TestsAreaFracUpdate:
       """ Simulates glacier growing back over the pixel of the new lowest band
         in cell '23456' (from the previous test), but at a lesser thickness
         such that the pixel is still within Band 0.
+
+        This should trigger state update CASE 1 (trivial - glacier creation
+        at lowest band) and CASE 4b (loss of all open ground HRU at lowest
+        band)
+
         [
           [xxxx, xxxx, 1880, xxxx, xxxx, xxxx, xxxx, xxxx],
           [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
@@ -564,6 +600,10 @@ class TestsAreaFracUpdate:
         new lowest band of cell '23456' so thick that the pixels elevations
         in that area no longer belong to that band (i.e. all HRUs in the band
         must be deleted).
+
+        This should trigger state update CASE 4a (glacier disappears from
+        lowest band), and CASE 3 (glacier growth in band 1)
+
         [
           [xxxx, xxxx, 1905, xxxx, xxxx, xxxx, xxxx, xxxx],
           [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
@@ -575,6 +615,7 @@ class TestsAreaFracUpdate:
           [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx]
         ]
       """
+      pytest.set_trace()
       surf_dem[dem_padding_thickness + 0][dem_padding_thickness + 8 + 2] = 1905
 
       glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,\
