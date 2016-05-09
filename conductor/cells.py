@@ -409,15 +409,15 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         }
         if new_glacier_area_frac == 0 and band.area_frac_glacier > 0:
           print('update_area_fracs: glacier HRU area fraction has shrunk to 0. Leave as shadow HRU.')
-          # CASE 4a: glacier HRU "disappears"; Implies open ground expanding.
-          # Add state to open ground if the band still exists, but leave the
-          # "shadow glacier" HRU in place for VIC (i.e. do not call delete_hru)
           if new_band_area_frac != 0:
+            # CASE 4a: glacier HRU "disappears"; Implies open ground expanding.
+            # Add state to open ground if the band still exists, but leave the
+            # "shadow glacier" HRU in place for VIC (i.e. do not call delete_hru)
             update_hru_state(band.hrus[Band.glacier_id], band.hrus[Band.open_ground_id], '4a', new_area_fracs)
           else:
             print('update_area_fracs: both glacier HRU and band have disappeared')
             # CASE 5: both the glacier HRU and the band have disappeared
-            try:
+            if (band_id - 1) >= 0: # ensure that a lower band exists (and avoid list index rollover)
               if Band.glacier_id in cell.bands[band_id - 1].hrus:
                 # CASE 5a: If there's a glacier in the next lower band,
                 # add state to glacier HRU in that band
@@ -431,10 +431,11 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
                 # vegetation type index in the next lower band
                 max_veg_type = max(cell.bands[band_id - 1].hrus.keys())
                 update_hru_state(band.hrus[Band.glacier_id], cell.bands[band_id - 1].hrus[max_veg_type], '5c', new_area_fracs)
-            except IndexError:
-              # CASE 5d: no lower band exists. State update CASE 3 applies.
+            else:
+              # CASE 5d: no lower band exists. Transfer state to glacier HRU in band above
               print('update_area_fracs: no lower band at index {} exists to distribute state into'.format(band_id - 1))
-              update_hru_state(band.hrus[Band.glacier_id], band.hrus[Band.glacier_id], '3', new_area_fracs)
+              update_hru_state(band.hrus[Band.glacier_id], cell.bands[band_id + 1].hrus[Band.glacier_id], '5d', new_area_fracs)
+              # TODO: what if there is no glacier in band above?
         elif new_glacier_area_frac > 0:
           if band.area_frac_glacier == 0:
             # CASE 1: A new glacier HRU has appeared; add a glacier HRU.
@@ -466,29 +467,27 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
           # not thicker than band_size and thus occupying the band above)
           if new_band_area_frac != 0:
             update_hru_state(band.hrus[Band.open_ground_id], band.hrus[Band.glacier_id], '4b', new_area_fracs)
-          # band has disappeared, but the water etc. must go somewhere. 
-        elif new_band_area_frac == 0:
-          # CASE 5: both the HRU and Band disappear
-          # If there's a glacier in the next lower band, CASE 5a:
-          try:
-            if Band.glacier_id in cell.bands[band_id - 1].hrus: # UNTESTED
-              # CASE 5a: If there's a glacier in the next lower band,
-              # add state to glacier HRU in that band
-              update_hru_state(band.hrus[Band.open_ground_id], cell.bands[band_id - 1].hrus[Band.glacier_id], '5a', new_area_fracs)
-            elif Band.open_ground_id in cell.bands[band_id - 1].hrus: # UNTESTED
-              # CASE 5b: If there's open ground in the next lower band,
-              # add state to open ground HRU in that band
-              update_hru_state(band.hrus[Band.open_ground_id], cell.bands[band_id - 1].hrus[Band.open_ground_id], '5b', new_area_fracs)
-            else: # UNTESTED
-              # CASE 5c: add state to the vegetated HRU with the greatest
-              # vegetation type index in the next lower band
-              max_veg_type = max(cell.bands[band_id - 1].hrus.keys())
-              update_hru_state(band.hrus[Band.open_ground_id], cell.bands[band_id - 1].hrus[max_veg_type], '5c', new_area_fracs)
-          except IndexError: # UNTESTED
-            # CASE 5d: no lower band exists. Send to glacier HRU in band above
-            print('update_area_fracs: no lower band at index {} exists to distribute state into'.format(band_id - 1))
-            update_hru_state(band.hrus[Band.open_ground_id], cell.bands[band_id + 1].hrus[Band.glacier_id], '5d', new_area_fracs)
-
+          else:
+            # CASE 5: both the HRU and Band disappear
+            if (band_id - 1) >= 0: # ensure that a lower band exists (and avoid list index rollover)
+              if Band.glacier_id in cell.bands[band_id - 1].hrus:
+                # CASE 5a: If there's a glacier in the next lower band,
+                # add state to glacier HRU in that band
+                update_hru_state(band.hrus[Band.open_ground_id], cell.bands[band_id - 1].hrus[Band.glacier_id], '5a', new_area_fracs)
+              elif Band.open_ground_id in cell.bands[band_id - 1].hrus:
+                # CASE 5b: If there's open ground in the next lower band,
+                # add state to open ground HRU in that band
+                update_hru_state(band.hrus[Band.open_ground_id], cell.bands[band_id - 1].hrus[Band.open_ground_id], '5b', new_area_fracs)
+              else:
+                # CASE 5c: add state to the vegetated HRU with the greatest
+                # vegetation type index in the next lower band
+                max_veg_type = max(cell.bands[band_id - 1].hrus.keys())
+                update_hru_state(band.hrus[Band.open_ground_id], cell.bands[band_id - 1].hrus[max_veg_type], '5c', new_area_fracs)
+            else:
+              # CASE 5d: no lower band exists. Transfer state to glacier HRU in band above
+              print('update_area_fracs: no lower band at index {} exists to distribute state into'.format(band_id - 1))
+              update_hru_state(band.hrus[Band.open_ground_id], cell.bands[band_id + 1].hrus[Band.glacier_id], '5d', new_area_fracs)
+              # TODO: what if there is no glacier in band above?
         elif new_open_ground_area_frac > 0:
           if band.area_frac_open_ground == 0: # previous area fraction was 0
             # CASE 1: New open ground was exposed in this band
@@ -538,8 +537,7 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
               hrus_to_be_deleted.append(veg_type)
             elif new_band_area_frac == 0:
               # CASE 5: both the HRU and Band disappear
-              # If there's a glacier in the next lower band, CASE 5a:
-              try:
+              if (band_id - 1) >= 0: # ensure that a lower band exists (and avoid list index rollover)
                 if Band.glacier_id in cell.bands[band_id - 1].hrus:
                   # CASE 5a: If there's a glacier in the next lower band,
                   # add state to glacier HRU in that band
@@ -553,10 +551,11 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
                   # vegetation type index in the next lower band
                   max_veg_type = max(cell.bands[band_id - 1].hrus.keys())
                   update_hru_state(hru, cell.bands[band_id - 1].hrus[max_veg_type], '5c', new_area_fracs)
-              except IndexError: # UNTESTED
-                # CASE 5d: no lower band exists. Send to glacier HRU in band above
+              else: # UNTESTED
+                # CASE 5d: no lower band exists. Transfer state to glacier HRU in band above
                 print('update_area_fracs: no lower band at index {} exists to distribute state into'.format(band_id - 1))
                 update_hru_state(hru, cell.bands[band_id + 1].hrus[Band.glacier_id], '5d', new_area_fracs)
+                # TODO: what if there is no glacier in band above?
             elif new_hru_area_frac < 0:
               raise Exception(
               'Error: cell {}, band {}: HRU {} has a negative area fraction ({})'
@@ -637,3 +636,5 @@ def update_hru_state(source_hru, dest_hru, case, new_area_fracs):
     print('update_hru_state: case 5b')
   elif case == '5c':
     print('update_hru_state: case 5c')
+  elif case == '5d':
+    print('update_hru_state: case 5d')
