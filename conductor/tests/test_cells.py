@@ -7,6 +7,7 @@ from pkg_resources import resource_filename
 from copy import deepcopy
 
 import pytest
+import mock
 
 from conductor.cells import *
 from conductor.io import update_glacier_mask
@@ -232,6 +233,12 @@ class TestsDynamic:
     test_new_glacier_growth_into_band_and_replacing_all_open_ground(self)
     test_new_glacier_growth_into_upper_dummy_band(self)
 
+def mock_update_hru_state(source_hru, dest_hru, case, new_area_fracs):
+  """ Mock function for cells.update_hru_state(), just returns the
+    state update case that was given in the case input parameter.
+  """
+  return case
+
 @pytest.mark.incremental
 class TestsAreaFracUpdate:
   def test_update_area_fracs(self, toy_domain_64px_cells,\
@@ -257,12 +264,13 @@ class TestsAreaFracUpdate:
 
       assert cells == cells_orig
 
-    def test_glacier_growth_over_some_open_ground_in_band(self):
+    @mock.patch('conductor.cells.update_hru_state', side_effect=mock_update_hru_state)
+    def test_glacier_growth_over_some_open_ground_in_band(self, mock_update_hru_state_fcn):
       """ Simulates Band 2 of cell '12345' losing some of its open ground
         area to glacier growth.
         
-        Should trigger state update CASE 3 (for glacier HRU expansion)
-        as per State Update Spec 3.0
+        Should trigger state update CASE 3 (glacier HRU expansion)
+        and CASE 3 again (open ground HRU shrinkage).
 
         Initial surf_dem for cell '12345':
         [
@@ -297,19 +305,26 @@ class TestsAreaFracUpdate:
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
+      # Confirm that update_hru_state() was called for CASE 3 twice
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
+      assert args[2] == '3'
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[1]
+      assert args[2] == '3'
+
       assert cells['12345'].bands[2].num_hrus == 2
-      assert cells['12345'].bands[2].area_frac == 0.1875
-      assert cells['12345'].bands[2].area_frac_open_ground == 0.03125
-      assert cells['12345'].bands[2].area_frac_glacier == 0.15625
+      assert cells['12345'].bands[2].area_frac == 12/64
+      assert cells['12345'].bands[2].area_frac_open_ground == 2/64
+      assert cells['12345'].bands[2].area_frac_glacier == 10/64
 
       # Total number of valid bands
       assert len([band for band in cells['12345'].bands if band.num_hrus > 0]) == 4
 
-    def test_glacier_growth_over_remaining_open_ground_in_band(self):
+    @mock.patch('conductor.cells.update_hru_state', side_effect=mock_update_hru_state)
+    def test_glacier_growth_over_remaining_open_ground_in_band(self, mock_update_hru_state_fcn):
       """ Simulates Band 2 of cell '12345' losing all its remaining open ground. 
 
         This should trigger state update CASE 3 (glacier expansion) and
-        CASE 4b (loss of remaining open ground in band)
+        CASE 4b (loss of remaining open ground in band).
 
         Changed elevations due to glacier growth (incremental from last test):
         [
@@ -332,18 +347,25 @@ class TestsAreaFracUpdate:
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
-      assert cells['12345'].bands[2].num_hrus == 1
-      assert cells['12345'].bands[2].area_frac == 0.1875
-      assert cells['12345'].bands[2].area_frac_open_ground == 0
-      assert cells['12345'].bands[2].area_frac_glacier == 0.1875
+      # Confirm that update_hru_state() was called for CASE 3 and CASE 4b
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
+      assert args[2] == '3'
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[1]
+      assert args[2] == '4b'
 
-    def test_glacier_growth_over_remaining_open_ground_and_some_vegetation_in_band(self):
+      assert cells['12345'].bands[2].num_hrus == 1
+      assert cells['12345'].bands[2].area_frac == 12/64
+      assert cells['12345'].bands[2].area_frac_open_ground == 0
+      assert cells['12345'].bands[2].area_frac_glacier == 12/64
+
+    @mock.patch('conductor.cells.update_hru_state', side_effect=mock_update_hru_state)
+    def test_glacier_growth_over_remaining_open_ground_and_some_vegetation_in_band(self, mock_update_hru_state_fcn):
       """ Simulates Band 1 of cell '12345' losing all its open ground and some 
         vegetated area to glacier growth.
 
         This should trigger state update CASE 3 (glacier expansion) and
         CASE 4b (loss of remaining open ground in band) and CASE 3 again
-        (loss of some vegetation)
+        (loss of some vegetation).
 
         [
           [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
@@ -370,18 +392,27 @@ class TestsAreaFracUpdate:
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
-      assert cells['12345'].bands[1].num_hrus == 2
-      assert cells['12345'].bands[1].area_frac == 0.3125
-      assert cells['12345'].bands[1].area_frac_open_ground == 0
-      assert cells['12345'].bands[1].area_frac_glacier == 0.265625
-      assert cells['12345'].bands[1].hrus[11].area_frac == 0.046875
+      # Confirm that update_hru_state() was called for CASE 3, 4b, and 3
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
+      assert args[2] == '3'
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[1]
+      assert args[2] == '4b'
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[2]
+      assert args[2] == '3'
 
-    def test_glacier_growth_over_remaining_vegetation_in_band(self):
+      assert cells['12345'].bands[1].num_hrus == 2
+      assert cells['12345'].bands[1].area_frac == 20/64
+      assert cells['12345'].bands[1].area_frac_open_ground == 0
+      assert cells['12345'].bands[1].area_frac_glacier == 17/64
+      assert cells['12345'].bands[1].hrus[11].area_frac == 3/64
+
+    @mock.patch('conductor.cells.update_hru_state', side_effect=mock_update_hru_state)
+    def test_glacier_growth_over_remaining_vegetation_in_band(self, mock_update_hru_state_fcn):
       """ Simulates Band 1 of cell '12345' losing its remaining vegetated
         HRU to glacier growth.
 
         This should trigger state update CASE 3 (glacier expansion) and
-        CASE 4b (loss of remaining vegetation in band)
+        CASE 4b (loss of remaining vegetation in band).
 
         [
           [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
@@ -404,16 +435,24 @@ class TestsAreaFracUpdate:
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
-      assert cells['12345'].bands[1].num_hrus == 1
-      assert cells['12345'].bands[1].area_frac == 0.3125
-      assert cells['12345'].bands[1].area_frac_open_ground == 0
-      assert cells['12345'].bands[1].area_frac_glacier == 0.3125
+      # Confirm that update_hru_state() was called for CASE 3 and 4b
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
+      assert args[2] == '3'
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[1]
+      assert args[2] == '4b'
 
-    def test_glacier_growth_into_band_with_no_existing_glacier(self):
+      assert cells['12345'].bands[1].num_hrus == 1
+      assert cells['12345'].bands[1].area_frac == 20/64
+      assert cells['12345'].bands[1].area_frac_open_ground == 0
+      assert cells['12345'].bands[1].area_frac_glacier == 20/64
+
+    @mock.patch('conductor.cells.update_hru_state', side_effect=mock_update_hru_state)
+    def test_glacier_growth_into_band_with_no_existing_glacier(self, mock_update_hru_state_fcn):
       """ Simulates Band 0 of cell '12345' acquiring a new glacier HRU.
 
-        This should trigger state update CASE 1 (trivial - a new
-        glacier HRU is created) and CASE 3 (loss of some open ground)
+        This should trigger state update CASE 1 (trivial - a new open
+        ground HRU is created but update_hru_state is not called) and
+        CASE 3 (loss of some open ground).
 
         [
           [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, 2030],
@@ -435,18 +474,24 @@ class TestsAreaFracUpdate:
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
-      assert cells['12345'].bands[0].num_hrus == 3
-      assert cells['12345'].bands[0].area_frac == 0.4375
-      assert cells['12345'].bands[0].area_frac_open_ground == 0.21875
-      assert cells['12345'].bands[0].area_frac_glacier == 0.03125
-      assert cells['12345'].bands[0].hrus[11].area_frac == 0.1875
+      # Confirm that update_hru_state() was called for CASE 3
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
+      assert args[2] == '3'
 
-    def test_glacier_receding_to_reveal_open_ground_in_band(self):
+      assert cells['12345'].bands[0].num_hrus == 3
+      assert cells['12345'].bands[0].area_frac == 28/64
+      assert cells['12345'].bands[0].area_frac_open_ground == 14/64
+      assert cells['12345'].bands[0].area_frac_glacier == 2/64
+      assert cells['12345'].bands[0].hrus[11].area_frac == 12/64
+
+    @mock.patch('conductor.cells.update_hru_state', side_effect=mock_update_hru_state)
+    def test_glacier_receding_to_reveal_open_ground_in_band(self, mock_update_hru_state_fcn):
       """ Simulates Band 1 of cell '12345', which is completely covered in
         glacier, ceding some area to open ground.
 
         This should trigger state update CASE 3 (glacier expansion)
-        and CASE 1 (trivial - a new open ground HRU is created)
+        and CASE 1 (trivial - a new open ground HRU is created but
+        update_hru_state is not called).
 
         [
           [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
@@ -468,17 +513,22 @@ class TestsAreaFracUpdate:
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
-      assert cells['12345'].bands[1].num_hrus == 2
-      assert cells['12345'].bands[1].area_frac == 0.3125
-      assert cells['12345'].bands[1].area_frac_open_ground == 0.03125
-      assert cells['12345'].bands[1].area_frac_glacier == 0.28125
+      # Confirm that update_hru_state() was called for CASE 3
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
+      assert args[2] == '3'
 
-    def test_glacier_receding_further_in_band(self):
+      assert cells['12345'].bands[1].num_hrus == 2
+      assert cells['12345'].bands[1].area_frac == 20/64
+      assert cells['12345'].bands[1].area_frac_open_ground == 2/64
+      assert cells['12345'].bands[1].area_frac_glacier == 18/64
+
+    @mock.patch('conductor.cells.update_hru_state', side_effect=mock_update_hru_state)
+    def test_glacier_receding_further_in_band(self, mock_update_hru_state_fcn):
       """ Simulates Band 1 of cell '12345' ceding additional area to open
         ground (2 pixels which were open and tree types at the very beginning)
 
         This should trigger state update CASE 3 (glacier shrink) and
-        CASE 3 again (open ground expansion)
+        CASE 3 again (open ground expansion).
 
         [
           [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
@@ -500,12 +550,19 @@ class TestsAreaFracUpdate:
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
-      assert cells['12345'].bands[1].num_hrus == 2
-      assert cells['12345'].bands[1].area_frac == 0.3125
-      assert cells['12345'].bands[1].area_frac_open_ground == 0.0625
-      assert cells['12345'].bands[1].area_frac_glacier == 0.25
+      # Confirm that update_hru_state() was called for CASE 3 twice
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
+      assert args[2] == '3'
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[1]
+      assert args[2] == '3'
 
-    def test_existing_glacier_shrink_revealing_new_lower_band(self):
+      assert cells['12345'].bands[1].num_hrus == 2
+      assert cells['12345'].bands[1].area_frac == 20/64
+      assert cells['12345'].bands[1].area_frac_open_ground == 4/64
+      assert cells['12345'].bands[1].area_frac_glacier == 16/64
+
+    @mock.patch('conductor.cells.update_hru_state', side_effect=mock_update_hru_state)
+    def test_existing_glacier_shrink_revealing_new_lower_band(self, mock_update_hru_state_fcn):
       """ Simulates glacier recession out of the lowest existing band of cell
         '23456', to reveal a yet lower elevation band (consisting of one pixel).
 
@@ -515,7 +572,7 @@ class TestsAreaFracUpdate:
         and revelation of lower band at bottom
 
         This should trigger state update CASE 3 (glacier shrink) and
-        CASE 1 (trivial - open ground HRU creation at newly revealed band)
+        CASE 1 (trivial - open ground HRU creation at newly revealed band).
 
         [
           [xxxx, xxxx, 1850, xxxx, xxxx, xxxx, xxxx, xxxx],
@@ -539,29 +596,34 @@ class TestsAreaFracUpdate:
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
+      # Confirm that update_hru_state() was called for CASE 3
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
+      assert args[2] == '3'
+
       assert cells['23456'].bands[1].num_hrus == 3
-      assert cells['23456'].bands[1].area_frac == 0.421875
-      assert cells['23456'].bands[1].area_frac_open_ground == 0.15625
-      assert cells['23456'].bands[1].area_frac_glacier == 0.015625
-      assert cells['23456'].bands[1].hrus[11].area_frac == 0.25
+      assert cells['23456'].bands[1].area_frac == 27/64
+      assert cells['23456'].bands[1].area_frac_open_ground == 10/64
+      assert cells['23456'].bands[1].area_frac_glacier == 1/64
+      assert cells['23456'].bands[1].hrus[11].area_frac == 16/64
 
       # New lowest band
       assert cells['23456'].bands[0].num_hrus == 1
-      assert cells['23456'].bands[0].area_frac == 0.015625
-      assert cells['23456'].bands[0].area_frac_open_ground == 0.015625
+      assert cells['23456'].bands[0].area_frac == 1/64
+      assert cells['23456'].bands[0].area_frac_open_ground == 1/64
       assert cells['23456'].bands[0].area_frac_glacier == 0
 
       # Total number of valid bands after
       assert len([band for band in cells['23456'].bands if band.num_hrus > 0]) == 4
 
-    def test_glacier_growth_into_new_lower_band(self):
+    @mock.patch('conductor.cells.update_hru_state', side_effect=mock_update_hru_state)
+    def test_glacier_growth_into_new_lower_band(self, mock_update_hru_state_fcn):
       """ Simulates glacier growing back over the pixel of the new lowest band
         in cell '23456' (from the previous test), but at a lesser thickness
         such that the pixel is still within Band 0.
 
         This should trigger state update CASE 1 (trivial - glacier creation
-        at lowest band) and CASE 4b (loss of all open ground HRU at lowest
-        band)
+        at the lowest band) and CASE 4b (loss of all open ground HRU at the
+        lowest band).
 
         [
           [xxxx, xxxx, 1880, xxxx, xxxx, xxxx, xxxx, xxxx],
@@ -584,25 +646,31 @@ class TestsAreaFracUpdate:
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
+      # Confirm that update_hru_state() was called for CASE 4b
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
+      assert args[2] == '4b'
+
       assert cells['23456'].bands[0].num_hrus == 1
-      assert cells['23456'].bands[0].area_frac == 0.015625
+      assert cells['23456'].bands[0].area_frac == 1/64
       assert cells['23456'].bands[0].area_frac_open_ground == 0
-      assert cells['23456'].bands[0].area_frac_glacier == 0.015625
+      assert cells['23456'].bands[0].area_frac_glacier == 1/64
 
       # Reinstate original elevation of changed pixel and remove created
-      # glacier HRU for next test 
+      # glacier HRU for next incremental test 
       surf_dem[dem_padding_thickness + 0][dem_padding_thickness + 8 + 2] = 1850
       cells['23456'].bands[0].delete_hru(22)
       cells['23456'].bands[0].create_hru(19, initial_area_frac)
 
-    def test_glacier_thickening_to_conceal_lowest_band_of_open_ground(self):
+    @mock.patch('conductor.cells.update_hru_state', side_effect=mock_update_hru_state)
+    def test_glacier_thickening_to_conceal_lowest_band_of_open_ground(self, mock_update_hru_state_fcn):
       """ Simulates the glacier growing over open ground areas lying in the
         new lowest band of cell '23456' so thick that the pixels elevations
         in that area no longer belong to that band (i.e. all HRUs in the band
         must be deleted).
 
-        This should trigger state update CASE 4a (glacier disappears from
-        lowest band), and CASE 3 (glacier growth in band 1)
+        This should trigger state update CASE 3 (glacier in band 1 expanding)
+        and CASE 5d (where both the glacier and band area fractions in Band 0
+        become zero, and there is no lower band to transfer state to).
 
         [
           [xxxx, xxxx, 1905, xxxx, xxxx, xxxx, xxxx, xxxx],
@@ -615,7 +683,6 @@ class TestsAreaFracUpdate:
           [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx]
         ]
       """
-      pytest.set_trace()
       surf_dem[dem_padding_thickness + 0][dem_padding_thickness + 8 + 2] = 1905
 
       glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,\
@@ -623,6 +690,12 @@ class TestsAreaFracUpdate:
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+
+      # Confirm that update_hru_state() was called for CASE 3 and 5d
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
+      assert args[2] == '3'
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[1]
+      assert args[2] == '5d'
 
       assert cells['23456'].bands[0].num_hrus == 0 # we delete open ground HRUs
       assert cells['23456'].bands[0].lower_bound == 1800
@@ -632,10 +705,10 @@ class TestsAreaFracUpdate:
       assert cells['23456'].bands[0].area_frac_glacier == 0
 
       assert cells['23456'].bands[1].num_hrus == 3
-      assert cells['23456'].bands[1].area_frac == 0.4375
-      assert cells['23456'].bands[1].area_frac_open_ground == 0.15625 
-      assert cells['23456'].bands[1].area_frac_glacier == 0.03125
-      assert cells['23456'].bands[1].hrus[11].area_frac == 0.25
+      assert cells['23456'].bands[1].area_frac == 28/64
+      assert cells['23456'].bands[1].area_frac_open_ground == 10/64
+      assert cells['23456'].bands[1].area_frac_glacier == 2/64
+      assert cells['23456'].bands[1].hrus[11].area_frac == 16/64
 
       # Total number of valid bands after (should not include the lowest one
       # now, because HRU was deleted)
@@ -648,10 +721,16 @@ class TestsAreaFracUpdate:
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
-    def test_glacier_growth_into_new_higher_band(self):
+    @mock.patch('conductor.cells.update_hru_state', side_effect=mock_update_hru_state)
+    def test_glacier_growth_into_new_higher_band(self, mock_update_hru_state_fcn):
       """ Simulates glacier growing in thickness from the highest existing
         valid band in cell '23456' into a new higher Band 4 (for which there
         is a 0 pad in the snow band file to accommodate it). 
+
+        This should trigger state update CASE 3 (glacier in Band 3 shrinking)
+        and CASE 1 (trivial - no call to update_hru_state) where a new glacier
+        HRU is created in Band 4.
+
         [
           [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
           [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
@@ -672,10 +751,19 @@ class TestsAreaFracUpdate:
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
+      # Confirm that update_hru_state() was called for CASE 3
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
+      assert args[2] == '3'
+
+      assert cells['23456'].bands[3].num_hrus == 2
+      assert cells['23456'].bands[3].area_frac == 14/64
+      assert cells['23456'].bands[3].area_frac_open_ground == 8/64
+      assert cells['23456'].bands[3].area_frac_glacier == 6/64
+
       assert cells['23456'].bands[4].num_hrus == 1
-      assert cells['23456'].bands[4].area_frac == 0.03125
+      assert cells['23456'].bands[4].area_frac == 2/64
       assert cells['23456'].bands[4].area_frac_open_ground == 0
-      assert cells['23456'].bands[4].area_frac_glacier == 0.03125
+      assert cells['23456'].bands[4].area_frac_glacier == 2/64
 
       # Total number of valid bands after
       assert len([band for band in cells['23456'].bands if band.num_hrus > 0]) == 5
@@ -752,11 +840,17 @@ the zero padding to accommodate this.' in str(message.value)
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
-    def test_glacier_thickening_to_conceal_lowest_band_of_glacier(self):
+    @mock.patch('conductor.cells.update_hru_state', side_effect=mock_update_hru_state)
+    def test_glacier_thickening_to_conceal_lowest_band_of_glacier(self, mock_update_hru_state_fcn):
       """ Simulates the glacier thickening over areas lying in the lowest
         band of cell '23456' so much that the pixels elevations in that area
         no longer belong to that band (i.e. all HRUs in the band must be
         deleted, except glacier which is set to zero area fraction).
+
+        This should trigger state update CASE 3 (glacier in Band 1 expanding)
+        and CASE 5d (where both the glacier and band area fractions in Band 0
+        become zero, and there is no lower band to transfer state to).
+
         [
           [xxxx, xxxx, 1900, xxxx, xxxx, xxxx, xxxx, xxxx],
           [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
@@ -775,6 +869,13 @@ the zero padding to accommodate this.' in str(message.value)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+
+      # Confirm that update_hru_state() was called for CASE 3 and 5d
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
+      assert args[2] == '3'
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[1]
+      assert args[2] == '5d'
+
       # we never delete glacier HRUs, vis-a-vis VIC's shadow glaciers:
       assert cells['23456'].bands[0].num_hrus == 1
       assert cells['23456'].bands[0].lower_bound == 1800
@@ -784,28 +885,35 @@ the zero padding to accommodate this.' in str(message.value)
       assert cells['23456'].bands[0].area_frac_glacier == 0
  
       assert cells['23456'].bands[1].num_hrus == 3
-      assert cells['23456'].bands[1].area_frac == 0.4375
-      assert cells['23456'].bands[1].area_frac_open_ground == 0.15625
-      assert cells['23456'].bands[1].area_frac_glacier == 0.03125
-      assert cells['23456'].bands[1].hrus[11].area_frac == 0.25
+      assert cells['23456'].bands[1].area_frac == 28/64
+      assert cells['23456'].bands[1].area_frac_open_ground == 10/64
+      assert cells['23456'].bands[1].area_frac_glacier == 2/64
+      assert cells['23456'].bands[1].hrus[11].area_frac == 16/64
 
       # Total number of valid bands after (should include the lowest one now,
       # because of the glacier HRU)
       assert len([band for band in cells['23456'].bands if band.num_hrus > 0]) == 5
 
-    def test_glacier_receding_from_top_band_leaving_band_area_as_zero(self):
+    @mock.patch('conductor.cells.update_hru_state', side_effect=mock_update_hru_state)
+    def test_glacier_receding_from_top_band_leaving_band_area_as_zero(self, mock_update_hru_state_fcn):
       """ Simulates the glacier receding out of the highest band of cell
         '23456' entirely, which consisted only of glacier HRUs, thus
-        leaving that band's area fraction as zero
-                    
-        [   [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
-            [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
-            [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
-            [xxxx, xxxx, xxxx, 2150, 2170, xxxx, xxxx, xxxx],
-            [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
-            [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
-            [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
-            [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx]    ]
+        leaving that band's area fraction as zero.
+
+        This should trigger state update CASE 5a (glacier in Band 4
+        disappears and state is transferred to glacier in Band 3)
+        and CASE 3 (glacier in Band 3 expands).
+
+        [
+          [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+          [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+          [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+          [xxxx, xxxx, xxxx, 2150, 2170, xxxx, xxxx, xxxx],
+          [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+          [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+          [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+          [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx]
+        ]
       """
       surf_dem[dem_padding_thickness + 3][dem_padding_thickness + 8 + 3 : dem_padding_thickness + 8 + 5] = [2150, 2170]
 
@@ -814,15 +922,21 @@ the zero padding to accommodate this.' in str(message.value)
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
                 surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
+      # Confirm that update_hru_state() was called for CASE 5a and 3
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
+      assert args[2] == '5a'
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[1]
+      assert args[2] == '3'
+
       assert cells['23456'].bands[4].num_hrus == 1 # shadow glacier HRU remains
       assert cells['23456'].bands[4].area_frac == 0
       assert cells['23456'].bands[4].area_frac_open_ground == 0
       assert cells['23456'].bands[4].area_frac_glacier == 0
 
       assert cells['23456'].bands[3].num_hrus == 2
-      assert cells['23456'].bands[3].area_frac == 0.25
-      assert cells['23456'].bands[3].area_frac_open_ground == 0.125
-      assert cells['23456'].bands[3].area_frac_glacier == 0.125
+      assert cells['23456'].bands[3].area_frac == 16/64
+      assert cells['23456'].bands[3].area_frac_open_ground == 8/64
+      assert cells['23456'].bands[3].area_frac_glacier == 8/64
 
       # Total number of valid bands after
       assert len([band for band in cells['23456'].bands if band.num_hrus > 0]) == 5
