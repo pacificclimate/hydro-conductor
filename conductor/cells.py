@@ -295,6 +295,9 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
   surf_dem, num_rows_dem, num_cols_dem, glacier_mask):
   """Applies the updated RGM DEM and glacier mask and calculates and updates
     all HRU area fractions for all elevation bands within the VIC cells.
+    Determines the HRU state update case based upon changes in HRU area
+    fractions since the last time step, as per Algorithm Specification --
+    VIC State Updating (Version 3.0.0), and calls update_hru_state().
   """
   def reverse_enumerate(iterable):
     """
@@ -367,17 +370,17 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
     for idx, count in enumerate(np.bincount(inds-1)):
       glacier_areas[cell_id][idx] = count
     
-    ### Band loop: Update all Band area fractions in this cell
+    ### Band loop: Update all Band area fractions for this cell
     for band_id, band in reverse_enumerate(cell.bands):
       hrus_to_be_deleted = []
       # Update total area fraction for this Band
       new_band_area_frac = band_areas[cell_id][band_id]/cell_areas[cell_id]
       new_glacier_area_frac = glacier_areas[cell_id][band_id]/cell_areas[cell_id]
 
-       # We need to update all area fractions if either of these two cases is True:
-      # 1. If the glacier HRU area fraction has changed for this band, or
-      # 2. If the band's total area fraction has changed (i.e. a new band has
-      # been revealed on the low end)
+      # We need to update all area fractions and update state if either of
+      # the following conditions is True:
+      # 1. the glacier HRU area fraction has changed for this band, or
+      # 2. the band's total area fraction has changed
       if (new_glacier_area_frac != band.area_frac_glacier)\
         or (new_band_area_frac != band.area_frac):
         # Calculate new non-glacier area fraction for this band
@@ -396,7 +399,16 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         delta_area_vegetated = np.min([0, (band.area_frac_open_ground\
           + new_residual_area_frac)])
 
-        # Update glacier and open ground states first
+        # HRU area fractions from the previous time step are held in the
+        # Band / HRU members of a given Cell instance
+        # (e.g. band.area_frac_glacier or band.hrus[veg_type].area_frac)
+        # and are compared against their newly calculated values for the
+        # current time step (e.g. new_glacier_area_frac) to determine whether
+        # HRUs should be added/deleted, and which state update case should
+        # be carried out by update_hru_state().
+        # The algorithm requires that we update glacier and open ground HRU
+        # states first, followed by all remaining HRU vegetation types.
+
         # Glacier update:
         new_area_fracs = {
           'new_glacier_area_frac': new_glacier_area_frac,\
@@ -412,9 +424,9 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
           else:
             # CASE 5: both the glacier HRU and the band have disappeared
             if (band_id - 1) >= 0: # ensure that a lower band exists (and avoid list index rollover)
-              if Band.glacier_id in cell.bands[band_id - 1].hrus:
-                # CASE 5a: If there's a glacier in the next lower band,
-                # add state to glacier HRU in that band
+              if cell.bands[band_id - 1].area_frac_glacier > 0:
+                # CASE 5a: If there's a glacier HRU (with non-zero area fraction, i.e. not a shadow glacier)
+                # in the next lower band, add state to the glacier HRU in that band
                 update_hru_state(band.hrus[Band.glacier_id], cell.bands[band_id - 1].hrus[Band.glacier_id], '5a', new_area_fracs)
               elif Band.open_ground_id in cell.bands[band_id - 1].hrus:
                 # CASE 5b: If there's open ground in the next lower band,
@@ -461,9 +473,9 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
           else:
             # CASE 5: both the HRU and Band disappear
             if (band_id - 1) >= 0: # ensure that a lower band exists (and avoid list index rollover)
-              if Band.glacier_id in cell.bands[band_id - 1].hrus:
-                # CASE 5a: If there's a glacier in the next lower band,
-                # add state to glacier HRU in that band
+              if cell.bands[band_id - 1].area_frac_glacier > 0:
+                # CASE 5a: If there's a glacier HRU (with non-zero area fraction, i.e. not a shadow glacier)
+                # in the next lower band, add state to the glacier HRU in that band
                 update_hru_state(band.hrus[Band.open_ground_id], cell.bands[band_id - 1].hrus[Band.glacier_id], '5a', new_area_fracs)
               elif Band.open_ground_id in cell.bands[band_id - 1].hrus:
                 # CASE 5b: If there's open ground in the next lower band,
@@ -493,11 +505,10 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
           # Update open ground HRU's area fraction. HRU will get deleted later if this is 0
           band.hrus[Band.open_ground_id].area_frac = new_open_ground_area_frac
 
-        ### HRU loop: Update area fractions and states for all non-glacier and
-        # non-OPEN HRUs in this Band 
+        ### Update area fractions and states for all remaining non-glacier and
+        # non-open ground HRUs in this Band 
         for veg_type, hru in band.hrus.items():
           if veg_type is not Band.glacier_id and veg_type is not Band.open_ground_id:
-            previous_hru_area_frac = band.hrus[veg_type].area_frac
             # Calculate change in HRU area fraction & update
             delta_area_hru = delta_area_vegetated * (band.hrus[veg_type].area_frac / veg_scaling_divisor)
             new_hru_area_frac = band.hrus[veg_type].area_frac + delta_area_hru
@@ -517,14 +528,14 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
               if new_band_area_frac != 0:  
                 update_hru_state(hru, band.hrus[Band.glacier_id], '4b', new_area_fracs)
               # This HRU has disappeared, never to return (only open ground can
-              # come back in its place) but band still exists
+              # come back in its place)
               hrus_to_be_deleted.append(veg_type)
             elif new_band_area_frac == 0:
               # CASE 5: both the HRU and Band disappear
               if (band_id - 1) >= 0: # ensure that a lower band exists (and avoid list index rollover)
-                if Band.glacier_id in cell.bands[band_id - 1].hrus:
-                  # CASE 5a: If there's a glacier in the next lower band,
-                  # add state to glacier HRU in that band
+                if cell.bands[band_id - 1].area_frac_glacier > 0:
+                  # CASE 5a: If there's a glacier HRU (with non-zero area fraction, i.e. not a shadow glacier)
+                  # in the next lower band, add state to the glacier HRU in that band
                   update_hru_state(hru, cell.bands[band_id - 1].hrus[Band.glacier_id], '5a', new_area_fracs)
                 elif Band.open_ground_id in cell.bands[band_id - 1].hrus:
                   # CASE 5b: If there's open ground in the next lower band,
