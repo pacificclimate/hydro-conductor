@@ -306,6 +306,7 @@ class TestsAreaFracUpdate:
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
       # Confirm that update_hru_state() was called for CASE 3 twice
+      assert mock_update_hru_state_fcn.call_count == 2
       args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
       assert args[2] == '3'
       args, kwargs = mock_update_hru_state_fcn.call_args_list[1]
@@ -348,6 +349,7 @@ class TestsAreaFracUpdate:
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
       # Confirm that update_hru_state() was called for CASE 3 and CASE 4b
+      assert mock_update_hru_state_fcn.call_count == 2
       args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
       assert args[2] == '3'
       args, kwargs = mock_update_hru_state_fcn.call_args_list[1]
@@ -393,6 +395,7 @@ class TestsAreaFracUpdate:
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
       # Confirm that update_hru_state() was called for CASE 3, 4b, and 3
+      assert mock_update_hru_state_fcn.call_count == 3
       args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
       assert args[2] == '3'
       args, kwargs = mock_update_hru_state_fcn.call_args_list[1]
@@ -436,6 +439,7 @@ class TestsAreaFracUpdate:
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
       # Confirm that update_hru_state() was called for CASE 3 and 4b
+      assert mock_update_hru_state_fcn.call_count == 2
       args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
       assert args[2] == '3'
       args, kwargs = mock_update_hru_state_fcn.call_args_list[1]
@@ -475,6 +479,7 @@ class TestsAreaFracUpdate:
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
       # Confirm that update_hru_state() was called for CASE 3
+      assert mock_update_hru_state_fcn.call_count == 1
       args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
       assert args[2] == '3'
 
@@ -514,6 +519,7 @@ class TestsAreaFracUpdate:
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
       # Confirm that update_hru_state() was called for CASE 3
+      assert mock_update_hru_state_fcn.call_count == 1
       args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
       assert args[2] == '3'
 
@@ -551,6 +557,7 @@ class TestsAreaFracUpdate:
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
       # Confirm that update_hru_state() was called for CASE 3 twice
+      assert mock_update_hru_state_fcn.call_count == 2
       args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
       assert args[2] == '3'
       args, kwargs = mock_update_hru_state_fcn.call_args_list[1]
@@ -597,6 +604,7 @@ class TestsAreaFracUpdate:
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
       # Confirm that update_hru_state() was called for CASE 3
+      assert mock_update_hru_state_fcn.call_count == 1
       args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
       assert args[2] == '3'
 
@@ -647,6 +655,7 @@ class TestsAreaFracUpdate:
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
       # Confirm that update_hru_state() was called for CASE 4b
+      assert mock_update_hru_state_fcn.call_count == 1
       args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
       assert args[2] == '4b'
 
@@ -692,6 +701,7 @@ class TestsAreaFracUpdate:
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
       # Confirm that update_hru_state() was called for CASE 3 and 5d
+      assert mock_update_hru_state_fcn.call_count == 2
       args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
       assert args[2] == '3'
       args, kwargs = mock_update_hru_state_fcn.call_args_list[1]
@@ -752,6 +762,7 @@ class TestsAreaFracUpdate:
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
       # Confirm that update_hru_state() was called for CASE 3
+      assert mock_update_hru_state_fcn.call_count == 1
       args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
       assert args[2] == '3'
 
@@ -871,6 +882,7 @@ the zero padding to accommodate this.' in str(message.value)
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
       # Confirm that update_hru_state() was called for CASE 3 and 5d
+      assert mock_update_hru_state_fcn.call_count == 2
       args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
       assert args[2] == '3'
       args, kwargs = mock_update_hru_state_fcn.call_args_list[1]
@@ -923,6 +935,7 @@ the zero padding to accommodate this.' in str(message.value)
                 surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
       # Confirm that update_hru_state() was called for CASE 5a and 3
+      assert mock_update_hru_state_fcn.call_count == 2
       args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
       assert args[2] == '5a'
       args, kwargs = mock_update_hru_state_fcn.call_args_list[1]
