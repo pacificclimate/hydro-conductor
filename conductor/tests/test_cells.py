@@ -843,8 +843,8 @@ the highest defined elevation band (>= 2300.0m) as defined by the \
 Snow Band Parameter File for cell 23456. You may need to add or shift \
 the zero padding to accommodate this.' in str(message.value)
 
-       # Remove error condition by reinstating glacier in offending pixel in
-       # the surface DEM for the next test
+      # Remove error condition by reinstating glacier in offending pixel in
+      # the surface DEM for the next test
       surf_dem[dem_padding_thickness + 3][dem_padding_thickness + 8 + 3] = 2200
       glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,\
         num_cols_dem)
@@ -907,7 +907,7 @@ the zero padding to accommodate this.' in str(message.value)
       assert len([band for band in cells['23456'].bands if band.num_hrus > 0]) == 5
 
     @mock.patch('conductor.cells.update_hru_state', side_effect=mock_update_hru_state)
-    def test_glacier_receding_from_top_band_leaving_band_area_as_zero(self, mock_update_hru_state_fcn):
+    def test_glacier_receding_from_top_band_leaving_band_area_as_zero_1(self, mock_update_hru_state_fcn):
       """ Simulates the glacier receding out of the highest band of cell
         '23456' entirely, which consisted only of glacier HRUs, thus
         leaving that band's area fraction as zero.
@@ -950,6 +950,118 @@ the zero padding to accommodate this.' in str(message.value)
       assert cells['23456'].bands[3].area_frac == 16/64
       assert cells['23456'].bands[3].area_frac_open_ground == 8/64
       assert cells['23456'].bands[3].area_frac_glacier == 8/64
+
+      # Total number of valid bands after
+      assert len([band for band in cells['23456'].bands if band.num_hrus > 0]) == 5
+
+      # Reinstate the two glacier pixels of Band 4 to start elevations for the next test
+      surf_dem[dem_padding_thickness + 3][dem_padding_thickness + 8 + 3 : dem_padding_thickness + 8 + 5] = [2200, 2210]
+      glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,\
+        num_cols_dem)
+      update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
+        surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+
+    @mock.patch('conductor.cells.update_hru_state', side_effect=mock_update_hru_state)
+    def test_glacier_receding_entirely_from_band(self, mock_update_hru_state_fcn):
+      """ Simulates the glacier receding out of Band 3 of cell
+        '23456' entirely, but the band remains.
+
+        This should trigger state update CASE 4a (glacier in Band 3
+        disappears and state is transferred to open ground in the same band) and
+        CASE 3 (open ground in Band 3 expands).
+        NOTE:the two glacier pixels of Band 4 were reinstated to the start
+        elevations of the previous test (2200 and 2210) before running this test.
+
+        [
+          [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+          [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+          [xxxx, xxxx, xxxx, 2125, 2130, 2110, xxxx, xxxx],
+          [xxxx, xxxx, xxxx, note, note, 2100, xxxx, xxxx],
+          [xxxx, xxxx, xxxx, 2120, 2110, xxxx, xxxx, xxxx],
+          [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+          [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+          [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx]
+        ]
+      """
+      surf_dem[dem_padding_thickness + 2]\
+        [dem_padding_thickness + 8 + 3 : dem_padding_thickness + 8 + 6]\
+        = [2125, 2130, 2110]
+      surf_dem[dem_padding_thickness + 3]\
+        [dem_padding_thickness + 8 + 5 : dem_padding_thickness + 8 + 6]\
+        = 2100
+      surf_dem[dem_padding_thickness + 4]\
+        [dem_padding_thickness + 8 + 3 : dem_padding_thickness + 8 + 5]\
+        = [2120, 2110]
+
+      glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem)
+
+      update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
+                surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+
+      # Confirm that update_hru_state() was called for CASE 4a and 3
+      assert mock_update_hru_state_fcn.call_count == 2
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
+      assert args[2] == '4a'
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[1]
+      assert args[2] == '3'
+
+      assert cells['23456'].bands[3].num_hrus == 2 # includes shadow glacier
+      assert cells['23456'].bands[3].area_frac == 14/64
+      assert cells['23456'].bands[3].area_frac_open_ground == 14/64
+      assert cells['23456'].bands[3].area_frac_glacier == 0
+
+      # Total number of valid bands after
+      assert len([band for band in cells['23456'].bands if band.num_hrus > 0]) == 5
+
+    @mock.patch('conductor.cells.update_hru_state', side_effect=mock_update_hru_state)
+    def test_glacier_receding_from_top_band_leaving_band_area_as_zero_2(self, mock_update_hru_state_fcn):
+      """ Simulates the glacier receding out of the highest band of cell
+        '23456' entirely, which consisted only of glacier HRUs, thus
+        leaving that band's area fraction as zero.
+
+        This should trigger state update CASE 5b (glacier in Band 4
+        disappears, leaving the band with zero area fraction.
+        Furthermore, the glacier disappears entirely from these pixels,
+        such that it does not exist in Band 3 either; state is thus
+        transferred to open ground in Band 3), and CASE 3 (open
+        ground in Band 3 expands).
+
+        [
+          [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+          [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+          [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+          [xxxx, xxxx, xxxx, 2130, 2150, xxxx, xxxx, xxxx],
+          [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+          [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+          [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
+          [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx]
+        ]
+      """
+      surf_dem[dem_padding_thickness + 3]\
+        [dem_padding_thickness + 8 + 3 : dem_padding_thickness + 8 + 5]\
+        = [2130, 2150]
+
+      glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem)
+
+      update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
+                surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+
+      # Confirm that update_hru_state() was called for CASE 5b and 3
+      assert mock_update_hru_state_fcn.call_count == 2
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
+      assert args[2] == '5b'
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[1]
+      assert args[2] == '3'
+
+      assert cells['23456'].bands[4].num_hrus == 1 # shadow glacier HRU remains
+      assert cells['23456'].bands[4].area_frac == 0
+      assert cells['23456'].bands[4].area_frac_open_ground == 0
+      assert cells['23456'].bands[4].area_frac_glacier == 0
+
+      assert cells['23456'].bands[3].num_hrus == 2 # shadow glacier HRU remains
+      assert cells['23456'].bands[3].area_frac == 16/64
+      assert cells['23456'].bands[3].area_frac_open_ground == 16/64
+      assert cells['23456'].bands[3].area_frac_glacier == 0
 
       # Total number of valid bands after
       assert len([band for band in cells['23456'].bands if band.num_hrus > 0]) == 5
@@ -1026,22 +1138,22 @@ the zero padding to accommodate this.' in str(message.value)
       assert cells['23456'].bands[2].area_frac_glacier == 2/64
       assert cells['23456'].bands[2].hrus[11].area_frac == 10/64
 
-      assert cells['23456'].bands[3].num_hrus == 2
+      assert cells['23456'].bands[3].num_hrus == 2 # includes shadow glacier HRU
       assert cells['23456'].bands[3].lower_bound == 2100
-      assert cells['23456'].bands[3].median_elev == np.median([2100, 2155, 2160, 2140,\
-                                                         2105, 2150, 2170, 2130,\
-                                                         2110, 2150, 2140, 2105,\
+      assert cells['23456'].bands[3].median_elev == np.median([2100, 2125, 2130, 2110,\
+                                                         2105, 2130, 2150, 2100,\
+                                                         2110, 2120, 2110, 2105,\
                                                          2105, 2105, 2110, 2100])
       assert cells['23456'].bands[3].area_frac == 16/64
-      assert cells['23456'].bands[3].area_frac_open_ground == 8/64
-      assert cells['23456'].bands[3].area_frac_glacier == 8/64
+      assert cells['23456'].bands[3].area_frac_open_ground == 16/64
+      assert cells['23456'].bands[3].area_frac_glacier == 0
 
       assert cells['23456'].bands[4].num_hrus == 1 # shadow glacier HRU
       assert cells['23456'].bands[4].lower_bound == 2200
       assert cells['23456'].bands[4].median_elev == 2200
-      assert cells['23456'].bands[4].area_frac == 0/64
-      assert cells['23456'].bands[4].area_frac_open_ground == 0/64
-      assert cells['23456'].bands[4].area_frac_glacier == 0/64
+      assert cells['23456'].bands[4].area_frac == 0
+      assert cells['23456'].bands[4].area_frac_open_ground == 0
+      assert cells['23456'].bands[4].area_frac_glacier == 0
 
       # This should include all bands, including the lowest and highest,
       # now each consisting of a shadow glacier HRU
@@ -1063,5 +1175,7 @@ the zero padding to accommodate this.' in str(message.value)
     test_attempt_new_glacier_shrink_into_unavailable_lower_band(self)
     test_attempt_new_glacier_growth_into_unavailable_higher_band(self)
     test_glacier_thickening_to_conceal_lowest_band_of_glacier(self)
-    test_glacier_receding_from_top_band_leaving_band_area_as_zero(self)
+    test_glacier_receding_from_top_band_leaving_band_area_as_zero_1(self)
+    test_glacier_receding_entirely_from_band(self)
+    test_glacier_receding_from_top_band_leaving_band_area_as_zero_2(self)
     test_confirm_final_state(self)
