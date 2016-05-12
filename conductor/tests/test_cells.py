@@ -233,7 +233,7 @@ class TestsDynamic:
     test_new_glacier_growth_into_band_and_replacing_all_open_ground(self)
     test_new_glacier_growth_into_upper_dummy_band(self)
 
-def mock_update_hru_state(source_hru, dest_hru, case, new_area_fracs):
+def mock_update_hru_state(source_hru, dest_hru, case, **kwargs):
   """ Mock function for cells.update_hru_state(), just returns the
     state update case that was given in the case input parameter.
   """
@@ -478,9 +478,11 @@ class TestsAreaFracUpdate:
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
-      # Confirm that update_hru_state() was called for CASE 3
-      assert mock_update_hru_state_fcn.call_count == 1
+      # Confirm that update_hru_state() was called for CASE 1 and 3
+      assert mock_update_hru_state_fcn.call_count == 2
       args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
+      assert args[2] == '1'
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[1]
       assert args[2] == '3'
 
       assert cells['12345'].bands[0].num_hrus == 3
@@ -518,10 +520,12 @@ class TestsAreaFracUpdate:
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
-      # Confirm that update_hru_state() was called for CASE 3
-      assert mock_update_hru_state_fcn.call_count == 1
+      # Confirm that update_hru_state() was called for CASE 3 and 1
+      assert mock_update_hru_state_fcn.call_count == 2
       args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
       assert args[2] == '3'
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[1]
+      assert args[2] == '1'
 
       assert cells['12345'].bands[1].num_hrus == 2
       assert cells['12345'].bands[1].area_frac == 20/64
@@ -603,10 +607,12 @@ class TestsAreaFracUpdate:
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
-      # Confirm that update_hru_state() was called for CASE 3
-      assert mock_update_hru_state_fcn.call_count == 1
+      # Confirm that update_hru_state() was called for CASE 3 and 1
+      assert mock_update_hru_state_fcn.call_count == 2
       args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
       assert args[2] == '3'
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[1]
+      assert args[2] == '1'
 
       assert cells['23456'].bands[1].num_hrus == 3
       assert cells['23456'].bands[1].area_frac == 27/64
@@ -654,9 +660,11 @@ class TestsAreaFracUpdate:
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
-      # Confirm that update_hru_state() was called for CASE 4b
-      assert mock_update_hru_state_fcn.call_count == 1
+      # Confirm that update_hru_state() was called for CASE 1 and 4b
+      assert mock_update_hru_state_fcn.call_count == 2
       args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
+      assert args[2] == '1'
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[1]
       assert args[2] == '4b'
 
       assert cells['23456'].bands[0].num_hrus == 1
@@ -737,9 +745,9 @@ class TestsAreaFracUpdate:
         valid band in cell '23456' into a new higher Band 4 (for which there
         is a 0 pad in the snow band file to accommodate it). 
 
-        This should trigger state update CASE 3 (glacier in Band 3 shrinking)
-        and CASE 1 (trivial - no call to update_hru_state) where a new glacier
-        HRU is created in Band 4.
+        This should trigger state update CASE 1 (no call to
+        update_hru_state) where a new glacier HRU is created
+        in Band 4, and CASE 3 (glacier in Band 3 shrinking).
 
         [
           [xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx, xxxx],
@@ -761,9 +769,11 @@ class TestsAreaFracUpdate:
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
-      # Confirm that update_hru_state() was called for CASE 3
-      assert mock_update_hru_state_fcn.call_count == 1
+      # Confirm that update_hru_state() was called for CASE 1 and 3
+      assert mock_update_hru_state_fcn.call_count == 2
       args, kwargs = mock_update_hru_state_fcn.call_args_list[0]
+      assert args[2] == '1'
+      args, kwargs = mock_update_hru_state_fcn.call_args_list[1]
       assert args[2] == '3'
 
       assert cells['23456'].bands[3].num_hrus == 2
