@@ -685,9 +685,11 @@ class TestsAreaFracUpdate:
         in that area no longer belong to that band (i.e. all HRUs in the band
         must be deleted).
 
-        This should trigger state update CASE 3 (glacier in band 1 expanding)
+        This should trigger state update CASE 3 (glacier in Band 1 expanding)
         and CASE 5d (where both the glacier and band area fractions in Band 0
-        become zero, and there is no lower band to transfer state to).
+        become zero because glacier from the band above has thickened over
+        this band so much that no pixels fall into this band's elevation range
+        anymore).
 
         [
           [xxxx, xxxx, 1905, xxxx, xxxx, xxxx, xxxx, xxxx],
@@ -870,7 +872,9 @@ the zero padding to accommodate this.' in str(message.value)
 
         This should trigger state update CASE 3 (glacier in Band 1 expanding)
         and CASE 5d (where both the glacier and band area fractions in Band 0
-        become zero, and there is no lower band to transfer state to).
+        become zero because glacier from the band above has thickened over
+        this band so much that no pixels fall into this band's elevation range
+        anymore).
 
         [
           [xxxx, xxxx, 1900, xxxx, xxxx, xxxx, xxxx, xxxx],
