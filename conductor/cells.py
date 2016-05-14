@@ -442,6 +442,17 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
           update_hru_state(band.hrus[Band.glacier_id],\
             band.hrus[Band.open_ground_id],\
             '4a', **new_area_fracs)
+        elif new_glacier_area_frac == 0 and band.area_frac > 0\
+          and new_band_area_frac == 0\
+          and (band_id + 1) <= (num_snow_bands - 1)\
+          and cell.bands[band_id + 1].area_frac_glacier >= (band_previous_area_frac + previous_glacier_area_fracs[band_id + 1]):
+          # CASE 5d: Both the glacier HRU and band have disappeared, because
+          # glacier from the band above has thickened over this band so much
+          # that no pixels fall into this band's elevation range anymore.
+          # In this special case, add state to glacier in the band above.
+          update_hru_state(band.hrus[Band.glacier_id],\
+            cell.bands[band_id + 1].hrus[Band.glacier_id],\
+            '5d', **new_area_fracs)
         elif new_glacier_area_frac == 0 and band.area_frac_glacier > 0\
           and new_band_area_frac == 0\
           and (band_id - 1) >= 0\
@@ -472,16 +483,16 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
           update_hru_state(band.hrus[Band.glacier_id],\
             cell.bands[band_id - 1].hrus[max_veg_type],\
             '5c', **new_area_fracs)
-        elif new_glacier_area_frac == 0 and band.area_frac > 0\
-          and new_band_area_frac == 0\
-          and cell.bands[band_id + 1].area_frac_glacier == band_previous_area_frac + previous_glacier_area_fracs[band_id + 1]:
-          # CASE 5d: Both the glacier HRU and band have disappeared, because
-          # glacier from the band above has thickened over this band so much
-          # that no pixels fall into this band's elevation range anymore.
-          # In this special case, add state to glacier in the band above.
-          update_hru_state(band.hrus[Band.glacier_id],\
-            cell.bands[band_id + 1].hrus[Band.glacier_id],\
-            '5d', **new_area_fracs)
+        # elif new_glacier_area_frac == 0 and band.area_frac > 0\
+        #   and new_band_area_frac == 0\
+        #   and cell.bands[band_id + 1].area_frac_glacier == band_previous_area_frac + previous_glacier_area_fracs[band_id + 1]:
+        #   # CASE 5d: Both the glacier HRU and band have disappeared, because
+        #   # glacier from the band above has thickened over this band so much
+        #   # that no pixels fall into this band's elevation range anymore.
+        #   # In this special case, add state to glacier in the band above.
+        #   update_hru_state(band.hrus[Band.glacier_id],\
+        #     cell.bands[band_id + 1].hrus[Band.glacier_id],\
+        #     '5d', **new_area_fracs)
         elif new_glacier_area_frac == 0 and band.area_frac_glacier > 0\
           and new_band_area_frac == 0\
           and (band_id - 1) < 0:
@@ -493,7 +504,9 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
           raise Exception(
             'Error: No state update case identified for cell {}, band {}, HRU {}'
             )
-        # Save the glacier area fraction for this band for the next (lower) band iteration
+
+        # Save the glacier area fraction for this band for checking against
+        # in the next (lower) band iteration (CASE 5d specifically)
         previous_glacier_area_fracs[band_id] = band.area_frac_glacier
 
         # Update glacier HRU area fraction
@@ -533,6 +546,18 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
           update_hru_state(band.hrus[Band.open_ground_id],\
             band.hrus[Band.glacier_id],\
             '4b', **new_area_fracs)
+        elif new_open_ground_area_frac == 0 and band.area_frac > 0\
+          and new_band_area_frac == 0\
+          and (band_id + 1) <= (num_snow_bands - 1)\
+          and cell.bands[band_id + 1].area_frac_glacier >= (band_previous_area_frac + previous_glacier_area_fracs[band_id + 1]):
+          # CASE 5d: Both the open ground HRU and band have disappeared, because
+          # glacier from the band above has thickened over this band so much
+          # that no pixels fall into this band's elevation range anymore.
+          # In this special case, add state to glacier in the band above.
+          hrus_to_be_deleted.append(Band.open_ground_id)
+          update_hru_state(band.hrus[Band.open_ground_id],\
+            cell.bands[band_id + 1].hrus[Band.glacier_id],\
+            '5d', **new_area_fracs)
         elif new_open_ground_area_frac == 0 and band.area_frac_open_ground > 0 \
           and new_band_area_frac == 0 and band.area_frac != 0 \
           and (band_id - 1) >= 0 and cell.bands[band_id - 1].area_frac_glacier > 0:
@@ -566,17 +591,17 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
           update_hru_state(band.hrus[Band.open_ground_id],\
             cell.bands[band_id - 1].hrus[max_veg_type],\
             '5c', **new_area_fracs)
-        elif new_open_ground_area_frac == 0 and band.area_frac > 0\
-          and new_band_area_frac == 0\
-          and cell.bands[band_id + 1].area_frac_glacier == band_previous_area_frac + previous_glacier_area_fracs[band_id + 1]:
-          # CASE 5d: Both the open ground HRU and band have disappeared, because
-          # glacier from the band above has thickened over this band so much
-          # that no pixels fall into this band's elevation range anymore.
-          # In this special case, add state to glacier in the band above.
-          hrus_to_be_deleted.append(Band.open_ground_id)
-          update_hru_state(band.hrus[Band.open_ground_id],\
-            cell.bands[band_id + 1].hrus[Band.glacier_id],\
-            '5d', **new_area_fracs)
+        # elif new_open_ground_area_frac == 0 and band.area_frac > 0\
+        #   and new_band_area_frac == 0\
+        #   and cell.bands[band_id + 1].area_frac_glacier == band_previous_area_frac + previous_glacier_area_fracs[band_id + 1]:
+        #   # CASE 5d: Both the open ground HRU and band have disappeared, because
+        #   # glacier from the band above has thickened over this band so much
+        #   # that no pixels fall into this band's elevation range anymore.
+        #   # In this special case, add state to glacier in the band above.
+        #   hrus_to_be_deleted.append(Band.open_ground_id)
+        #   update_hru_state(band.hrus[Band.open_ground_id],\
+        #     cell.bands[band_id + 1].hrus[Band.glacier_id],\
+        #     '5d', **new_area_fracs)
         elif new_open_ground_area_frac == 0 and band.area_frac_open_ground > 0 \
           and new_band_area_frac == 0 and band.area_frac != 0 \
           and (band_id - 1) < 0:
@@ -637,6 +662,19 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
               # This HRU has disappeared, never to return (only open ground can
               # come back in its place)
             elif new_hru_area_frac == 0 and band.area_frac > 0\
+              and new_band_area_frac == 0\
+              and (band_id + 1) <= (num_snow_bands - 1)\
+              and cell.bands[band_id + 1].area_frac_glacier >= (band_previous_area_frac + previous_glacier_area_fracs[band_id + 1]):
+              # CASE 5d: Both the HRU and band have disappeared, because
+              # glacier from the band above has thickened over this band so much
+              # that no pixels fall into this band's elevation range anymore.
+              # This is only valid for bands below the topmost.
+              # In this special case, add state to glacier in the band above.
+              hrus_to_be_deleted.append(veg_type)
+              update_hru_state(hru,\
+                cell.bands[band_id + 1].hrus[Band.glacier_id],\
+                '5d', **new_area_fracs)
+            elif new_hru_area_frac == 0 and band.area_frac > 0\
               and new_band_area_frac == 0 and (band_id - 1) >= 0\
               and cell.bands[band_id - 1].area_frac_glacier > 0:
               # CASE 5a: Both the HRU and band have disappeared.
@@ -668,17 +706,17 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
               update_hru_state(hru,\
                 cell.bands[band_id - 1].hrus[max_veg_type],\
                 '5c', **new_area_fracs)
-            elif new_hru_area_frac == 0 and band.area_frac > 0\
-              and new_band_area_frac == 0\
-              and cell.bands[band_id + 1].area_frac_glacier == band_previous_area_frac + previous_glacier_area_fracs[band_id + 1]:
-              # CASE 5d: Both the HRU and band have disappeared, because
-              # glacier from the band above has thickened over this band so much
-              # that no pixels fall into this band's elevation range anymore.
-              # In this special case, add state to glacier in the band above.
-              hrus_to_be_deleted.append(veg_type)
-              update_hru_state(hru,\
-                cell.bands[band_id + 1].hrus[Band.glacier_id],\
-                '5d', **new_area_fracs)
+            # elif new_hru_area_frac == 0 and band.area_frac > 0\
+            #   and new_band_area_frac == 0\
+            #   and cell.bands[band_id + 1].area_frac_glacier == band_previous_area_frac + previous_glacier_area_fracs[band_id + 1]:
+            #   # CASE 5d: Both the HRU and band have disappeared, because
+            #   # glacier from the band above has thickened over this band so much
+            #   # that no pixels fall into this band's elevation range anymore.
+            #   # In this special case, add state to glacier in the band above.
+            #   hrus_to_be_deleted.append(veg_type)
+            #   update_hru_state(hru,\
+            #     cell.bands[band_id + 1].hrus[Band.glacier_id],\
+            #     '5d', **new_area_fracs)
             elif new_hru_area_frac == 0 and band.area_frac > 0\
               and new_band_area_frac == 0 and (band_id - 1) < 0:
               # No lower band exists to transfer state to. User needs to add
