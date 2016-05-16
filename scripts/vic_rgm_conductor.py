@@ -15,7 +15,7 @@ import sys
 from warnings import warn
 
 import numpy as np
-import h5py
+import netCDF4
 from dateutil.relativedelta import relativedelta
 
 from conductor.io import get_rgm_pixel_mapping, read_gsa_headers,\
@@ -349,7 +349,7 @@ def main():
     state_file = state_filename_prefix + "_" + start.isoformat() ## FIXME
     print('opening VIC state file {}'.format(state_file))
     # leave the state file open for modification later
-    state = h5py.File(state_file, 'r+')
+    state = netCDF4.Dataset(state_file, 'r+').variables
     # read new states of all cells
     read_state(state, cells)
     if output_trace_files: # keep a copy of the original state file from VIC
