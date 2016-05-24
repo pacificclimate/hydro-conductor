@@ -8,6 +8,7 @@
 
 from collections import OrderedDict
 from copy import deepcopy
+from math import ceil
 import numpy as np
 import itertools
 
@@ -803,9 +804,6 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
         dest_hru.hru_state.variables[var] = (dest_hru.hru_state.variables['SNOW_SURF_TEMP'] * (min(MAX_SURFACE_SWE, dest_hru.hru_state.variables['SNOW_SWQ'])) * CH_ICE)
       elif var in spec_7_vars:
         carry_over(source_hru.hru_state.variables[var], dest_hru.hru_state.variables[var])
-      # elif var in spec_8_vars:
-      #   # is spec 8 really its own class of variables? ask Markus
-      #   pass
       elif var in spec_9_vars:
         carry_over(source_hru.hru_state.variables[var], dest_hru.hru_state.variables[var])
   elif case == '4a':
@@ -838,12 +836,15 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
       elif var in spec_6_vars: # SNOW_COLD_CONTENT
         dest_hru.hru_state.variables[var] = (dest_hru.hru_state.variables['SNOW_SURF_TEMP'] * (min(MAX_SURFACE_SWE, dest_hru.hru_state.variables['SNOW_SWQ'])) * CH_ICE)
       elif var in spec_7_vars: # transferring state to open ground
-        dest_hru.hru_state.variables[var] = (dest_hru.hru_state.variables[var] * dest_hru.area_frac * (int(dest_hru.hru_state.variables['SNOW_SWQ'] >= 0)) + source_hru.hru_state.variables[var] * source_hru.area_frac * (int(source_hru.hru_state.variables['SNOW_SWQ'] >= 0)))\
-          / (dest_hru.area_frac * (int(dest_hru.hru_state.variables['SNOW_SWQ'] >= 0)) + source_hru.area_frac * (int(source_hru.hru_state.variables['SNOW_SWQ'] >= 0)))
+        dest_hru.hru_state.variables[var] = (dest_hru.hru_state.variables[var] \
+          * dest_hru.area_frac * (int(dest_hru.hru_state.variables['SNOW_SWQ'] >= 0)) \
+          + source_hru.hru_state.variables[var] * source_hru.area_frac \
+          * (int(source_hru.hru_state.variables['SNOW_SWQ'] >= 0))) \
+          / (dest_hru.area_frac * (int(dest_hru.hru_state.variables['SNOW_SWQ'] >= 0)) \
+          + source_hru.area_frac * (int(source_hru.hru_state.variables['SNOW_SWQ'] >= 0)))
+          if var == 'SNOW_LAST_SNOW' or var == 'SNOW_MELTING':
+            dest_hru.hru_state.variables[var] = ceil(dest_hru.hru_state.variables[var])
         source_hru.hru_state.variables[var] = 0
-        # 'SNOW_LAST_SNOW', 'SNOW_MELTING' need to be applied above as in SPEC-7/8...not sure how exactly
-      # elif var in spec_8_vars:
-      #   pass
       elif var in spec_9_vars:
         source_hru.hru_state.variables[var] = 0
         dest_hru.hru_state.variables[var] = 0
@@ -876,20 +877,23 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
       elif var in spec_6_vars: # SNOW_COLD_CONTENT
         dest_hru.hru_state.variables[var] = (dest_hru.hru_state.variables['SNOW_SURF_TEMP'] * (min(MAX_SURFACE_SWE, dest_hru.hru_state.variables['SNOW_SWQ'])) * CH_ICE)
       elif var in spec_7_vars: # transferring state to glacier
-        dest_hru.hru_state.variables[var] = (dest_hru.hru_state.variables[var] * dest_hru.area_frac * (int(dest_hru.hru_state.variables['SNOW_SWQ'] >= 0)) + source_hru.hru_state.variables[var] * source_hru.area_frac * (int(source_hru.hru_state.variables['SNOW_SWQ'] >= 0)))\
-          / (dest_hru.area_frac * (int(dest_hru.hru_state.variables['SNOW_SWQ'] >= 0)) + source_hru.area_frac * (int(source_hru.hru_state.variables['SNOW_SWQ'] >= 0)))
+        dest_hru.hru_state.variables[var] = (dest_hru.hru_state.variables[var] \
+          * dest_hru.area_frac * (int(dest_hru.hru_state.variables['SNOW_SWQ'] >= 0)) \
+          + source_hru.hru_state.variables[var] * source_hru.area_frac \
+          * (int(source_hru.hru_state.variables['SNOW_SWQ'] >= 0))) \
+          / (dest_hru.area_frac * (int(dest_hru.hru_state.variables['SNOW_SWQ'] >= 0)) \
+          + source_hru.area_frac * (int(source_hru.hru_state.variables['SNOW_SWQ'] >= 0)))
+          if var == 'SNOW_LAST_SNOW' or var == 'SNOW_MELTING':
+            dest_hru.hru_state.variables[var] = ceil(dest_hru.hru_state.variables[var])
         source_hru.hru_state.variables[var] = 0
-        # 'SNOW_LAST_SNOW', 'SNOW_MELTING' need to be applied above as in SPEC-7/8...not sure how exactly
-      # elif var in spec_8_vars:
-      #   pass
       elif var in spec_9_vars:
         source_hru.hru_state.variables[var] = 0
         dest_hru.hru_state.variables[var] = 0
-  # elif case == '5a':
-  #   print('update_hru_state: case 5a')
-  #   for var in source_hru.hru_state.variables:
-  #     if var in spec_1_vars:
-  #       pass # need to handle cell metadata state vars differently than HRU state vars
+  elif case == '5a':
+    print('update_hru_state: case 5a')
+    for var in source_hru.hru_state.variables:
+      if var in spec_1_vars:
+        pass # need to handle cell metadata state vars differently than HRU state vars
   #     elif var in spec_2_vars: # transferring state to glacier
   #       if type(source_hru.hru_state.variables[var]) == list:
   #         for layer_idx, layer in enumerate(source_hru.hru_state.variables[var]):
@@ -914,20 +918,56 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
       #   dest_hru.hru_state.variables[var] = 0
       # elif var in spec_6_vars: # SNOW_COLD_CONTENT
       #   dest_hru.hru_state.variables[var] = (dest_hru.hru_state.variables['SNOW_SURF_TEMP'] * (min(MAX_SURFACE_SWE, dest_hru.hru_state.variables['SNOW_SWQ'])) * CH_ICE)
-      # elif var in spec_7_vars: # transferring state to open ground
-      #   dest_hru.hru_state.variables[var] = (dest_hru.hru_state.variables[var] * dest_hru.area_frac * (int(dest_hru.hru_state.variables['SNOW_SWQ'] >= 0)) + source_hru.hru_state.variables[var] * source_hru.area_frac * (int(source_hru.hru_state.variables['SNOW_SWQ'] >= 0)))\
-      #     / (dest_hru.area_frac * (int(dest_hru.hru_state.variables['SNOW_SWQ'] >= 0)) + source_hru.area_frac * (int(source_hru.hru_state.variables['SNOW_SWQ'] >= 0)))
-      #   source_hru.hru_state.variables[var] = 0
-      #   # 'SNOW_LAST_SNOW', 'SNOW_MELTING' need to be applied above as in SPEC-7/8...not sure how exactly
-      # # elif var in spec_8_vars:
-      # #   pass
+      elif var in spec_7_vars: # transferring state to glacier
+        dest_hru.hru_state.variables[var] = (dest_hru.hru_state.variables[var] \
+          * dest_hru.area_frac * (int(dest_hru.hru_state.variables['SNOW_SWQ'] >= 0)) \
+          + source_hru.hru_state.variables[var] * source_hru.area_frac \
+          * (int(source_hru.hru_state.variables['SNOW_SWQ'] >= 0))) \
+          / (dest_hru.area_frac * (int(dest_hru.hru_state.variables['SNOW_SWQ'] >= 0)) \
+          + source_hru.area_frac * (int(source_hru.hru_state.variables['SNOW_SWQ'] >= 0)))
+          if var == 'SNOW_LAST_SNOW' or var == 'SNOW_MELTING':
+            dest_hru.hru_state.variables[var] = ceil(dest_hru.hru_state.variables[var])
+        source_hru.hru_state.variables[var] = 0
+
       # elif var in spec_9_vars:
       #   source_hru.hru_state.variables[var] = 0
       #   dest_hru.hru_state.variables[var] = 0
   elif case == '5b':
     print('update_hru_state: case 5b')
+    for var in source_hru.hru_state.variables:
+      if var in spec_1_vars:
+        pass # need to handle cell metadata state vars differently than HRU state vars
+        #
+        #
+        #
+      elif var in spec_7_vars: # transferring state to open ground
+        dest_hru.hru_state.variables[var] = (dest_hru.hru_state.variables[var] \
+          * dest_hru.area_frac * (int(dest_hru.hru_state.variables['SNOW_SWQ'] >= 0)) \
+          + source_hru.hru_state.variables[var] * source_hru.area_frac \
+          * (int(source_hru.hru_state.variables['SNOW_SWQ'] >= 0))) \
+          / (dest_hru.area_frac * (int(dest_hru.hru_state.variables['SNOW_SWQ'] >= 0)) \
+          + source_hru.area_frac * (int(source_hru.hru_state.variables['SNOW_SWQ'] >= 0)))
+          if var == 'SNOW_LAST_SNOW' or var == 'SNOW_MELTING':
+            dest_hru.hru_state.variables[var] = ceil(dest_hru.hru_state.variables[var])
+        source_hru.hru_state.variables[var] = 0
   elif case == '5c':
     print('update_hru_state: case 5c')
+    for var in source_hru.hru_state.variables:
+      if var in spec_1_vars:
+        pass # need to handle cell metadata state vars differently than HRU state vars
+        #
+        #
+        #
+      elif var in spec_7_vars: # transferring state to vegetated HRU
+        dest_hru.hru_state.variables[var] = (dest_hru.hru_state.variables[var] \
+          * dest_hru.area_frac * (int(dest_hru.hru_state.variables['SNOW_SWQ'] >= 0)) \
+          + source_hru.hru_state.variables[var] * source_hru.area_frac \
+          * (int(source_hru.hru_state.variables['SNOW_SWQ'] >= 0))) \
+          / (dest_hru.area_frac * (int(dest_hru.hru_state.variables['SNOW_SWQ'] >= 0)) \
+          + source_hru.area_frac * (int(source_hru.hru_state.variables['SNOW_SWQ'] >= 0)))
+          if var == 'SNOW_LAST_SNOW' or var == 'SNOW_MELTING':
+            dest_hru.hru_state.variables[var] = ceil(dest_hru.hru_state.variables[var])
+        source_hru.hru_state.variables[var] = 0
   elif case == '5d':
     print('update_hru_state: case 5d')
 
