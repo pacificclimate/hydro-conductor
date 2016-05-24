@@ -786,11 +786,16 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
           for layer_idx, layer in enumerate(source_hru.hru_state.variables[var]):
             if type(source_hru.hru_state.variables[var][layer_idx]) == list:
               for item_idx, item in enumerate(source_hru.hru_state.variables[var][layer_idx]):
-                dest_hru.hru_state.variables[var][layer_idx][item_idx] = source_hru.hru_state.variables[var][layer_idx][item_idx] * (source_hru.area_frac / new_hru_area_frac)
+                dest_hru.hru_state.variables[var][layer_idx][item_idx] \
+                = source_hru.hru_state.variables[var][layer_idx][item_idx] \
+                * (source_hru.area_frac / new_hru_area_frac)
             else:
-              dest_hru.hru_state.variables[var][layer_idx] = source_hru.hru_state.variables[var][layer_idx] * (source_hru.area_frac / new_hru_area_frac)
+              dest_hru.hru_state.variables[var][layer_idx] \
+              = source_hru.hru_state.variables[var][layer_idx] \
+              * (source_hru.area_frac / new_hru_area_frac)
         else:
-          dest_hru.hru_state.variables[var] = source_hru.hru_state.variables[var] * (source_hru.area_frac / new_hru_area_frac)
+          dest_hru.hru_state.variables[var] = source_hru.hru_state.variables[var] \
+          * (source_hru.area_frac / new_hru_area_frac)
       elif var in spec_3_vars: # SNOW_DENSITY
         if dest_hru.hru_state.variables['SNOW_DEPTH'] > 0: # avoid division by zero
           dest_hru.hru_state.variables[var] = (dest_hru.hru_state.variables['SNOW_SWQ'] * 1000) / dest_hru.hru_state.variables['SNOW_DEPTH']
@@ -816,11 +821,19 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
           for layer_idx, layer in enumerate(source_hru.hru_state.variables[var]):
             if type(source_hru.hru_state.variables[var][layer_idx]) == list:
               for item_idx, item in enumerate(source_hru.hru_state.variables[var][layer_idx]):
-                dest_hru.hru_state.variables[var][layer_idx][item_idx] = dest_hru.hru_state.variables[var][layer_idx][item_idx] * (source_hru.area_frac / new_open_ground_area_frac)
+                dest_hru.hru_state.variables[var][layer_idx][item_idx] \
+                = dest_hru.hru_state.variables[var][layer_idx][item_idx] \
+                + source_hru.hru_state.variables[var][layer_idx][item_idx] \
+                * (source_hru.area_frac / new_open_ground_area_frac)
             else:
-              dest_hru.hru_state.variables[var][layer_idx] = dest_hru.hru_state.variables[var][layer_idx] * (source_hru.area_frac / new_open_ground_area_frac)
+              dest_hru.hru_state.variables[var][layer_idx] \
+              = dest_hru.hru_state.variables[var][layer_idx] \
+              + source_hru.hru_state.variables[var][layer_idx] \
+              * (source_hru.area_frac / new_open_ground_area_frac)
         else:
-          dest_hru.hru_state.variables[var] = dest_hru.hru_state.variables[var] * (source_hru.area_frac / new_open_ground_area_frac)
+          dest_hru.hru_state.variables[var] = dest_hru.hru_state.variables[var] \
+          + source_hru.hru_state.variables[var] \
+          * (source_hru.area_frac / new_open_ground_area_frac)
       elif var in spec_3_vars: # SNOW_DENSITY
         if dest_hru.hru_state.variables['SNOW_DEPTH'] > 0: # avoid division by zero
           dest_hru.hru_state.variables[var] = (dest_hru.hru_state.variables['SNOW_SWQ'] * 1000) / dest_hru.hru_state.variables['SNOW_DEPTH']
@@ -842,8 +855,8 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
           * (int(source_hru.hru_state.variables['SNOW_SWQ'] >= 0))) \
           / (dest_hru.area_frac * (int(dest_hru.hru_state.variables['SNOW_SWQ'] >= 0)) \
           + source_hru.area_frac * (int(source_hru.hru_state.variables['SNOW_SWQ'] >= 0)))
-          if var == 'SNOW_LAST_SNOW' or var == 'SNOW_MELTING':
-            dest_hru.hru_state.variables[var] = ceil(dest_hru.hru_state.variables[var])
+        if var == 'SNOW_LAST_SNOW' or var == 'SNOW_MELTING':
+          dest_hru.hru_state.variables[var] = ceil(dest_hru.hru_state.variables[var])
         source_hru.hru_state.variables[var] = 0
       elif var in spec_9_vars:
         source_hru.hru_state.variables[var] = 0
@@ -859,11 +872,19 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
           for layer_idx, layer in enumerate(source_hru.hru_state.variables[var]):
             if type(source_hru.hru_state.variables[var][layer_idx]) == list:
               for item_idx, item in enumerate(source_hru.hru_state.variables[var][layer_idx]):
-                dest_hru.hru_state.variables[var][layer_idx][item_idx] = dest_hru.hru_state.variables[var][layer_idx][item_idx] * (source_hru.area_frac / new_glacier_area_frac)
+                dest_hru.hru_state.variables[var][layer_idx][item_idx] \
+                = dest_hru.hru_state.variables[var][layer_idx][item_idx] \
+                + source_hru.hru_state.variables[var][layer_idx][item_idx] \
+                * (source_hru.area_frac / new_glacier_area_frac)
             else:
-              dest_hru.hru_state.variables[var][layer_idx] = dest_hru.hru_state.variables[var][layer_idx] * (source_hru.area_frac / new_glacier_area_frac)
+              dest_hru.hru_state.variables[var][layer_idx] \
+              = dest_hru.hru_state.variables[var][layer_idx] \
+              + source_hru.hru_state.variables[var][layer_idx]\
+              * (source_hru.area_frac / new_glacier_area_frac)
         else:
-          dest_hru.hru_state.variables[var] = dest_hru.hru_state.variables[var] * (source_hru.area_frac / new_glacier_area_frac)
+          dest_hru.hru_state.variables[var] = dest_hru.hru_state.variables[var] \
+          + source_hru.hru_state.variables[var] \
+          * (source_hru.area_frac / new_glacier_area_frac)
       elif var in spec_3_vars: # SNOW_DENSITY
         if dest_hru.hru_state.variables['SNOW_DEPTH'] > 0: # avoid division by zero
           dest_hru.hru_state.variables[var] = (dest_hru.hru_state.variables['SNOW_SWQ'] * 1000) / dest_hru.hru_state.variables['SNOW_DEPTH']
@@ -883,8 +904,8 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
           * (int(source_hru.hru_state.variables['SNOW_SWQ'] >= 0))) \
           / (dest_hru.area_frac * (int(dest_hru.hru_state.variables['SNOW_SWQ'] >= 0)) \
           + source_hru.area_frac * (int(source_hru.hru_state.variables['SNOW_SWQ'] >= 0)))
-          if var == 'SNOW_LAST_SNOW' or var == 'SNOW_MELTING':
-            dest_hru.hru_state.variables[var] = ceil(dest_hru.hru_state.variables[var])
+        if var == 'SNOW_LAST_SNOW' or var == 'SNOW_MELTING':
+          dest_hru.hru_state.variables[var] = ceil(dest_hru.hru_state.variables[var])
         source_hru.hru_state.variables[var] = 0
       elif var in spec_9_vars:
         source_hru.hru_state.variables[var] = 0
@@ -925,8 +946,8 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
           * (int(source_hru.hru_state.variables['SNOW_SWQ'] >= 0))) \
           / (dest_hru.area_frac * (int(dest_hru.hru_state.variables['SNOW_SWQ'] >= 0)) \
           + source_hru.area_frac * (int(source_hru.hru_state.variables['SNOW_SWQ'] >= 0)))
-          if var == 'SNOW_LAST_SNOW' or var == 'SNOW_MELTING':
-            dest_hru.hru_state.variables[var] = ceil(dest_hru.hru_state.variables[var])
+        if var == 'SNOW_LAST_SNOW' or var == 'SNOW_MELTING':
+          dest_hru.hru_state.variables[var] = ceil(dest_hru.hru_state.variables[var])
         source_hru.hru_state.variables[var] = 0
 
       # elif var in spec_9_vars:
@@ -947,8 +968,8 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
           * (int(source_hru.hru_state.variables['SNOW_SWQ'] >= 0))) \
           / (dest_hru.area_frac * (int(dest_hru.hru_state.variables['SNOW_SWQ'] >= 0)) \
           + source_hru.area_frac * (int(source_hru.hru_state.variables['SNOW_SWQ'] >= 0)))
-          if var == 'SNOW_LAST_SNOW' or var == 'SNOW_MELTING':
-            dest_hru.hru_state.variables[var] = ceil(dest_hru.hru_state.variables[var])
+        if var == 'SNOW_LAST_SNOW' or var == 'SNOW_MELTING':
+          dest_hru.hru_state.variables[var] = ceil(dest_hru.hru_state.variables[var])
         source_hru.hru_state.variables[var] = 0
   elif case == '5c':
     print('update_hru_state: case 5c')
@@ -965,8 +986,8 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
           * (int(source_hru.hru_state.variables['SNOW_SWQ'] >= 0))) \
           / (dest_hru.area_frac * (int(dest_hru.hru_state.variables['SNOW_SWQ'] >= 0)) \
           + source_hru.area_frac * (int(source_hru.hru_state.variables['SNOW_SWQ'] >= 0)))
-          if var == 'SNOW_LAST_SNOW' or var == 'SNOW_MELTING':
-            dest_hru.hru_state.variables[var] = ceil(dest_hru.hru_state.variables[var])
+        if var == 'SNOW_LAST_SNOW' or var == 'SNOW_MELTING':
+          dest_hru.hru_state.variables[var] = ceil(dest_hru.hru_state.variables[var])
         source_hru.hru_state.variables[var] = 0
   elif case == '5d':
     print('update_hru_state: case 5d')
