@@ -19,7 +19,7 @@ import netCDF4
 from dateutil.relativedelta import relativedelta
 
 from conductor.io import get_rgm_pixel_mapping, read_gsa_headers,\
-  write_grid_to_gsa_file, update_glacier_mask, read_state
+  write_grid_to_gsa_file, update_glacier_mask, read_state, write_state
 from conductor.cells import Band, HydroResponseUnit
 from conductor.snbparams import load_snb_parms, save_snb_parms
 from conductor.vegparams import load_veg_parms, save_veg_parms
@@ -397,21 +397,21 @@ def main():
         + start.isoformat() + '.gsa'
       write_grid_to_gsa_file(glacier_mask, glacier_mask_file)
     
-    # 8. Update areas of each elevation band in each VIC grid cell, and update
-    # snow band and vegetation parameters
+    # 8. Update hru and band area fractions and state for all VIC grid cells 
     update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands, \
       rgm_surf_dem_out, num_rows_dem, num_cols_dem, glacier_mask)
+
+    # 9. Update the VIC state file with new state information
+    write_state(state, cells)
+    state.close()
+
+    # 10. Write new updated snow band and vegetation parameter files
     temp_snb = temp_files_path + 'snb_temp_' + start.isoformat() + '.txt'
     snbparams.save_snb_parms(cells, temp_snb, band_map)
     temp_vpf = temp_files_path + 'vpf_temp_' + start.isoformat() + '.txt'
     vegparams.save_veg_parms(cells, temp_vpf)
 
-    # 11 Calculate changes to HRU state variables and modify the VIC state file
-    #update_state(cells)
-    #write_state(cells, state)
-    state.close()
-
-    # Get ready for the next loop
+    # Get ready for the next loop iteration
     global_parms.init_state = "{}_{}.txt".format(global_parms.statename,\
       end.strftime("%Y%m%d"))
     global_parms.statedate = end

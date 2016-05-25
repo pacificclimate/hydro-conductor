@@ -92,7 +92,7 @@ def update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem):
 
 def read_state(state, cells):
   """Reads the most recent state variables from the VIC state file produced by
-    the most recent VIC run and updates the CellMetadataState and
+    the most recent VIC run and updates the CellState and
     HruState object members of each cell.
   """
   num_lons = len(state['lon'])
@@ -117,5 +117,27 @@ def read_state(state, cells):
         cell_hru_idx += 1
     cell_idx += 1
 
-def update_state_file(state, state_file, cell_state_changes):
-  pass
+def write_state(state, cells):
+  """Modifies the existing VIC state file with the modified states from the
+    CellState and HruState object members of each cell.
+  """
+  num_lons = len(state['lon'])
+  def get_2D_cell_indices(count):
+    """Returns the 2D lat/lon indices of the cell for accessing it from the state file"""
+    return count // num_lons, count % num_lons
+
+  cell_idx = 0
+  for cell_id, cell in cells.items():
+    cell_lat_idx, cell_lon_idx = get_2D_cell_indices(cell_idx)
+    cell_hru_idx = 0
+    # write all cell state variables with dimensions (lat, lon)
+    for variable in cell.cell_state.variables:
+      state[variable][cell_lat_idx, cell_lon_idx] = cell.cell_state.variables[variable]
+
+    for band in cell.bands:
+      for hru_veg_type in band.hru_keys_sorted: # HRUs are sorted by ascending veg_type_num in VIC state file
+        # write all HRU state variables with dimensions (lat, lon, hru)
+        for variable in band.hrus[hru_veg_type].hru_state.variables:
+          state[variable][cell_lat_idx, cell_lon_idx, cell_hru_idx] = band.hrus[hru_veg_type].hru_state.variables[variable]
+        cell_hru_idx += 1
+    cell_idx += 1
