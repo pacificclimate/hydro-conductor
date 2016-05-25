@@ -20,11 +20,18 @@ class Cell(object):
   """Class capturing VIC cells
   """
   def __init__(self, bands):
-    self.cell_state = CellState()
     self.bands = bands
+    self.cell_state = CellState()
 
   def __eq__(self, other):
     return (self.__class__ == other.__class__ and self.__dict__ == other.__dict__)
+
+  def update_cell_state(self):
+    self.cell_state.variables['VEG_TYPE_NUM'] = sum([i.num_hrus for i in self.bands])
+
+  @property
+  def num_bands(self):
+    return len(self.bands)
 
 class CellState(object):
   """Class capturing the set of VIC cell state and metadata variables that can
@@ -34,10 +41,7 @@ class CellState(object):
     self.variables = {
       'SOIL_DZ_NODE': [],
       'SOIL_ZSUM_NODE': [],
-      'GRID_CELL':-1,
-      'NUM_BANDS': 0,
-      'VEG_TYPE_NUM': 0,
-      'GLAC_MASS_BALANCE_EQN_TERMS': []
+      'VEG_TYPE_NUM': 0
     }
 
   def __repr__(self):
@@ -225,7 +229,7 @@ class HruState(object):
 
 # Following are the state variables split into sets according to their update
 # method specification, as detailed in the VIC State Updating Spec 3.0.
-spec_1_vars = ['NUM_BANDS', 'SOIL_DZ_NODE', 'SOIL_ZSUM_NODE',\
+spec_1_vars = ['SOIL_DZ_NODE', 'SOIL_ZSUM_NODE',\
   'VEG_TYPE_NUM']
 
 spec_2_vars = ['LAYER_ICE_CONTENT', 'LAYER_MOIST',\
@@ -290,6 +294,7 @@ def merge_cell_input(hru_cell_dict, elevation_cell_dict):
       band_dict[band_id][veg_type] = hru
     for band_id, hru_dict in band_dict.items():
       cells[cell_id].bands[band_id].hrus = hru_dict
+    cells[cell_id].update_cell_state()
   return cells
 
 def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
@@ -372,13 +377,13 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
 
     # Initialise temporary band-level area fractions used
     # in computations below
-    previous_glacier_area_fracs = [0] * len(cell.bands)
-    new_band_area_frac = [0] * len(cell.bands)
-    new_glacier_area_frac = [0] * len(cell.bands)
-    new_non_glacier_area_frac = [0] * len(cell.bands)
-    new_open_ground_area_frac = [0] * len(cell.bands)
-    veg_scaling_divisor = [0] * len(cell.bands)
-    delta_area_vegetated = [0] * len(cell.bands)
+    previous_glacier_area_fracs = [0] * cell.num_bands
+    new_band_area_frac = [0] * cell.num_bands
+    new_glacier_area_frac = [0] * cell.num_bands
+    new_non_glacier_area_frac = [0] * cell.num_bands
+    new_open_ground_area_frac = [0] * cell.num_bands
+    veg_scaling_divisor = [0] * cell.num_bands
+    delta_area_vegetated = [0] * cell.num_bands
     new_hru_area_frac = {}
 
     ### Update all Band area fractions for this cell
@@ -445,8 +450,8 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
           # glacier HRU (HRU state defaults are automatically set upon HRU
           # creation, so technically there's no need to call update_hru_state())
           band.create_hru(Band.glacier_id, new_glacier_area_frac[band_id])
-          band.hrus[Band.glacier_id].hru_state['HRU_VEG_INDEX'] = Band.glacier_id
-          band.hrus[Band.glacier_id].hru_state['HRU_BAND_INDEX'] = band_id
+          band.hrus[Band.glacier_id].hru_state.variables['HRU_VEG_INDEX'] = Band.glacier_id
+          band.hrus[Band.glacier_id].hru_state.variables['HRU_BAND_INDEX'] = band_id
           new_area_fracs = {}
           update_hru_state(None,None,'1',**new_area_fracs)
         elif new_glacier_area_frac[band_id] == band.area_frac_glacier:
@@ -489,8 +494,8 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
             # we need to create a glacier HRU in the lower band if one doesn't
             # already exist
             cell.bands[band_id - 1].create_hru(Band.glacier_id, new_glacier_area_frac[band_id - 1])
-            cell.bands[band_id - 1].hrus[Band.glacier_id].hru_state['HRU_VEG_INDEX'] = Band.glacier_id
-            cell.bands[band_id - 1].hrus[Band.glacier_id].hru_state['HRU_BAND_INDEX'] = band_id - 1
+            cell.bands[band_id - 1].hrus[Band.glacier_id].hru_state.variables['HRU_VEG_INDEX'] = Band.glacier_id
+            cell.bands[band_id - 1].hrus[Band.glacier_id].hru_state.variables['HRU_BAND_INDEX'] = band_id - 1
           new_area_fracs = {
             'new_glacier_area_frac': new_glacier_area_frac[band_id - 1]
           }
@@ -510,8 +515,8 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
             # we need to create an open ground HRU in the lower band if one
             # doesn't already exist
             cell.bands[band_id - 1].create_hru(Band.open_ground_id, new_open_ground_area_frac[band_id - 1])
-            cell.bands[band_id - 1].hrus[Band.open_ground_id].hru_state['HRU_VEG_INDEX'] = Band.open_ground_id
-            cell.bands[band_id - 1].hrus[Band.open_ground_id].hru_state['HRU_BAND_INDEX'] = band_id - 1
+            cell.bands[band_id - 1].hrus[Band.open_ground_id].hru_state.variables['HRU_VEG_INDEX'] = Band.open_ground_id
+            cell.bands[band_id - 1].hrus[Band.open_ground_id].hru_state.variables['HRU_BAND_INDEX'] = band_id - 1
           new_area_fracs = {
             'new_open_ground_area_frac': new_open_ground_area_frac[band_id - 1]
           }
@@ -569,8 +574,8 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
           # automatically set upon HRU creation, so technically
           # there's no need to call update_hru_state())
           band.create_hru(Band.open_ground_id, new_open_ground_area_frac[band_id])
-          band.hrus[Band.open_ground_id].hru_state['HRU_VEG_INDEX'] = Band.open_ground_id
-          band.hrus[Band.open_ground_id].hru_state['HRU_BAND_INDEX'] = band_id
+          band.hrus[Band.open_ground_id].hru_state.variables['HRU_VEG_INDEX'] = Band.open_ground_id
+          band.hrus[Band.open_ground_id].hru_state.variables['HRU_BAND_INDEX'] = band_id
           new_area_fracs = {}
           update_hru_state(None,None,'1',**new_area_fracs)
         elif new_open_ground_area_frac[band_id] == band.area_frac_open_ground:
@@ -616,8 +621,8 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
             # we need to create a glacier HRU in the lower band if one doesn't
             # already exist
             cell.bands[band_id - 1].create_hru(Band.glacier_id, new_glacier_area_frac[band_id - 1])
-            cell.bands[band_id - 1].hrus[Band.glacier_id].hru_state['HRU_VEG_INDEX'] = Band.glacier_id
-            cell.bands[band_id - 1].hrus[Band.glacier_id].hru_state['HRU_BAND_INDEX'] = band_id - 1
+            cell.bands[band_id - 1].hrus[Band.glacier_id].hru_state.variables['HRU_VEG_INDEX'] = Band.glacier_id
+            cell.bands[band_id - 1].hrus[Band.glacier_id].hru_state.variables['HRU_BAND_INDEX'] = band_id - 1
           new_area_fracs = {
             'new_glacier_area_frac': new_glacier_area_frac[band_id - 1]
           }
@@ -638,8 +643,8 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
             # we need to create an open ground HRU in the lower band if one
             # doesn't already exist
             cell.bands[band_id - 1].create_hru(Band.open_ground_id, new_open_ground_area_frac[band_id - 1])
-            cell.bands[band_id - 1].hrus[Band.open_ground_id].hru_state['HRU_VEG_INDEX'] = Band.open_ground_id
-            cell.bands[band_id - 1].hrus[Band.open_ground_id].hru_state['HRU_BAND_INDEX'] = band_id - 1
+            cell.bands[band_id - 1].hrus[Band.open_ground_id].hru_state.variables['HRU_VEG_INDEX'] = Band.open_ground_id
+            cell.bands[band_id - 1].hrus[Band.open_ground_id].hru_state.variables['HRU_BAND_INDEX'] = band_id - 1
           hrus_to_be_deleted.append(Band.open_ground_id)
           new_area_fracs = {
             'new_open_ground_area_frac': new_open_ground_area_frac[band_id - 1]
@@ -743,8 +748,8 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
                 # we need to create a glacier HRU in the lower band if one doesn't
                 # already exist
                 cell.bands[band_id - 1].create_hru(Band.glacier_id, new_glacier_area_frac[band_id - 1])
-                cell.bands[band_id - 1].hrus[Band.glacier_id].hru_state['HRU_VEG_INDEX'] = Band.glacier_id
-                cell.bands[band_id - 1].hrus[Band.glacier_id].hru_state['HRU_BAND_INDEX'] = band_id - 1
+                cell.bands[band_id - 1].hrus[Band.glacier_id].hru_state.variables['HRU_VEG_INDEX'] = Band.glacier_id
+                cell.bands[band_id - 1].hrus[Band.glacier_id].hru_state.variables['HRU_BAND_INDEX'] = band_id - 1
               new_area_fracs = {
                 'new_glacier_area_frac': new_glacier_area_frac[band_id - 1]
               }
@@ -766,8 +771,8 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
                 # we need to create an open ground HRU in the lower band if one
                 # doesn't already exist
                 cell.bands[band_id - 1].create_hru(Band.open_ground_id, new_open_ground_area_frac[band_id - 1])
-                cell.bands[band_id - 1].hrus[Band.open_ground_id].hru_state['HRU_VEG_INDEX'] = Band.open_ground_id
-                cell.bands[band_id - 1].hrus[Band.open_ground_id].hru_state['HRU_BAND_INDEX'] = band_id - 1
+                cell.bands[band_id - 1].hrus[Band.open_ground_id].hru_state.variables['HRU_VEG_INDEX'] = Band.open_ground_id
+                cell.bands[band_id - 1].hrus[Band.open_ground_id].hru_state.variables['HRU_BAND_INDEX'] = band_id - 1
               new_area_fracs = {
                 'new_open_ground_area_frac': new_open_ground_area_frac[band_id - 1]
               }
@@ -825,6 +830,9 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         # median elevation to the floor of the range
         if band.area_frac == 0:
           band.median_elev = band.lower_bound
+
+  # Update cell-level state variables
+  cell.update_cell_state()
 
         # TODO: replace test below with one that checks that all band HRU area fracs add to 1
         # Sanity check that glacier + non-glacier area fractions add up to Band's total area fraction, within tolerance
