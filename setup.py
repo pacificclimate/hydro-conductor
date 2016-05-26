@@ -11,7 +11,7 @@ setup(
     url="http://www.pacificclimate.org/",
     author="Michael Fischer",
     author_email="mfischer@uvic.ca",
-    install_requires = ['numpy', 'h5py'],
+    install_requires = ['numpy', 'netCDF4'],
     tests_require = ['pytest', 'mock'],
     scripts = ['scripts/vic_rgm_conductor.py'],
     package_data = {'conductor': ['tests/input/global.txt',
