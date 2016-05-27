@@ -63,16 +63,17 @@ def load_snb_parms(snb_file, num_snow_bands):
       # Should have the cell_id followed by num_snow_bands columns 
       # for each of area fractions and median elevations 
       # (and NO Pfactor values, which are deprecated!)
-      if len(split_line) != (num_snow_bands * 2 + 1):
-        raise Exception(
-            'Number of columns ({}) in snow band file {} is '
-            'incorrect for the number of SNOW_BAND ({}) '
-            'given in the global parameter file (should be a '
-            '2 * SNOW_BAND, plus 1). Are you still including '
-            '(deprecated) Pfactor values? If so, remove them.'
-            .format(len(split_line), snb_file, num_snow_bands)
-        )
-      elevs = [ int(z) for z in split_line[num_snow_bands+1:] ] 
+      # if len(split_line) != (num_snow_bands * 2 + 1):
+      #   raise Exception(
+      #       'Number of columns ({}) in snow band file {} is '
+      #       'incorrect for the number of SNOW_BAND ({}) '
+      #       'given in the global parameter file (should be a '
+      #       '2 * SNOW_BAND, plus 1). Are you still including '
+      #       '(deprecated) Pfactor values? If so, remove them.'
+      #       .format(len(split_line), snb_file, num_snow_bands)
+      #   )
+      # elevs = [ int(z) for z in split_line[num_snow_bands+1:] ] 
+      elevs = [ int(z) for z in split_line[num_snow_bands+1:2*num_snow_bands+1] ] 
 
       # Assign median (floor) elevations to 0-pad-derived dummy bands
       elevs = assign_dummy_band_elevations(elevs)
@@ -84,19 +85,26 @@ def load_snb_parms(snb_file, num_snow_bands):
       cells[cell_id] = cell
   return cells
 
-# TODO: update this...
-def save_snb_parms(cells, filename, band_map):
+def save_snb_parms(cells, filename):
   """ Assembles and writes updated snow band parameters to a new temporary
     Snow Band Parameter File for feeding back into VIC in the next iteration.
   """
   with open(filename, 'w') as f:
     writer = csv.writer(f, delimiter=' ')
     for cell_id, cell in cells.items():
-      area_fracs = [ band.area_frac if map_value else 0 for map_value,\
-        band in zip(band_map, cell) ]
-# TODO: only write out elevations for Bands that contain HRUs (otherwise 
-# they are placeholders and a 0 should be written)            
-      elevations = [ band.median_elev if map_value else 0 for map_value,\
-        band in zip(band_map, cell) ]
-      line = [cell_id] + area_fracs + elevations
+      area_fracs = []
+      elevations = []
+      for band in cell.bands:
+        area_fracs.append(band.area_frac)
+        # only write out elevations for Bands that contain HRUs
+        # (including shadow glaciers). Otherwise, they are placeholders and
+        # a 0 should be written)
+        if band.num_hrus > 0:
+          elevations.append(band.median_elev)
+        else:
+          elevations.append(0)
+      # line = [cell_id] + area_fracs + elevations
+      # Hack to introduce Pfactors:
+      line = [cell_id] + area_fracs + elevations + [1]*cell.num_bands
+
       writer.writerow(line)

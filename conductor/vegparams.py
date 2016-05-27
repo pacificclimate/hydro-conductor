@@ -53,7 +53,7 @@ def save_veg_parms(cells, filename):
   with open(filename, 'w') as f:
     writer = csv.writer(f, delimiter=' ')
     for cell_id, cell in cells.items():
-      writer.writerow( [ cell_id, sum([band.num_hrus for band in cell]) ] )
+      writer.writerow( [ cell_id, sum([band.num_hrus for band in cell.bands]) ] )
       for band_id, band in enumerate(cell.bands):
         for veg_type, hru in band.hrus.items():
           line = [veg_type, hru.area_frac] + hru.root_zone_parms + [ band_id ]

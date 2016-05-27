@@ -41,7 +41,8 @@ class CellState(object):
     self.variables = {
       'SOIL_DZ_NODE': [],
       'SOIL_ZSUM_NODE': [],
-      'VEG_TYPE_NUM': 0
+      'VEG_TYPE_NUM': 0,
+      'GLAC_MASS_BALANCE_EQN_TERMS':[0]*3 # TODO: make number of terms adjustable?
     }
 
   def __repr__(self):
@@ -872,14 +873,14 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
               for item_idx, item in enumerate(source_hru.hru_state.variables[var][layer_idx]):
                 dest_hru.hru_state.variables[var][layer_idx][item_idx] \
                 = source_hru.hru_state.variables[var][layer_idx][item_idx] \
-                * (source_hru.area_frac / new_hru_area_frac)
+                * (source_hru.area_frac / kwargs['new_hru_area_frac'])
             else:
               dest_hru.hru_state.variables[var][layer_idx] \
               = source_hru.hru_state.variables[var][layer_idx] \
-              * (source_hru.area_frac / new_hru_area_frac)
+              * (source_hru.area_frac / kwargs['new_hru_area_frac'])
         else:
           dest_hru.hru_state.variables[var] = source_hru.hru_state.variables[var] \
-          * (source_hru.area_frac / new_hru_area_frac)
+          * (source_hru.area_frac / kwargs['new_hru_area_frac'])
       elif var in spec_3_vars: # SNOW_DENSITY
         if dest_hru.hru_state.variables['SNOW_DEPTH'] > 0: # avoid division by zero
           dest_hru.hru_state.variables[var] \
@@ -889,7 +890,7 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
           dest_hru.hru_state.variables[var] = 0
       elif var in spec_4_vars:
         dest_hru.hru_state.variables[var] = source_hru.hru_state.variables[var] \
-        * (source_hru.area_frac / new_hru_area_frac)
+        * (source_hru.area_frac / kwargs['new_hru_area_frac'])
       elif var in spec_5_vars:
         carry_over(source_hru.hru_state.variables[var], \
           dest_hru.hru_state.variables[var])
@@ -917,17 +918,17 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
                 dest_hru.hru_state.variables[var][layer_idx][item_idx] \
                 = dest_hru.hru_state.variables[var][layer_idx][item_idx] \
                 + source_hru.hru_state.variables[var][layer_idx][item_idx] \
-                * (source_hru.area_frac / new_open_ground_area_frac)
+                * (source_hru.area_frac / kwargs['new_open_ground_area_frac'])
             else:
               dest_hru.hru_state.variables[var][layer_idx] \
               = dest_hru.hru_state.variables[var][layer_idx] \
               + source_hru.hru_state.variables[var][layer_idx] \
-              * (source_hru.area_frac / new_open_ground_area_frac)
+              * (source_hru.area_frac / kwargs['new_open_ground_area_frac'])
         else:
           dest_hru.hru_state.variables[var] \
           = dest_hru.hru_state.variables[var] \
           + source_hru.hru_state.variables[var] \
-          * (source_hru.area_frac / new_open_ground_area_frac)
+          * (source_hru.area_frac / kwargs['new_open_ground_area_frac'])
       elif var in spec_3_vars: # SNOW_DENSITY
         if dest_hru.hru_state.variables['SNOW_DEPTH'] > 0: # avoid division by zero
           dest_hru.hru_state.variables[var] \
@@ -939,7 +940,7 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
         dest_hru.hru_state.variables[var] \
         = dest_hru.hru_state.variables[var] \
         + source_hru.hru_state.variables[var] \
-        * (source_hru.area_frac / new_open_ground_area_frac)
+        * (source_hru.area_frac / kwargs['new_open_ground_area_frac'])
       elif var in spec_5_vars: # GLAC_CUM_MASS_BALANCE, only applies to glacier HRUs.
         # Glacier HRU gone, but shadow remains, so we have to set state to zero
         # rather than relying on deletion of the HRU to effectively do this
@@ -976,17 +977,17 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
                 dest_hru.hru_state.variables[var][layer_idx][item_idx] \
                 = dest_hru.hru_state.variables[var][layer_idx][item_idx] \
                 + source_hru.hru_state.variables[var][layer_idx][item_idx] \
-                * (source_hru.area_frac / new_glacier_area_frac)
+                * (source_hru.area_frac / kwargs['new_glacier_area_frac'])
             else:
               dest_hru.hru_state.variables[var][layer_idx] \
               = dest_hru.hru_state.variables[var][layer_idx] \
               + source_hru.hru_state.variables[var][layer_idx]\
-              * (source_hru.area_frac / new_glacier_area_frac)
+              * (source_hru.area_frac / kwargs['new_glacier_area_frac'])
         else:
           dest_hru.hru_state.variables[var] \
           = dest_hru.hru_state.variables[var] \
           + source_hru.hru_state.variables[var] \
-          * (source_hru.area_frac / new_glacier_area_frac)
+          * (source_hru.area_frac / kwargs['new_glacier_area_frac'])
       elif var in spec_3_vars: # SNOW_DENSITY
         # avoid division by zero
         if dest_hru.hru_state.variables['SNOW_DEPTH'] > 0:
@@ -1031,16 +1032,16 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
                 dest_hru.hru_state.variables[var][layer_idx][item_idx] \
                 = dest_hru.hru_state.variables[var][layer_idx][item_idx] \
                 + source_hru.hru_state.variables[var][layer_idx][item_idx] \
-                * (source_hru.area_frac / new_glacier_area_frac)
+                * (source_hru.area_frac / kwargs['new_glacier_area_frac'])
             else:
               dest_hru.hru_state.variables[var][layer_idx] \
               = dest_hru.hru_state.variables[var][layer_idx] \
               + source_hru.hru_state.variables[var][layer_idx] \
-              * (source_hru.area_frac / new_glacier_area_frac)
+              * (source_hru.area_frac / kwargs['new_glacier_area_frac'])
         else:
           dest_hru.hru_state.variables[var] = dest_hru.hru_state.variables[var] \
           + source_hru.hru_state.variables[var] \
-          * (source_hru.area_frac / new_glacier_area_frac)
+          * (source_hru.area_frac / kwargs['new_glacier_area_frac'])
       elif var in spec_3_vars: # SNOW_DENSITY
          # avoid division by zero
         if dest_hru.hru_state.variables['SNOW_DEPTH'] > 0:
@@ -1053,7 +1054,7 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
         dest_hru.hru_state.variables[var] \
         = dest_hru.hru_state.variables[var] \
         + source_hru.hru_state.variables[var] \
-        * (source_hru.area_frac / new_glacier_area_frac)
+        * (source_hru.area_frac / kwargs['new_glacier_area_frac'])
       elif var in spec_5_vars: # GLAC_CUM_MASS_BALANCE (glacier HRUs only)
         # Glacier HRU gone, but shadow remains, so we have to set state to zero
         # rather than relying on deletion of the HRU to effectively do this
@@ -1089,17 +1090,17 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
                 dest_hru.hru_state.variables[var][layer_idx][item_idx] \
                 = dest_hru.hru_state.variables[var][layer_idx][item_idx] \
                 + source_hru.hru_state.variables[var][layer_idx][item_idx] \
-                * (source_hru.area_frac / new_open_ground_area_frac)
+                * (source_hru.area_frac / kwargs['new_open_ground_area_frac'])
             else:
               dest_hru.hru_state.variables[var][layer_idx] \
               = dest_hru.hru_state.variables[var][layer_idx] \
               + source_hru.hru_state.variables[var][layer_idx] \
-              * (source_hru.area_frac / new_open_ground_area_frac)
+              * (source_hru.area_frac / kwargs['new_open_ground_area_frac'])
         else:
           dest_hru.hru_state.variables[var] \
           = dest_hru.hru_state.variables[var] \
           + source_hru.hru_state.variables[var] \
-          * (source_hru.area_frac / new_open_ground_area_frac)
+          * (source_hru.area_frac / kwargs['new_open_ground_area_frac'])
       elif var in spec_3_vars: # SNOW_DENSITY
          # avoid division by zero
         if dest_hru.hru_state.variables['SNOW_DEPTH'] > 0:
@@ -1112,7 +1113,7 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
         dest_hru.hru_state.variables[var] \
         = dest_hru.hru_state.variables[var] \
         + source_hru.hru_state.variables[var] \
-        * (source_hru.area_frac / new_open_ground_area_frac)
+        * (source_hru.area_frac / kwargs['new_open_ground_area_frac'])
       elif var in spec_5_vars: # GLAC_CUM_MASS_BALANCE (glacier HRUs only)
         # Glacier HRU gone, but shadow remains, so we have to set state to zero
         # rather than relying on deletion of the HRU to effectively do this
@@ -1148,17 +1149,17 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
                 dest_hru.hru_state.variables[var][layer_idx][item_idx] \
                 = dest_hru.hru_state.variables[var][layer_idx][item_idx] \
                 + source_hru.hru_state.variables[var][layer_idx][item_idx] \
-                * (source_hru.area_frac / new_hru_area_frac)
+                * (source_hru.area_frac / kwargs['new_hru_area_frac'])
             else:
               dest_hru.hru_state.variables[var][layer_idx] \
               = dest_hru.hru_state.variables[var][layer_idx] \
               + source_hru.hru_state.variables[var][layer_idx] \
-              * (source_hru.area_frac / new_hru_area_frac)
+              * (source_hru.area_frac / kwargs['new_hru_area_frac'])
         else:
           dest_hru.hru_state.variables[var] \
           = dest_hru.hru_state.variables[var] \
           + source_hru.hru_state.variables[var] \
-          * (source_hru.area_frac / new_hru_area_frac)
+          * (source_hru.area_frac / kwargs['new_hru_area_frac'])
       elif var in spec_3_vars: # SNOW_DENSITY
          # avoid division by zero
         if dest_hru.hru_state.variables['SNOW_DEPTH'] > 0:
@@ -1171,7 +1172,7 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
         dest_hru.hru_state.variables[var] \
         = dest_hru.hru_state.variables[var] \
         + source_hru.hru_state.variables[var] \
-        * (source_hru.area_frac / new_hru_area_frac)
+        * (source_hru.area_frac / kwargs['new_hru_area_frac'])
       elif var in spec_5_vars: # GLAC_CUM_MASS_BALANCE (glacier HRUs only)
         # Glacier HRU gone, but shadow remains, so we have to set state to zero
         # rather than relying on deletion of the HRU to effectively do this
