@@ -5,7 +5,6 @@
 """
 
 import argparse
-import csv
 import collections
 from collections import OrderedDict
 import os
@@ -122,8 +121,8 @@ def parse_input_parms():
     pixel_cell_map_file, init_glacier_mask_file, output_trace_files, \
     glacier_root_zone_parms, open_ground_root_zone_parms, band_size
 
-def mass_balances_to_rgm_grid(gmb_polys, pixel_to_cell_map, num_rows_dem,\
-  num_cols_dem, cell_ids):
+def mass_balances_to_rgm_grid(gmb_polys, cell_id_map, dem, num_rows_dem,\
+  num_cols_dem, valid_cell_ids):
   """ Translate mass balances from grid cell GMB polynomials to 2D RGM pixel \
     grid to use as one of the inputs to RGM
   """
@@ -132,20 +131,18 @@ def mass_balances_to_rgm_grid(gmb_polys, pixel_to_cell_map, num_rows_dem,\
   try:
     for row in range(num_rows_dem):
       for col in range(num_cols_dem):
-        pixel = pixel_to_cell_map[row][col]
-        # band = pixel[0]
-        cell_id = pixel[0]
-        # read most recent median elevation of this pixel
-        median_elev = pixel[1]
-        # only grab pixels that fall within a VIC cell
-        if cell_id != 'NA':
+        if not np.isnan(cell_id_map[row][col]):
+        # only grab elevation for pixels that fall within a VIC cell
+          cell_id = str(int(cell_id_map[row][col]))
           # check that the cell_id agrees with reading from the veg_parm_file
-          if cell_id not in cell_ids:
+          if cell_id not in valid_cell_ids:
             print('mass_balances_to_rgm_grid: Cell ID {} was not found in the \
               list of VIC cell IDs read from the vegetation parameters file. \
               Exiting.\n'.format(cell_id))
             sys.exit(0)
-          mass_balance_grid[row][col] = gmb_polys[cell_id][0] + median_elev\
+          # read most recent median elevation of this pixel
+          median_elev = dem[row][col]
+          mass_balance_grid[row][col] = gmb_polys[cell_id][0] + median_elev \
             * (gmb_polys[cell_id][1] + median_elev * gmb_polys[cell_id][2])
   except:
     print('mass_balances_to_rgm_grid: Error while processing pixel {} \
@@ -259,7 +256,7 @@ def main():
   rgm_surf_dem_out_file = temp_files_path + 's_out_00001.grd'
 
   # Open and read VIC-grid-to-RGM-pixel mapping file
-  cellid_map, elevation_map, cell_areas, num_cols_dem, num_rows_dem\
+  cell_id_map, elevation_map, cell_areas, num_cols_dem, num_rows_dem\
     = get_rgm_pixel_mapping(pixel_cell_map_file)
 
   # Get DEM xmin, xmax, ymin, ymax metadata of Bed DEM and check file header
@@ -267,7 +264,7 @@ def main():
   dem_xmin, dem_xmax, dem_ymin, dem_ymax, num_rows, num_cols\
     = read_gsa_headers(bed_dem_file)
   # Verify that number of columns & rows agree with what's stated in the
-  # pixel_to_cell_map_file
+  # pixel_cell_map_file
   assert (num_cols == num_cols_dem) and (num_rows == num_rows_dem),'Mismatch \
   of stated dimension(s) between Bed DEM in {} (num rows: {}, num columns: \
   {}) and the VIC-grid-to-RGM-pixel map in {} (num rows: {}, num columns: \
@@ -288,16 +285,15 @@ def main():
     pixel_cell_map_file, num_rows_dem, num_cols_dem)
 
   # Read in the provided Surface Digital Elevation Map (SDEM) file to 2D surf_dem array
-  surf_dem_initial = np.loadtxt(surf_dem_in_file, skiprows=5)
+  current_surf_dem = np.loadtxt(surf_dem_in_file, skiprows=5)
   # Check agreement between elevation_map from VIC-grid-to-RGM-pixel file and
   # the initial Surface DEM. Mask out invalid values in elevation_map and get
-  # valid indices to spatially align with subset of surf_dem_initial that
+  # valid indices to spatially align with subset of current_surf_dem that
   # falls within the simulation domain.
   masked_elevation_map = np.ma.masked_invalid(elevation_map)
   aligned_indices = masked_elevation_map.nonzero()
-  # assert (np.array_equal(elevation_map, surf_dem_initial)), 'Values mismatch \
-  assert (np.array_equal(masked_elevation_map[~masked_elevation_map.mask], \
-    surf_dem_initial[aligned_indices])), 'Values mismatch \
+  assert (np.array_equal(masked_elevation_map[~masked_elevation_map.mask],\
+    current_surf_dem[aligned_indices])), 'Values mismatch \
   between provided initial Surface DEM file (num rows:{}, num columns: \
   {}) and VIC-grid-to-RGM-pixel file (num rows: {}, num columns: {}). \
   Exiting.\n'.format(num_rows, num_cols, num_rows_dem, num_cols_dem)
@@ -316,8 +312,8 @@ def main():
 
   # Apply the initial glacier mask and modify the band and glacier area
   # fractions accordingly
-  update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
-    surf_dem_initial, num_rows_dem, num_cols_dem, glacier_mask)
+  update_area_fracs(cells, cell_areas, cell_id_map, num_snow_bands,
+    current_surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
   # Write temporary snow band and vegetation parameter files for first VIC run
   temp_snb = temp_files_path + 'snb_temp_'\
@@ -337,7 +333,8 @@ def main():
   for start, end in time_iterator:
     # 1. Write / Update temporary Global Parameters File, temp_gpf
     temp_gpf = temp_files_path + 'gpf_temp_{}.txt'.format(start.isoformat())
-    print('\nRunning VIC from {} to {}, using global parameter file {}'.format(start, end, temp_gpf))
+    print('\nRunning VIC from {} to {}, using global parameter file {}'.\
+      format(start, end, temp_gpf))
     # set global parameters for this VIC run
     global_parms.vegparam = temp_vpf
     global_parms.snow_band = '{} {}'.format(num_snow_bands, temp_snb)
@@ -365,15 +362,16 @@ def main():
         os.remove(state_file)
     # pull Glacier Mass Balance polynomials out of cell states
     gmb_polys = {}
+    cell_ids = []
     for cell_id in cells:
+        cell_ids.append(cell_id)
         # leave off the "fit error" term at the end of the GMB polynomial
         # TODO: generalize this to handle variable length GMB polynomials
         gmb_polys[cell_id] = cells[cell_id].cell_state.variables['GLAC_MASS_BALANCE_EQN_TERMS'][0:3]
 
     # 4. Translate mass balances using grid cell GMB polynomials and current
-    # veg_parm_file into a 2D RGM mass balance grid (MBG)
-    ##FIXME: should pixel_to_cell_map be elevation_map instead?
-    mass_balance_grid = mass_balances_to_rgm_grid(gmb_polys, pixel_to_cell_map,\
+    # surface DEM into a 2D RGM mass balance grid (MBG)
+    mass_balance_grid = mass_balances_to_rgm_grid(gmb_polys, cell_id_map, current_surf_dem,\
       num_rows_dem, num_cols_dem, cell_ids)
     # write Mass Balance Grid to ASCII file to direct the RGM to use as input
     mbg_file = temp_files_path + 'mass_balance_grid_' + start.isoformat()\
@@ -386,13 +384,14 @@ def main():
       bed_dem_file, "-d", surf_dem_in_file, "-m", mbg_file, "-o",\
       temp_files_path, "-s", "0", "-e", "0" ], shell=False,\
       stderr=subprocess.STDOUT)
+
     # remove temporary files if not saving for offline inspection
     if not output_trace_files:
       os.remove(mbg_file)
       os.remove(rgm_surf_dem_file)
 
     # 6. Read in new Surface DEM file from RGM output
-    rgm_surf_dem_out = np.loadtxt(rgm_surf_dem_out_file, skiprows=5)
+    current_surf_dem = np.loadtxt(rgm_surf_dem_out_file, skiprows=5)
     temp_surf_dem_file = temp_files_path + 'rgm_surf_dem_out_'\
       + start.isoformat() + '.gsa'
     os.rename(rgm_surf_dem_out_file, temp_surf_dem_file)
@@ -400,7 +399,7 @@ def main():
     surf_dem_in_file = temp_surf_dem_file
 
     # 7. Update glacier mask
-    glacier_mask = update_glacier_mask(rgm_surf_dem_out, bed_dem,\
+    glacier_mask = update_glacier_mask(current_surf_dem, bed_dem,\
       num_rows_dem, num_cols_dem)
     if output_trace_files:
       glacier_mask_file = temp_files_path + 'glacier_mask_'\
@@ -408,8 +407,8 @@ def main():
       write_grid_to_gsa_file(glacier_mask, glacier_mask_file)
     
     # 8. Update hru and band area fractions and state for all VIC grid cells 
-    update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands, \
-      rgm_surf_dem_out, num_rows_dem, num_cols_dem, glacier_mask)
+    update_area_fracs(cells, cell_areas, cell_id_map, num_snow_bands,\
+      current_surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
     # 9. Update the VIC state file with new state information
     write_state(state, cells)

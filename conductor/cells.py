@@ -298,7 +298,7 @@ def merge_cell_input(hru_cell_dict, elevation_cell_dict):
     cells[cell_id].update_cell_state()
   return cells
 
-def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
+def update_area_fracs(cells, cell_areas, cell_id_map, num_snow_bands,\
   surf_dem, num_rows_dem, num_cols_dem, glacier_mask):
   """Applies the updated RGM DEM and glacier mask and calculates and updates
     all HRU area fractions for all elevation bands within the VIC cells.
@@ -327,7 +327,7 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
     # Select the portion of the DEM that pertains to this cell from which we
     # will do binning
     masked_dem = np.ma.masked_array(surf_dem)
-    masked_dem[np.where(cellid_map != float(cell_id))] = np.ma.masked
+    masked_dem[np.where(cell_id_map != float(cell_id))] = np.ma.masked
     # Create a regular 'flat' np.array of the DEM subset that is within the
     # VIC cell
     flat_dem = masked_dem[~masked_dem.mask]
@@ -360,7 +360,7 @@ def update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
 
     # Select portion of glacier_mask pertaining to this cell
     cell_glacier_mask = np.ma.masked_array(glacier_mask)
-    cell_glacier_mask[np.where(cellid_map != float(cell_id))] = np.ma.masked
+    cell_glacier_mask[np.where(cell_id_map != float(cell_id))] = np.ma.masked
     masked_dem.mask = False
     masked_dem[np.where(cell_glacier_mask !=1)] = np.ma.masked
     # Create a regular 'flat' np.array of the DEM subset that is the glacier mask

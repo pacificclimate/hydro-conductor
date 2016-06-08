@@ -6,6 +6,7 @@
 """
 
 import numpy as np
+import csv
 
 def get_rgm_pixel_mapping(pixel_map_file):
   """ Parses the RGM pixel to VIC grid cell mapping file and initialises a 2D
@@ -23,8 +24,8 @@ def get_rgm_pixel_mapping(pixel_map_file):
     nx = int(headers['NCOLS'])
     ny = int(headers['NROWS'])
     # create an empty two dimensional array
-    cellid_map = np.empty((ny, nx))
-    cellid_map.fill(np.nan)
+    cell_id_map = np.empty((ny, nx))
+    cell_id_map.fill(np.nan)
     z_map = np.empty((ny, nx))
     z_map.fill(np.nan)
     _ = f.readline() # Consume the column headers
@@ -32,14 +33,14 @@ def get_rgm_pixel_mapping(pixel_map_file):
       _, i, j, _, median_elev, cell_id = line.split()
       i, j = int(i), int(j)
       if cell_id != 'NA': #otherwise we leave it as np.NaN
-        cellid_map[i,j] = cell_id
+        cell_id_map[i,j] = cell_id
         z_map[i, j] = median_elev
       # Increment the pixel-granularity area within the grid cell
       if cell_id in cell_areas:
         cell_areas[cell_id] += 1
       else:
         cell_areas[cell_id] = 1
-  return cellid_map, z_map, cell_areas, nx, ny
+  return cell_id_map, z_map, cell_areas, nx, ny
 
 def read_gsa_headers(dem_file):
   """ Opens and reads the header metadata from a GSA Digital Elevation Map
