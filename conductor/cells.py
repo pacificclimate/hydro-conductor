@@ -861,7 +861,6 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
   elif case == '2':
     pass
   elif case == '3':
-    print('update_hru_state: case 3')
     for var in source_hru.hru_state.variables:
       if var in spec_1_vars:
         carry_over(source_hru.hru_state.variables[var], \
