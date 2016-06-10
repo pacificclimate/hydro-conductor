@@ -19,6 +19,11 @@ CH_ICE = 2100E+03
 class Cell(object):
   """Class capturing VIC cells
   """
+  # Nlayers, Nnodes, NglacMassBalanceEqnTerms are defined on a *per-run* basis
+  Nlayers = 3
+  Nnodes = 3
+  NglacMassBalanceEqnTerms = 3
+
   def __init__(self, bands):
     self.bands = bands
     self.cell_state = CellState()
@@ -28,6 +33,9 @@ class Cell(object):
 
   def update_cell_state(self):
     self.cell_state.variables['VEG_TYPE_NUM'] = sum([i.num_hrus for i in self.bands])
+    print('updated cell state variable VEG_TYPE_NUM to {}'.format(self.cell_state.variables['VEG_TYPE_NUM']))
+    # Nothing is to be done with the other CellState.variables; their values
+    # that were read in by read_state() do not get modified.
 
   @property
   def num_bands(self):
@@ -39,10 +47,10 @@ class CellState(object):
   """
   def __init__(self):
     self.variables = {
-      'SOIL_DZ_NODE': [],
-      'SOIL_ZSUM_NODE': [],
+      'SOIL_DZ_NODE': [0]*Cell.Nnodes,
+      'SOIL_ZSUM_NODE': [0]*Cell.Nnodes,
       'VEG_TYPE_NUM': 0,
-      'GLAC_MASS_BALANCE_EQN_TERMS':[0]*3 # TODO: make number of terms adjustable?
+      'GLAC_MASS_BALANCE_EQN_TERMS': [0]*Cell.NglacMassBalanceEqnTerms
     }
 
   def __repr__(self):
@@ -118,16 +126,17 @@ class Band(object):
     return sum([hru.area_frac for veg_type, hru in self.hrus.items()\
       if veg_type == self.open_ground_id])
 
-  def create_hru(self, veg_type, area_frac):
-    """Creates a new HRU of veg_type
+  def create_hru(self, band_id, veg_type, area_frac):
+    """Creates a new HRU of provided veg_type and area_frac
     """
+    print('create_hru called to create new {} HRU of area_frac {} in band {}'.format(veg_type, area_frac, band_id))
     # Append new hru to existing dict of HRUs for this band
     if veg_type == self.glacier_id:
       self.hrus[veg_type] = HydroResponseUnit(area_frac,\
-        self.glacier_root_zone_parms)
+        self.glacier_root_zone_parms, band_id, veg_type)
     elif veg_type == self.open_ground_id:
       self.hrus[veg_type] = HydroResponseUnit(area_frac,\
-        self.open_ground_root_zone_parms)
+        self.open_ground_root_zone_parms, band_id, veg_type)
 
   def delete_hru(self, veg_type):
     """Deletes an HRU of veg_type within the Band
@@ -150,10 +159,10 @@ class HydroResponseUnit(object):
   """Class capturing vegetation parameters at the single vegetation
     tile (HRU) level (of which there can be many per band).
   """
-  def __init__(self, area_frac, root_zone_parms):
+  def __init__(self, area_frac, root_zone_parms, band_id, veg_type):
     self.area_frac = area_frac
     self.root_zone_parms = root_zone_parms
-    self.hru_state = HruState()
+    self.hru_state = HruState(band_id, veg_type)
   def __repr__(self):
     return '{}({}, {})'.format(self.__class__.__name__,
                    self.area_frac, self.root_zone_parms)
@@ -169,18 +178,18 @@ class HydroResponseUnit(object):
 class HruState(object):
   """Class capturing the set of VIC HRU state variables.
   """
-  def __init__(self):
+  def __init__(self, band_id, veg_type):
     # variables is an OrderedDict because there is temporal dependence in the
     # state update among some of them when update_hru_state() is called
     self.variables = OrderedDict([
       # HRU state variables with dimensions (lat, lon, hru)
-      ('HRU_BAND_INDEX', -1),
-      ('HRU_VEG_INDEX', -1),
+      ('HRU_BAND_INDEX', band_id),
+      ('HRU_VEG_INDEX', veg_type),
       # These two have dimensions (lat, lon, hru, dist, Nlayers)
-      ('LAYER_ICE_CONTENT', []),
-      ('LAYER_MOIST', []),
+      ('LAYER_ICE_CONTENT', [[0]*Cell.Nlayers]),
+      ('LAYER_MOIST', [[0]*Cell.Nlayers]),
       # HRU_VEG_VAR_WDEW has dimensions (lat, lon, hru, dist)
-      ('HRU_VEG_VAR_WDEW' , []),
+      ('HRU_VEG_VAR_WDEW' , [0]),
       # HRU state variables with dimensions (lat, lon, hru)
       ('SNOW_SWQ', 0),
       ('SNOW_DEPTH', 0),
@@ -191,8 +200,8 @@ class HruState(object):
       ('GLAC_WATER_STORAGE', 0),
       ('GLAC_CUM_MASS_BALANCE', 0),
       # HRU state variables with dimensions (lat, lon, hru, Nnodes)
-      ('ENERGY_T', []),
-      ('ENERGY_T_FBCOUNT', []),
+      ('ENERGY_T', [0]*Cell.Nnodes),
+      ('ENERGY_T_FBCOUNT', [0]*Cell.Nnodes),
       # HRU state variables with dimensions (lat, lon, hru)
       ('ENERGY_TFOLIAGE', 0),
       ('GLAC_SURF_TEMP', 0),
@@ -450,9 +459,8 @@ def update_area_fracs(cells, cell_areas, cell_id_map, num_snow_bands,\
           # CASE 1: A new glacier HRU has appeared in this band. Create a new
           # glacier HRU (HRU state defaults are automatically set upon HRU
           # creation, so technically there's no need to call update_hru_state())
-          band.create_hru(Band.glacier_id, new_glacier_area_frac[band_id])
-          band.hrus[Band.glacier_id].hru_state.variables['HRU_VEG_INDEX'] = Band.glacier_id
-          band.hrus[Band.glacier_id].hru_state.variables['HRU_BAND_INDEX'] = band_id
+          print('Glacier HRU update for cell {}, band {}, CASE 1. Creating GLACIER HRU with area_frac {} in band {}'.format(cell_id, band_id, new_glacier_area_frac[band_id], band_id))
+          band.create_hru(band_id, Band.glacier_id, new_glacier_area_frac[band_id])
           new_area_fracs = {}
           update_hru_state(None,None,'1',**new_area_fracs)
         elif new_glacier_area_frac[band_id] == band.area_frac_glacier:
@@ -494,9 +502,8 @@ def update_area_fracs(cells, cell_areas, cell_id_map, num_snow_bands,\
             # Due to the top-to-bottom iteration ordering of band processing,
             # we need to create a glacier HRU in the lower band if one doesn't
             # already exist
-            cell.bands[band_id - 1].create_hru(Band.glacier_id, new_glacier_area_frac[band_id - 1])
-            cell.bands[band_id - 1].hrus[Band.glacier_id].hru_state.variables['HRU_VEG_INDEX'] = Band.glacier_id
-            cell.bands[band_id - 1].hrus[Band.glacier_id].hru_state.variables['HRU_BAND_INDEX'] = band_id - 1
+            print('Glacier HRU update for cell {}, band {}, CASE 5a. Creating GLACIER HRU with area_frac {} in band {}'.format(cell_id, band_id, new_glacier_area_frac[band_id-1], band_id-1))
+            cell.bands[band_id - 1].create_hru(band_id, Band.glacier_id, new_glacier_area_frac[band_id - 1])
           new_area_fracs = {
             'new_glacier_area_frac': new_glacier_area_frac[band_id - 1]
           }
@@ -515,9 +522,8 @@ def update_area_fracs(cells, cell_areas, cell_id_map, num_snow_bands,\
             # Due to the top-to-bottom iteration ordering of band processing,
             # we need to create an open ground HRU in the lower band if one
             # doesn't already exist
-            cell.bands[band_id - 1].create_hru(Band.open_ground_id, new_open_ground_area_frac[band_id - 1])
-            cell.bands[band_id - 1].hrus[Band.open_ground_id].hru_state.variables['HRU_VEG_INDEX'] = Band.open_ground_id
-            cell.bands[band_id - 1].hrus[Band.open_ground_id].hru_state.variables['HRU_BAND_INDEX'] = band_id - 1
+            print('Glacier HRU update for cell {}, band {}, CASE 5b. Creating OPEN GROUND HRU with area_frac {} in band {}'.format(cell_id, band_id, new_open_ground_area_frac[band_id - 1], band_id-1))
+            cell.bands[band_id - 1].create_hru(band_id, Band.open_ground_id, new_open_ground_area_frac[band_id - 1])
           new_area_fracs = {
             'new_open_ground_area_frac': new_open_ground_area_frac[band_id - 1]
           }
@@ -574,9 +580,8 @@ def update_area_fracs(cells, cell_areas, cell_id_map, num_snow_bands,\
           # create a new open ground HRU (HRU state defaults are
           # automatically set upon HRU creation, so technically
           # there's no need to call update_hru_state())
-          band.create_hru(Band.open_ground_id, new_open_ground_area_frac[band_id])
-          band.hrus[Band.open_ground_id].hru_state.variables['HRU_VEG_INDEX'] = Band.open_ground_id
-          band.hrus[Band.open_ground_id].hru_state.variables['HRU_BAND_INDEX'] = band_id
+          print('Open ground HRU update for cell {}, band {}, CASE 1. Creating OPEN GROUND HRU with area_frac {} in band {}'.format(cell_id, band_id, new_open_ground_area_frac[band_id], band_id))
+          band.create_hru(band_id, Band.open_ground_id, new_open_ground_area_frac[band_id])
           new_area_fracs = {}
           update_hru_state(None,None,'1',**new_area_fracs)
         elif new_open_ground_area_frac[band_id] == band.area_frac_open_ground:
@@ -603,6 +608,7 @@ def update_area_fracs(cells, cell_areas, cell_id_map, num_snow_bands,\
           new_area_fracs = {
             'new_glacier_area_frac': new_glacier_area_frac[band_id]
           }
+          print('Open ground HRU update, CASE 4b. Calling update_hru_state: cell_id: {}, band_id: {}'.format(cell_id, band_id))
           update_hru_state( \
             band.hrus[Band.open_ground_id], \
             band.hrus[Band.glacier_id], \
@@ -620,10 +626,9 @@ def update_area_fracs(cells, cell_areas, cell_id_map, num_snow_bands,\
           if not Band.glacier_id in cell.bands[band_id - 1].hrus:
             # Due to the top-to-bottom iteration ordering of band processing,
             # we need to create a glacier HRU in the lower band if one doesn't
-            # already exist
-            cell.bands[band_id - 1].create_hru(Band.glacier_id, new_glacier_area_frac[band_id - 1])
-            cell.bands[band_id - 1].hrus[Band.glacier_id].hru_state.variables['HRU_VEG_INDEX'] = Band.glacier_id
-            cell.bands[band_id - 1].hrus[Band.glacier_id].hru_state.variables['HRU_BAND_INDEX'] = band_id - 1
+            # already exist (only if new_glacier_area_frac[band_id - 1] > 0)
+            print('Open ground HRU update for cell {}, band {}, CASE 5a. Creating GLACIER HRU with area_frac {} in band {}'.format(cell_id, band_id, new_glacier_area_frac[band_id - 1], band_id-1))
+            cell.bands[band_id - 1].create_hru(band_id, Band.glacier_id, new_glacier_area_frac[band_id - 1])
           new_area_fracs = {
             'new_glacier_area_frac': new_glacier_area_frac[band_id - 1]
           }
@@ -643,9 +648,8 @@ def update_area_fracs(cells, cell_areas, cell_id_map, num_snow_bands,\
             # Due to the top-to-bottom iteration ordering of band processing,
             # we need to create an open ground HRU in the lower band if one
             # doesn't already exist
-            cell.bands[band_id - 1].create_hru(Band.open_ground_id, new_open_ground_area_frac[band_id - 1])
-            cell.bands[band_id - 1].hrus[Band.open_ground_id].hru_state.variables['HRU_VEG_INDEX'] = Band.open_ground_id
-            cell.bands[band_id - 1].hrus[Band.open_ground_id].hru_state.variables['HRU_BAND_INDEX'] = band_id - 1
+            print('Open ground HRU update for cell {}, band {}, CASE 5b. Creating OPEN GROUND HRU with area_frac {} in band {}'.format(cell_id, band_id, new_open_ground_area_frac[band_id - 1], band_id-1))
+            cell.bands[band_id - 1].create_hru(band_id, Band.open_ground_id, new_open_ground_area_frac[band_id - 1])
           hrus_to_be_deleted.append(Band.open_ground_id)
           new_area_fracs = {
             'new_open_ground_area_frac': new_open_ground_area_frac[band_id - 1]
@@ -730,6 +734,7 @@ def update_area_fracs(cells, cell_areas, cell_id_map, num_snow_bands,\
               new_area_fracs = {
                 'new_glacier_area_frac': new_glacier_area_frac[band_id]
               }
+              print('Vegetated HRU {} update. Calling update_hru_state: cell_id: {}, band_id: {}'.format(veg_type, cell_id, band_id))
               update_hru_state( \
                 hru, \
                 band.hrus[Band.glacier_id], \
@@ -747,10 +752,9 @@ def update_area_fracs(cells, cell_areas, cell_id_map, num_snow_bands,\
               if not Band.glacier_id in cell.bands[band_id - 1].hrus:
                 # Due to the top-to-bottom iteration ordering of band processing,
                 # we need to create a glacier HRU in the lower band if one doesn't
-                # already exist
-                cell.bands[band_id - 1].create_hru(Band.glacier_id, new_glacier_area_frac[band_id - 1])
-                cell.bands[band_id - 1].hrus[Band.glacier_id].hru_state.variables['HRU_VEG_INDEX'] = Band.glacier_id
-                cell.bands[band_id - 1].hrus[Band.glacier_id].hru_state.variables['HRU_BAND_INDEX'] = band_id - 1
+                # already exist (only if new_glacier_area_frac[band_id - 1] > 0)
+                print('Vegetated HRU {} update for cell {}, band {}, CASE 5a. Creating GLACIER HRU with area_frac {} in band {}'.format(veg_type, cell_id, band_id, new_glacier_area_frac[band_id - 1], band_id-1))
+                cell.bands[band_id - 1].create_hru(band_id, Band.glacier_id, new_glacier_area_frac[band_id - 1])
               new_area_fracs = {
                 'new_glacier_area_frac': new_glacier_area_frac[band_id - 1]
               }
@@ -771,9 +775,8 @@ def update_area_fracs(cells, cell_areas, cell_id_map, num_snow_bands,\
                 # Due to the top-to-bottom iteration ordering of band processing,
                 # we need to create an open ground HRU in the lower band if one
                 # doesn't already exist
-                cell.bands[band_id - 1].create_hru(Band.open_ground_id, new_open_ground_area_frac[band_id - 1])
-                cell.bands[band_id - 1].hrus[Band.open_ground_id].hru_state.variables['HRU_VEG_INDEX'] = Band.open_ground_id
-                cell.bands[band_id - 1].hrus[Band.open_ground_id].hru_state.variables['HRU_BAND_INDEX'] = band_id - 1
+                print('Vegetated HRU {} update for cell {}, band {}, CASE 5a. Creating OPEN GROUND HRU with area_frac {} in band {}'.format(veg_type, cell_id, band_id, new_open_ground_area_frac[band_id - 1], band_id-1))
+                cell.bands[band_id - 1].create_hru(band_id, Band.open_ground_id, new_open_ground_area_frac[band_id - 1])
               new_area_fracs = {
                 'new_open_ground_area_frac': new_open_ground_area_frac[band_id - 1]
               }
@@ -862,13 +865,10 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
     pass
   elif case == '3':
     for var in source_hru.hru_state.variables:
-      if var in spec_1_vars:
-        carry_over(source_hru.hru_state.variables[var], \
-          dest_hru.hru_state.variables[var])
-      elif var in spec_2_vars:
-        if type(source_hru.hru_state.variables[var]) == list:
+      if var in spec_2_vars:
+        if type(source_hru.hru_state.variables[var]) == np.ndarray:
           for layer_idx, layer in enumerate(source_hru.hru_state.variables[var]):
-            if type(source_hru.hru_state.variables[var][layer_idx]) == list:
+            if type(source_hru.hru_state.variables[var][layer_idx]) == np.ndarray:
               for item_idx, item in enumerate(source_hru.hru_state.variables[var][layer_idx]):
                 dest_hru.hru_state.variables[var][layer_idx][item_idx] \
                 = source_hru.hru_state.variables[var][layer_idx][item_idx] \
@@ -907,12 +907,10 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
 
   elif case == '4a':
     for var in source_hru.hru_state.variables:
-      if var in spec_1_vars:
-        pass # need to handle cell metadata state vars differently than HRU state vars
-      elif var in spec_2_vars: # transferring state to open ground
-        if type(source_hru.hru_state.variables[var]) == list:
+      if var in spec_2_vars: # transferring state to open ground
+        if type(source_hru.hru_state.variables[var]) == np.ndarray:
           for layer_idx, layer in enumerate(source_hru.hru_state.variables[var]):
-            if type(source_hru.hru_state.variables[var][layer_idx]) == list:
+            if type(source_hru.hru_state.variables[var][layer_idx]) == np.ndarray:
               for item_idx, item in enumerate(source_hru.hru_state.variables[var][layer_idx]):
                 dest_hru.hru_state.variables[var][layer_idx][item_idx] \
                 = dest_hru.hru_state.variables[var][layer_idx][item_idx] \
@@ -966,13 +964,12 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
 
   elif case == '4b':
     for var in source_hru.hru_state.variables:
-      if var in spec_1_vars:
-        pass # need to handle cell metadata state vars differently than HRU state vars
-      elif var in spec_2_vars: # transferring state to glacier
-        if type(source_hru.hru_state.variables[var]) == list:
+      if var in spec_2_vars: # transferring state to glacier
+        if type(source_hru.hru_state.variables[var]) == np.ndarray:
           for layer_idx, layer in enumerate(source_hru.hru_state.variables[var]):
-            if type(source_hru.hru_state.variables[var][layer_idx]) == list:
+            if type(source_hru.hru_state.variables[var][layer_idx]) == np.ndarray:
               for item_idx, item in enumerate(source_hru.hru_state.variables[var][layer_idx]):
+                print('CASE 4b: var: {} layer_idx: {}, item_idx: {}'.format(var, layer_idx, item_idx))
                 dest_hru.hru_state.variables[var][layer_idx][item_idx] \
                 = dest_hru.hru_state.variables[var][layer_idx][item_idx] \
                 + source_hru.hru_state.variables[var][layer_idx][item_idx] \
@@ -1021,12 +1018,10 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
 
   elif case == '5a' or case == '5d':
     for var in source_hru.hru_state.variables:
-      if var in spec_1_vars:
-        pass # need to handle cell metadata state vars differently than HRU state vars
-      elif var in spec_2_vars: # transferring state to glacier
-        if type(source_hru.hru_state.variables[var]) == list:
+      if var in spec_2_vars: # transferring state to glacier
+        if type(source_hru.hru_state.variables[var]) == np.ndarray:
           for layer_idx, layer in enumerate(source_hru.hru_state.variables[var]):
-            if type(source_hru.hru_state.variables[var][layer_idx]) == list:
+            if type(source_hru.hru_state.variables[var][layer_idx]) == np.ndarray:
               for item_idx, item in enumerate(source_hru.hru_state.variables[var][layer_idx]):
                 dest_hru.hru_state.variables[var][layer_idx][item_idx] \
                 = dest_hru.hru_state.variables[var][layer_idx][item_idx] \
@@ -1079,12 +1074,10 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
         dest_hru.hru_state.variables[var] = 0
   elif case == '5b':
     for var in source_hru.hru_state.variables:
-      if var in spec_1_vars:
-        pass # need to handle cell metadata state vars differently than HRU state vars
-      elif var in spec_2_vars: # transferring state to open ground
-        if type(source_hru.hru_state.variables[var]) == list:
+      if var in spec_2_vars: # transferring state to open ground
+        if type(source_hru.hru_state.variables[var]) == np.ndarray:
           for layer_idx, layer in enumerate(source_hru.hru_state.variables[var]):
-            if type(source_hru.hru_state.variables[var][layer_idx]) == list:
+            if type(source_hru.hru_state.variables[var][layer_idx]) == np.ndarray:
               for item_idx, item in enumerate(source_hru.hru_state.variables[var][layer_idx]):
                 dest_hru.hru_state.variables[var][layer_idx][item_idx] \
                 = dest_hru.hru_state.variables[var][layer_idx][item_idx] \
@@ -1138,12 +1131,10 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
         dest_hru.hru_state.variables[var] = 0
   elif case == '5c':
     for var in source_hru.hru_state.variables:
-      if var in spec_1_vars:
-        pass # need to handle cell metadata state vars differently than HRU state vars
-      elif var in spec_2_vars: # transferring state to glacier
-        if type(source_hru.hru_state.variables[var]) == list:
+      if var in spec_2_vars: # transferring state to glacier
+        if type(source_hru.hru_state.variables[var]) == np.ndarray:
           for layer_idx, layer in enumerate(source_hru.hru_state.variables[var]):
-            if type(source_hru.hru_state.variables[var][layer_idx]) == list:
+            if type(source_hru.hru_state.variables[var][layer_idx]) == np.ndarray:
               for item_idx, item in enumerate(source_hru.hru_state.variables[var][layer_idx]):
                 dest_hru.hru_state.variables[var][layer_idx][item_idx] \
                 = dest_hru.hru_state.variables[var][layer_idx][item_idx] \

@@ -107,12 +107,10 @@ def read_state(state, cells):
   for cell_id, cell in cells.items():
     cell_lat_idx, cell_lon_idx = get_2D_cell_indices(cell_idx)
     cell_hru_idx = 0
-    # read all cell state variables with dimensions (lat, lon)
-    # Maybe use as a sanity check against currently loaded cells?
+    # read all cell state variables
     for variable in cell.cell_state.variables:
       cell.cell_state.variables[variable] = \
         state[variable][cell_lat_idx][cell_lon_idx]
-
     for band in cell.bands:
       # HRUs are sorted by ascending veg_type_num in VIC state file
       for hru_veg_type in band.hru_keys_sorted:
@@ -138,11 +136,10 @@ def write_state(state, cells):
   for cell_id, cell in cells.items():
     cell_lat_idx, cell_lon_idx = get_2D_cell_indices(cell_idx)
     cell_hru_idx = 0
-    # write all cell state variables with dimensions (lat, lon)
+    # write all cell state variables
     for variable in cell.cell_state.variables:
       state[variable][cell_lat_idx, cell_lon_idx] = \
         cell.cell_state.variables[variable]
-
     for band in cell.bands:
       # HRUs are sorted by ascending veg_type_num in VIC state file
       for hru_veg_type in band.hru_keys_sorted:

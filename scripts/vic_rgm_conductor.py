@@ -20,7 +20,7 @@ from dateutil.relativedelta import relativedelta
 
 from conductor.io import get_rgm_pixel_mapping, read_gsa_headers,\
   write_grid_to_gsa_file, update_glacier_mask, read_state, write_state
-from conductor.cells import Band, HydroResponseUnit, merge_cell_input,\
+from conductor.cells import Cell, Band, HydroResponseUnit, merge_cell_input,\
   update_area_fracs
 from conductor.snbparams import load_snb_parms, save_snb_parms
 from conductor.vegparams import load_veg_parms, save_veg_parms
@@ -213,15 +213,9 @@ def main():
     global_parms = Global(f)
 
   assert global_parms.state_format == 'NETCDF',\
-    "{} only supports NetCDF input statefile input as opposed "\
-    "to the specified {}. Please change change this in your "\
-    "global file {}".format(__name__, global_parms.state_format,\
-    vic_global_file)
-
-  # Initial VIC output state filename prefix is determined by STATENAME
-  # in the global file
-  # state_filename_prefix = global_parms.statename
-  state_filename_prefix = temp_files_path + 'vic_hydrocon_state'
+    "VIC only supports NETCDF input statefile input format."\
+    "(STATE_FORMAT in global file is currently set as {})"\
+    .format(global_parms.state_format)
 
   # Apply custom glacier_id and open_ground_id Band attributes, if provided
   if global_parms.glacier_id is None:
@@ -258,18 +252,14 @@ def main():
     Band.glacier_root_zone_parms = glacier_root_zone_parms
     Band.open_ground_root_zone_parms = open_ground_root_zone_parms
 
-  # Create Ordered dictionary of Cell objects by merging info gathered from
-  # Snow Band and Vegetation Parameter files and custom parameters
-  cells = merge_cell_input(hru_cell_dict, elevation_cell_dict)
-
   # TODO: Do a sanity check to make sure band area fractions in Snow Band
   # Parameters file add up to sum of HRU area fractions in Vegetation
   # Parameter File for each cell?
   #assert (area_fracs == [sums of HRU area fracs for all bands])
-  
-  # The RGM will always output a DEM file of the same name (if running RGM for
-  # a single year at a time)
-  rgm_surf_dem_out_file = temp_files_path + 's_out_00001.grd'
+
+  # Create Ordered dictionary of Cell objects by merging info gathered from
+  # Snow Band and Vegetation Parameter files and custom parameters
+  cells = merge_cell_input(hru_cell_dict, elevation_cell_dict)
 
   # Open and read VIC-grid-to-RGM-pixel mapping file
   logger.info('Loading VIC-grid-to-RGM-pixel mapping from %s',\
@@ -339,15 +329,13 @@ def main():
   update_area_fracs(cells, cell_areas, cell_id_map, num_snow_bands,
     current_surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
-  # Write temporary snow band and vegetation parameter files for first VIC run
-  temp_snb = temp_files_path + 'snb_temp_'\
-    + global_parms.startdate.isoformat() + '.txt'
-  logger.debug('Writing initial temporary snow band parameter file %s', temp_snb)
-  save_snb_parms(cells, temp_snb)
-  temp_vpf = temp_files_path + 'vpf_temp_'\
-    + global_parms.startdate.isoformat() + '.txt'
-  logger.debug('Writing initial temporary vegetation parameter file %s', temp_vpf)
-  save_veg_parms(cells, temp_vpf)
+  # Set the VIC output state filename prefix (to be written to STATENAME
+  # in the global file)
+  state_filename_prefix = temp_files_path + 'vic_hydrocon_state'
+
+  # The RGM will always output a DEM file of the same name (if running RGM for
+  # a single year at a time)
+  rgm_surf_dem_out_file = temp_files_path + 's_out_00001.grd'
 
 # (initialisation done)
 
@@ -357,12 +345,16 @@ def main():
                  global_parms.enddate,
                  global_parms.glacier_accum_startdate)
   for start, end in time_iterator:
-    # 1. Write / Update temporary Global Parameters File, temp_gpf
+
+    # Write temporary VIC parameter files
+    temp_snb = temp_files_path + 'snb_temp_' + start.isoformat() + '.txt'
+    logger.debug('Writing temporary snow band parameter file %s', temp_snb)
+    save_snb_parms(cells, temp_snb)
+    temp_vpf = temp_files_path + 'vpf_temp_' + start.isoformat() + '.txt'
+    logger.debug('Writing temporary vegetation parameter file %s', temp_vpf)
+    save_veg_parms(cells, temp_vpf)
     temp_gpf = temp_files_path + 'gpf_temp_{}.txt'.format(start.isoformat())
-    print('\nRunning VIC from {} to {}'.format(start, end))
-    logger.info('\nRunning VIC from %s to %s using global parameter file %s',\
-      start, end, temp_gpf)
-    # set global parameters for this VIC run
+    logger.debug('Writing temporary global parameter file %s', temp_gpf)
     global_parms.vegparam = temp_vpf
     global_parms.snow_band = '{} {}'.format(num_snow_bands, temp_snb)
     global_parms.startdate = start
@@ -371,8 +363,10 @@ def main():
     global_parms.statename = state_filename_prefix
     global_parms.write(temp_gpf)
 
-    # 2. Run VIC for a year.  This will save VIC model state at the end of the
-    # year, along with a Glacier Mass Balance (GMB) polynomial for each cell
+    # Run VIC for a year, saving model state at the end
+    print('\nRunning VIC from {} to {}'.format(start, end))
+    logger.info('\nRunning VIC from %s to %s using global parameter file %s',\
+      start, end, temp_gpf)
     try:
       subprocess.check_call([vic_full_path, "-g", temp_gpf], shell=False,\
         stderr=subprocess.STDOUT)
@@ -381,12 +375,19 @@ def main():
 error: %s', e)
       sys.exit(0)
 
-    # 3. Open VIC NetCDF state file and load the most recent set of state
+    # Open VIC NetCDF state file and load the most recent set of state
     # variable values for all grid cells being modeled
     state_file = state_filename_prefix + "_" + end.isoformat()
     logger.info('Reading saved VIC state file %s', state_file)
     # leave the state file open for modification later
-    state = netCDF4.Dataset(state_file, 'r+').variables
+    state_dataset = netCDF4.Dataset(state_file, 'r+')
+    state_dataset.set_auto_mask(False)
+    # these should never change within a run of the Hydro-Conductor
+    Cell.Nlayers = state_dataset.state_nlayer
+    Cell.Nnodes = state_dataset.state_nnode
+    # drop unused fit error term from glacier mass balance polynomial
+    Cell.NglacMassBalanceEqnTerms = state_dataset.state_nglac_mass_balance_eqn_terms - 1
+    state = state_dataset.variables
     # read new states of all cells
     read_state(state, cells)
     # optionally leave the last VIC state file on disk 
@@ -402,7 +403,7 @@ error: %s', e)
         gmb_polys[cell_id] = cells[cell_id].cell_state.variables\
           ['GLAC_MASS_BALANCE_EQN_TERMS'][0:3]
 
-    # 4. Translate mass balances using grid cell GMB polynomials and current
+    # Translate mass balances using grid cell GMB polynomials and current
     # surface DEM into a 2D RGM mass balance grid (MBG)
     logger.debug('Converting glacier mass balance polynomials to 2D grid.')
     mass_balance_grid = mass_balances_to_rgm_grid(gmb_polys, cell_id_map,\
@@ -414,7 +415,7 @@ error: %s', e)
     write_grid_to_gsa_file(mass_balance_grid, mbg_file, num_cols_dem,\
       num_rows_dem, dem_xmin, dem_xmax, dem_ymin, dem_ymax)
 
-    # 5. Run RGM for one year, passing it the MBG, BDEM, SDEM
+    # Run RGM for one year, passing it the MBG, BDEM, SDEM
     logger.info('Running RGM for current year with parameter file %s, \
 Bed DEM file %s, Surface DEM file %s, Mass Balance Grid file %s',\
       rgm_params_file, bed_dem_file, surf_dem_in_file, mbg_file)
@@ -433,7 +434,7 @@ error: %s', e)
       os.remove(mbg_file)
       os.remove(rgm_surf_dem_file)
 
-    # 6. Read in new Surface DEM file from RGM output
+    # Read in new Surface DEM file from RGM output
     logger.debug('Reading Surface DEM file from RGM output %s',\
       rgm_surf_dem_out_file)
     current_surf_dem = np.loadtxt(rgm_surf_dem_out_file, skiprows=5)
@@ -443,37 +444,28 @@ error: %s', e)
     # this will be fed back into RGM on next time step:
     surf_dem_in_file = temp_surf_dem_file
 
-    # 7. Update glacier mask
+    # Update glacier mask
     logger.debug('Updating Glacier Mask')
     glacier_mask = update_glacier_mask(current_surf_dem, bed_dem,\
       num_rows_dem, num_cols_dem)
     if output_trace_files:
       glacier_mask_file = temp_files_path + 'glacier_mask_'\
         + start.isoformat() + '.gsa'
-      write_grid_to_gsa_file(glacier_mask, glacier_mask_file)
+      write_grid_to_gsa_file(glacier_mask, glacier_mask_file, num_cols_dem,\
+      num_rows_dem, dem_xmin, dem_xmax, dem_ymin, dem_ymax)
     
-    # 8. Update hru and band area fractions and state for all VIC grid cells
+    # Update HRU and band area fractions and state for all VIC grid cells
     logger.debug('Updating VIC grid cell area fracs and states')
     update_area_fracs(cells, cell_areas, cell_id_map, num_snow_bands,\
       current_surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
-    # 9. Update the VIC state file with new state information
+    # Update the VIC state file with new state information
     logger.debug('Updating VIC state file')
     write_state(state, cells)
-    state.close()
+    state_dataset.close()
 
-    # 10. Write new updated snow band and vegetation parameter files
-    temp_snb = temp_files_path + 'snb_temp_' + start.isoformat() + '.txt'
-    logger.debug('Saving updated snow band parameters to file %s', temp_snb)
-    save_snb_parms(cells, temp_snb)
-    temp_vpf = temp_files_path + 'vpf_temp_' + start.isoformat() + '.txt'
-    logger.debug('Saving updated vegetation parameters to file %s', temp_vpf)
-    save_veg_parms(cells, temp_vpf)
-
-    # Get ready for the next loop iteration
-    global_parms.init_state = "{}_{}.txt".format(global_parms.statename,\
-      end.strftime("%Y%m%d"))
-    global_parms.statedate = end
+    # Set the new state file name VIC will have to read in on next iteration
+    global_parms.init_state = state_filename_prefix + "_" + end.isoformat()
 
 # Main program invocation.
 if __name__ == '__main__':
