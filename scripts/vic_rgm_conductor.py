@@ -409,7 +409,7 @@ error: %s', e)
     mass_balance_grid = mass_balances_to_rgm_grid(gmb_polys, cell_id_map,\
       current_surf_dem, num_rows_dem, num_cols_dem, cell_ids)
     # write Mass Balance Grid to ASCII file to direct the RGM to use as input
-    mbg_file = temp_files_path + 'mass_balance_grid_' + start.isoformat()\
+    mbg_file = temp_files_path + 'mass_balance_grid_' + end.isoformat()\
       + '.gsa'
     logger.debug('Writing RGM input glacier mass balance grid to file %s', mbg_file)
     write_grid_to_gsa_file(mass_balance_grid, mbg_file, num_cols_dem,\
