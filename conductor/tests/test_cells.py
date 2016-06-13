@@ -57,7 +57,7 @@ class TestsSimpleUnit:
 
     def test_hru_simple(self):
       my_hru = HydroResponseUnit(test_area_fracs_simple[0],\
-        expected_root_zone_parms['22'])
+        expected_root_zone_parms['22'],0,22)
 
       assert my_hru.area_frac == test_area_fracs_simple[0]
       assert my_hru.root_zone_parms == expected_root_zone_parms['22']
@@ -68,7 +68,7 @@ class TestsSimpleUnit:
       # Create and populate three HRUs in this Band...
       for veg_type, area_frac, root_zone in zip(test_veg_types,\
         test_area_fracs_simple, expected_root_zone_parms):
-          my_band.hrus[veg_type] = HydroResponseUnit(area_frac, root_zone)
+          my_band.hrus[veg_type] = HydroResponseUnit(area_frac, root_zone, 0, veg_type)
 
       assert my_band.median_elev == test_median_elevs_simple[0]
       assert my_band.area_frac == sum(test_area_fracs_simple[0:3])
@@ -196,7 +196,7 @@ class TestsDynamic:
       # Confirm that there are (temporarily) no HRUs in this band
       assert cells[cell_ids[0]].bands[3].num_hrus == 0
       # create new glacier HRU:
-      cells[cell_ids[0]].bands[3].create_hru(GLACIER_ID, new_glacier_area_frac)
+      cells[cell_ids[0]].bands[3].create_hru(3, GLACIER_ID, new_glacier_area_frac)
       # Check that there is only the one glacier HRU in this band
       assert cells[cell_ids[0]].bands[3].num_hrus == 1
       assert cells[cell_ids[0]].bands[3].hrus[22].area_frac == new_glacier_area_frac
@@ -216,7 +216,7 @@ class TestsDynamic:
       # Confirm that there are currently no HRUs in the new band         
       assert cells[cell_ids[0]].bands[4].num_hrus == 0
       # Create the corresponding new glacier HRU
-      cells[cell_ids[0]].bands[4].create_hru(GLACIER_ID, new_glacier_area_frac)
+      cells[cell_ids[0]].bands[4].create_hru(4, GLACIER_ID, new_glacier_area_frac)
       # Confirm that this new HRU was correctly instantiated
       assert cells[cell_ids[0]].bands[4].num_hrus == 1
       assert cells[cell_ids[0]].bands[4].hrus[22].area_frac == new_glacier_area_frac
@@ -676,7 +676,7 @@ class TestsAreaFracUpdate:
       # glacier HRU for next incremental test 
       surf_dem[dem_padding_thickness + 0][dem_padding_thickness + 8 + 2] = 1850
       cells['23456'].bands[0].delete_hru(22)
-      cells['23456'].bands[0].create_hru(19, initial_area_frac)
+      cells['23456'].bands[0].create_hru(0, 19, initial_area_frac)
 
     @mock.patch('conductor.cells.update_hru_state', side_effect=mock_update_hru_state)
     def test_glacier_thickening_to_conceal_lowest_band_of_open_ground(self, mock_update_hru_state_fcn):
