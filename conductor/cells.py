@@ -34,7 +34,6 @@ class Cell(object):
 
   def update_cell_state(self):
     self.cell_state.variables['VEG_TYPE_NUM'] = sum([i.num_hrus for i in self.bands])
-    print('updated cell state variable VEG_TYPE_NUM to {}'.format(self.cell_state.variables['VEG_TYPE_NUM']))
     # Nothing is to be done with the other CellState.variables; their values
     # that were read in by read_state() do not get modified.
 
@@ -472,7 +471,8 @@ Creating GLACIER HRU with area fraction %s', new_glacier_area_frac[band_id])
         elif new_glacier_area_frac[band_id] == band.area_frac_glacier:
           # CASE 2: Trivial case. There was no change in glacier HRU area,
           # so we don't call update_hru_state())
-          pass
+          logging.debug('State update CASE 2 identified. No change in GLACIER \
+HRU area. No state update required.')
         elif new_glacier_area_frac[band_id] > 0 and band.area_frac_glacier > 0 \
           and new_glacier_area_frac[band_id] != band.area_frac_glacier:
           # CASE 3: Glacier HRU exists in previous and current time steps, but
@@ -622,7 +622,8 @@ exposed. Creating OPEN GROUND HRU with area fraction %s.',\
         elif new_open_ground_area_frac[band_id] == band.area_frac_open_ground:
           # CASE 2: Trivial case. There was no change in open ground HRU area,
           # so we don't call update_hru_state())
-          pass
+          logging.debug('State update CASE 2 identified. No change in OPEN \
+GROUND HRU area. No state update required.')
         elif new_open_ground_area_frac[band_id] > 0 and band.area_frac_open_ground > 0 \
           and new_open_ground_area_frac[band_id] != band.area_frac_open_ground:
           # CASE 3: Open ground HRU exists in previous and current time
@@ -773,7 +774,8 @@ to the GLACIER HRU in band %s above.', band_id+1)
             if new_hru_area_frac[str(band_id)][str(veg_type)] == band.hrus[veg_type].area_frac:
               # CASE 2: Trivial case. There was no change in this HRU's area,
               # so we don't call update_hru_state())
-              pass
+              logging.debug('State update CASE 2 identified. No change in \
+VEGETATED HRU %s area. No state update required.', veg_type)
             elif new_hru_area_frac[str(band_id)][str(veg_type)] > 0 \
               and delta_area_hru[str(veg_type)] != 0:
               # CASE 3: Vegetated HRU exists in previous and current time
@@ -922,7 +924,7 @@ to the GLACIER HRU in band %s above.', veg_type, band_id+1)
         if band.area_frac == 0:
           band.median_elev = band.lower_bound
 
-      logging.debug('Finished state update for band %s.', band_id)
+        logging.debug('Finished state update for band %s.', band_id)
     else:
       logging.debug('No changes in band or glacier area fractions were found. \
 No state changes applied.')

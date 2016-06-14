@@ -202,13 +202,13 @@ def main():
     = parse_input_parms()
 
   # Set up logging
-  logger = logging.getLogger(__name__)
   numeric_loglevel = getattr(logging, loglevel.upper())
   logging.basicConfig(filename=output_path+'hydrocon.log',\
-    level=numeric_loglevel, format='%(asctime)s %(message)s')
+    level=numeric_loglevel, format='%(levelname)s %(asctime)s %(message)s')
+  logging.info('------- VIC-RGM Hydro-Conductor Startup -------')
 
   # Get all initial VIC global parameters from the global parameter file
-  logger.info('Loading initial VIC global parameters from %s', vic_global_file)
+  logging.info('Loading initial VIC global parameters from %s', vic_global_file)
   with open(vic_global_file, 'r') as f:
     global_parms = Global(f)
 
@@ -219,7 +219,7 @@ def main():
 
   # Apply custom glacier_id and open_ground_id Band attributes, if provided
   if global_parms.glacier_id is None:
-    logger.info('No value for GLACIER_ID was provided in the VIC global file. \
+    logging.info('No value for GLACIER_ID was provided in the VIC global file. \
       Assuming default value of {}.'.format(Band.glacier_id))
   else:
     Band.glacier_id = global_parms.glacier_id
@@ -237,11 +237,11 @@ def main():
   # Load parameters from Snow Band Parameters File
   num_snow_bands, snb_file = global_parms.snow_band.split()
   num_snow_bands = int(num_snow_bands)
-  logger.info('Loading initial VIC snow band parameters from %s', snb_file)
+  logging.info('Loading initial VIC snow band parameters from %s', snb_file)
   elevation_cell_dict = load_snb_parms(snb_file, num_snow_bands)
 
   # Load vegetation parameters from initial Vegetation Parameter File
-  logger.info('Loading initial VIC vegetation parameters from %s',\
+  logging.info('Loading initial VIC vegetation parameters from %s',\
     global_parms.vegparam)
   hru_cell_dict = load_veg_parms(global_parms.vegparam)
 
@@ -262,7 +262,7 @@ def main():
   cells = merge_cell_input(hru_cell_dict, elevation_cell_dict)
 
   # Open and read VIC-grid-to-RGM-pixel mapping file
-  logger.info('Loading VIC-grid-to-RGM-pixel mapping from %s',\
+  logging.info('Loading VIC-grid-to-RGM-pixel mapping from %s',\
     pixel_cell_map_file)
   cell_id_map, elevation_map, cell_areas, num_cols_dem, num_rows_dem\
     = get_rgm_pixel_mapping(pixel_cell_map_file)
@@ -280,7 +280,7 @@ def main():
     pixel_cell_map_file, num_rows_dem, num_cols_dem)
 
   # Read in the provided Bed Digital Elevation Map (BDEM) file to 2D bed_dem array
-  logger.info('Loading Bed Digital Elevation Map (BDEM) from %s', bed_dem_file)
+  logging.info('Loading Bed Digital Elevation Map (BDEM) from %s', bed_dem_file)
   bed_dem = np.loadtxt(bed_dem_file, skiprows=5)
 
   # Check header validity of Surface DEM file
@@ -294,9 +294,30 @@ def main():
     pixel_cell_map_file, num_rows_dem, num_cols_dem)
   # Read in the provided Surface Digital Elevation Map (SDEM) file to 2D 
   # surf_dem array
-  logger.info('Loading Surface Digital Elevation Map (SDEM) from %s',\
+  logging.info('Loading Surface Digital Elevation Map (SDEM) from %s',\
     surf_dem_in_file)
   current_surf_dem = np.loadtxt(surf_dem_in_file, skiprows=5)
+
+  # Check if Bed DEM has any points that are higher than the Surface DEM
+  # in the same location.  If so, set these Bed DEM points to equal the
+  # Surface DEM values, thus avoiding producing negative values when the
+  # two are subtracted during glacier mask update. This reconciliation is
+  # necessary because the two DEMs come from different sources, and could
+  # have some overlapping elevation points.
+  dem_diffs = current_surf_dem - bed_dem
+  neg_val_inds = np.where(dem_diffs < 0)
+  num_neg_vals = len(neg_val_inds)
+  if num_neg_vals > 0:
+    bed_dem[neg_val_inds] = current_surf_dem[neg_val_inds]
+    new_bed_dem_file = bed_dem_file[0:-4] + '_adjusted.gsa'
+    logging.warning('The provided Bed DEM (%s) has %s elevation points \
+higher than those in the provided Surface DEM (%s), probably because they \
+come from different data sources. The Bed DEM has been adjusted to equal \
+the Surface DEM elevation at these points and written out to the file %s.',\
+bed_dem_file, num_neg_vals, surf_dem_in_file, new_bed_dem_file)
+    bed_dem_file = new_bed_dem_file
+    write_grid_to_gsa_file(bed_dem, bed_dem_file, num_cols_dem, num_rows_dem,\
+      0, 0, 0, 0)
 
   # Check agreement between elevation_map from VIC-grid-to-RGM-pixel file and
   # the loaded surface DEM. Mask out invalid values in elevation_map and get
@@ -320,12 +341,12 @@ def main():
   columns: {}). Exiting.\n'.format(init_glacier_mask_file, num_rows, num_cols,\
   pixel_cell_map_file, num_rows_dem, num_cols_dem)
   # Read in the provided initial glacier mask file to 2D glacier_mask array
-  logger.info('Loading initial Glacier Mask from %s', init_glacier_mask_file)
+  logging.info('Loading initial Glacier Mask from %s', init_glacier_mask_file)
   glacier_mask = np.loadtxt(init_glacier_mask_file, skiprows=5)
 
   # Apply the initial glacier mask and modify the band and glacier area
   # fractions accordingly
-  logger.debug('Applying initial area fraction update.')
+  logging.debug('Applying initial area fraction update.')
   update_area_fracs(cells, cell_areas, cell_id_map, num_snow_bands,
     current_surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
@@ -348,13 +369,13 @@ def main():
 
     # Write temporary VIC parameter files
     temp_snb = temp_files_path + 'snb_temp_' + start.isoformat() + '.txt'
-    logger.debug('Writing temporary snow band parameter file %s', temp_snb)
+    logging.debug('Writing temporary snow band parameter file %s', temp_snb)
     save_snb_parms(cells, temp_snb)
     temp_vpf = temp_files_path + 'vpf_temp_' + start.isoformat() + '.txt'
-    logger.debug('Writing temporary vegetation parameter file %s', temp_vpf)
+    logging.debug('Writing temporary vegetation parameter file %s', temp_vpf)
     save_veg_parms(cells, temp_vpf)
     temp_gpf = temp_files_path + 'gpf_temp_{}.txt'.format(start.isoformat())
-    logger.debug('Writing temporary global parameter file %s', temp_gpf)
+    logging.debug('Writing temporary global parameter file %s', temp_gpf)
     global_parms.vegparam = temp_vpf
     global_parms.snow_band = '{} {}'.format(num_snow_bands, temp_snb)
     global_parms.startdate = start
@@ -365,20 +386,20 @@ def main():
 
     # Run VIC for a year, saving model state at the end
     print('\nRunning VIC from {} to {}'.format(start, end))
-    logger.info('\nRunning VIC from %s to %s using global parameter file %s',\
+    logging.info('\nRunning VIC from %s to %s using global parameter file %s',\
       start, end, temp_gpf)
     try:
       subprocess.check_call([vic_full_path, "-g", temp_gpf], shell=False,\
         stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as e:
-      logger.error('Subprocess invocation of VIC failed with the following \
+      logging.error('Subprocess invocation of VIC failed with the following \
 error: %s', e)
       sys.exit(0)
 
     # Open VIC NetCDF state file and load the most recent set of state
     # variable values for all grid cells being modeled
     state_file = state_filename_prefix + "_" + end.isoformat()
-    logger.info('Reading saved VIC state file %s', state_file)
+    logging.info('Reading saved VIC state file %s', state_file)
     # leave the state file open for modification later
     state_dataset = netCDF4.Dataset(state_file, 'r+')
     state_dataset.set_auto_mask(False)
@@ -405,18 +426,18 @@ error: %s', e)
 
     # Translate mass balances using grid cell GMB polynomials and current
     # surface DEM into a 2D RGM mass balance grid (MBG)
-    logger.debug('Converting glacier mass balance polynomials to 2D grid.')
+    logging.debug('Converting glacier mass balance polynomials to 2D grid.')
     mass_balance_grid = mass_balances_to_rgm_grid(gmb_polys, cell_id_map,\
       current_surf_dem, num_rows_dem, num_cols_dem, cell_ids)
     # write Mass Balance Grid to ASCII file to direct the RGM to use as input
     mbg_file = temp_files_path + 'mass_balance_grid_' + end.isoformat()\
       + '.gsa'
-    logger.debug('Writing RGM input glacier mass balance grid to file %s', mbg_file)
+    logging.debug('Writing RGM input glacier mass balance grid to file %s', mbg_file)
     write_grid_to_gsa_file(mass_balance_grid, mbg_file, num_cols_dem,\
       num_rows_dem, dem_xmin, dem_xmax, dem_ymin, dem_ymax)
 
     # Run RGM for one year, passing it the MBG, BDEM, SDEM
-    logger.info('Running RGM for current year with parameter file %s, \
+    logging.info('Running RGM for current year with parameter file %s, \
 Bed DEM file %s, Surface DEM file %s, Mass Balance Grid file %s',\
       rgm_params_file, bed_dem_file, surf_dem_in_file, mbg_file)
     try:
@@ -425,17 +446,17 @@ Bed DEM file %s, Surface DEM file %s, Mass Balance Grid file %s',\
         temp_files_path, "-s", "0", "-e", "0" ], shell=False,\
         stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as e:
-      logger.error('Subprocess invocation of RGM failed with the following \
+      logging.error('Subprocess invocation of RGM failed with the following \
 error: %s', e)
       sys.exit(0)
 
     # remove temporary files if not saving for offline inspection
     if not output_trace_files:
       os.remove(mbg_file)
-      os.remove(rgm_surf_dem_file)
+      os.remove(rgm_surf_dem_out_file)
 
     # Read in new Surface DEM file from RGM output
-    logger.debug('Reading Surface DEM file from RGM output %s',\
+    logging.debug('Reading Surface DEM file from RGM output %s',\
       rgm_surf_dem_out_file)
     current_surf_dem = np.loadtxt(rgm_surf_dem_out_file, skiprows=5)
     temp_surf_dem_file = temp_files_path + 'rgm_surf_dem_out_'\
@@ -445,7 +466,7 @@ error: %s', e)
     surf_dem_in_file = temp_surf_dem_file
 
     # Update glacier mask
-    logger.debug('Updating Glacier Mask')
+    logging.debug('Updating Glacier Mask')
     glacier_mask = update_glacier_mask(current_surf_dem, bed_dem,\
       num_rows_dem, num_cols_dem)
     if output_trace_files:
@@ -455,12 +476,12 @@ error: %s', e)
       num_rows_dem, dem_xmin, dem_xmax, dem_ymin, dem_ymax)
     
     # Update HRU and band area fractions and state for all VIC grid cells
-    logger.debug('Updating VIC grid cell area fracs and states')
+    logging.debug('Updating VIC grid cell area fracs and states')
     update_area_fracs(cells, cell_areas, cell_id_map, num_snow_bands,\
       current_surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
     # Update the VIC state file with new state information
-    logger.debug('Updating VIC state file')
+    logging.debug('Updating VIC state file')
     write_state(state, cells)
     state_dataset.close()
 
