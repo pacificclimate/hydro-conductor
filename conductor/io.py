@@ -76,21 +76,6 @@ def write_grid_to_gsa_file(grid, outfilename, num_cols_dem, num_rows_dem,\
     for row in grid:
       writer.writerow(row)
 
-def update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem):
-  """ Takes output Surface DEM from RGM and uses element-wise differencing 
-    with the Bed DEM to form an updated glacier mask 
-  """
-  diffs = surf_dem - bed_dem
-  if np.any(diffs < 0):
-    raise Exception(
-      'update_glacier_mask: Error: Subtraction of Bed DEM from the output \
-      Surface DEM of RGM produced one or more negative values.'
-    )
-
-  glacier_mask = np.zeros((num_rows_dem, num_cols_dem))
-  glacier_mask[diffs > 0] = 1
-  return glacier_mask
-
 def read_state(state, cells):
   """Reads the most recent state variables from the VIC state file produced by
     the most recent VIC run and updates the CellState and HruState object

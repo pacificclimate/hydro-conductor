@@ -10,7 +10,6 @@ import pytest
 import mock
 
 from conductor.cells import *
-from conductor.io import update_glacier_mask
 
 GLACIER_ID = Band.glacier_id
 OPEN_GROUND_ID = Band.open_ground_id

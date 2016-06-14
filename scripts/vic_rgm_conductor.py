@@ -19,9 +19,9 @@ import netCDF4
 from dateutil.relativedelta import relativedelta
 
 from conductor.io import get_rgm_pixel_mapping, read_gsa_headers,\
-  write_grid_to_gsa_file, update_glacier_mask, read_state, write_state
+  write_grid_to_gsa_file, read_state, write_state
 from conductor.cells import Cell, Band, HydroResponseUnit, merge_cell_input,\
-  update_area_fracs
+  update_glacier_mask, update_area_fracs
 from conductor.snbparams import load_snb_parms, save_snb_parms
 from conductor.vegparams import load_veg_parms, save_veg_parms
 from conductor.vic_globals import Global
