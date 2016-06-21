@@ -5,8 +5,6 @@
 """
 
 import argparse
-import collections
-from collections import OrderedDict
 import os
 import shutil
 import subprocess
@@ -84,6 +82,9 @@ def parse_input_parms():
   parser.add_argument('--loglevel', action='store', dest='loglevel', type=str,\
     default='INFO', help='the logging verbosity level to be written to the \
       log file. Options are: DEBUG, INFO, WARNING, ERROR.')
+  parser.add_argument('--plots', action='store_true', dest='output_plots', \
+    default=False, help='plot the Surface DEM and glacier mask to screen on \
+      every iteration.')
 
   if len(sys.argv) == 1:
     parser.print_help()
@@ -100,6 +101,7 @@ def parse_input_parms():
   glacier_root_zone_file = options.glacier_root_zone_file
   band_size = options.band_size
   loglevel = options.loglevel
+  output_plots = options.output_plots
 
   if open_ground_root_zone_file:
     with open(open_ground_root_zone_file, 'r') as f:
@@ -125,7 +127,8 @@ def parse_input_parms():
 
   return vic_global_file, rgm_params_file, surf_dem_in_file, bed_dem_file, \
     pixel_cell_map_file, init_glacier_mask_file, output_trace_files, \
-    glacier_root_zone_parms, open_ground_root_zone_parms, band_size, loglevel
+    glacier_root_zone_parms, open_ground_root_zone_parms, band_size, loglevel,\
+    output_plots
 
 def mass_balances_to_rgm_grid(gmb_polys, cell_id_map, dem, num_rows_dem,\
   num_cols_dem, valid_cell_ids):
@@ -198,8 +201,12 @@ def main():
   # Parse command line parameters
   vic_global_file, rgm_params_file, surf_dem_in_file, bed_dem_file,\
     pixel_cell_map_file, init_glacier_mask_file, output_trace_files,\
-    glacier_root_zone_parms, open_ground_root_zone_parms, band_size, loglevel\
+    glacier_root_zone_parms, open_ground_root_zone_parms, band_size,\
+    loglevel, output_plots\
     = parse_input_parms()
+
+  if output_plots:
+    from matplotlib import pyplot as plt
 
   # Set up logging
   numeric_loglevel = getattr(logging, loglevel.upper())
@@ -306,7 +313,7 @@ def main():
   # have some overlapping elevation points.
   dem_diffs = current_surf_dem - bed_dem
   neg_val_inds = np.where(dem_diffs < 0)
-  num_neg_vals = len(neg_val_inds)
+  num_neg_vals = len(neg_val_inds[0])
   if num_neg_vals > 0:
     bed_dem[neg_val_inds] = current_surf_dem[neg_val_inds]
     new_bed_dem_file = bed_dem_file[0:-4] + '_adjusted.gsa'
@@ -317,19 +324,7 @@ the Surface DEM elevation at these points and written out to the file %s.',\
 bed_dem_file, num_neg_vals, surf_dem_in_file, new_bed_dem_file)
     bed_dem_file = new_bed_dem_file
     write_grid_to_gsa_file(bed_dem, bed_dem_file, num_cols_dem, num_rows_dem,\
-      0, 0, 0, 0)
-
-  # Check agreement between elevation_map from VIC-grid-to-RGM-pixel file and
-  # the loaded surface DEM. Mask out invalid values in elevation_map and get
-  # valid indices to spatially align with subset of current_surf_dem that
-  # falls within the simulation domain.
-  masked_elevation_map = np.ma.masked_invalid(elevation_map)
-  aligned_indices = masked_elevation_map.nonzero()
-  assert (np.array_equal(masked_elevation_map[~masked_elevation_map.mask],\
-    current_surf_dem[aligned_indices])), 'Values mismatch \
-  between provided initial Surface DEM file (num rows:{}, num columns: \
-  {}) and VIC-grid-to-RGM-pixel file (num rows: {}, num columns: {}). \
-  Exiting.\n'.format(num_rows, num_cols, num_rows_dem, num_cols_dem)
+      dem_xmin, dem_xmax, dem_ymin, dem_ymax)
 
   # Check header validity of initial Glacier Mask file
   _, _, _, _, num_rows, num_cols = read_gsa_headers(init_glacier_mask_file)
@@ -384,6 +379,25 @@ bed_dem_file, num_neg_vals, surf_dem_in_file, new_bed_dem_file)
     global_parms.statename = state_filename_prefix
     global_parms.write(temp_gpf)
 
+    if output_plots:
+      surf_dem_plot_title = 'Surface DEM ' + start.isoformat()
+      plt.subplot(121)
+      plt.imshow(current_surf_dem)
+      plt.gca().invert_yaxis()
+      plt.title(surf_dem_plot_title)
+      plt.xticks([])
+      plt.yticks([])
+      glacier_mask_plot_title = 'Glacier Mask ' + start.isoformat()
+      plt.subplot(122)
+      plt.imshow(glacier_mask)
+      plt.gca().invert_yaxis()
+      plt.title(glacier_mask_plot_title)
+      plt.xticks([])
+      plt.yticks([])
+      plt.show(block=False)
+      if output_trace_files:
+        plt.savefig(output_path+'dem_and_glacier_mask_'+start.isoformat())
+
     # Run VIC for a year, saving model state at the end
     print('\nRunning VIC from {} to {}'.format(start, end))
     logging.info('\nRunning VIC from %s to %s using global parameter file %s',\
@@ -398,7 +412,7 @@ error: %s', e)
 
     # Open VIC NetCDF state file and load the most recent set of state
     # variable values for all grid cells being modeled
-    state_file = state_filename_prefix + "_" + end.isoformat()
+    state_file = state_filename_prefix + '_' + end.isoformat()
     logging.info('Reading saved VIC state file %s', state_file)
     # leave the state file open for modification later
     state_dataset = netCDF4.Dataset(state_file, 'r+')
@@ -429,6 +443,7 @@ error: %s', e)
     logging.debug('Converting glacier mass balance polynomials to 2D grid.')
     mass_balance_grid = mass_balances_to_rgm_grid(gmb_polys, cell_id_map,\
       current_surf_dem, num_rows_dem, num_cols_dem, cell_ids)
+
     # write Mass Balance Grid to ASCII file to direct the RGM to use as input
     mbg_file = temp_files_path + 'mass_balance_grid_' + end.isoformat()\
       + '.gsa'
@@ -450,20 +465,20 @@ Bed DEM file %s, Surface DEM file %s, Mass Balance Grid file %s',\
 error: %s', e)
       sys.exit(0)
 
-    # remove temporary files if not saving for offline inspection
-    if not output_trace_files:
-      os.remove(mbg_file)
-      os.remove(rgm_surf_dem_out_file)
-
     # Read in new Surface DEM file from RGM output
     logging.debug('Reading Surface DEM file from RGM output %s',\
       rgm_surf_dem_out_file)
     current_surf_dem = np.loadtxt(rgm_surf_dem_out_file, skiprows=5)
     temp_surf_dem_file = temp_files_path + 'rgm_surf_dem_out_'\
-      + start.isoformat() + '.gsa'
+      + end.isoformat() + '.gsa'
     os.rename(rgm_surf_dem_out_file, temp_surf_dem_file)
     # this will be fed back into RGM on next time step:
     surf_dem_in_file = temp_surf_dem_file
+
+    # remove temporary files if not saving for offline inspection
+    if not output_trace_files:
+      os.remove(mbg_file)
+      os.remove(rgm_surf_dem_out_file)
 
     # Update glacier mask
     logging.debug('Updating Glacier Mask')
@@ -471,10 +486,30 @@ error: %s', e)
       num_rows_dem, num_cols_dem)
     if output_trace_files:
       glacier_mask_file = temp_files_path + 'glacier_mask_'\
-        + start.isoformat() + '.gsa'
+        + end.isoformat() + '.gsa'
       write_grid_to_gsa_file(glacier_mask, glacier_mask_file, num_cols_dem,\
       num_rows_dem, dem_xmin, dem_xmax, dem_ymin, dem_ymax)
-    
+
+    if output_plots:
+      plt.close()
+      surf_dem_plot_title = 'Surface DEM ' + end.isoformat()
+      plt.subplot(121)
+      plt.imshow(current_surf_dem)
+      plt.gca().invert_yaxis()
+      plt.title(surf_dem_plot_title)
+      plt.xticks([])
+      plt.yticks([])
+      glacier_mask_plot_title = 'Glacier Mask ' + end.isoformat()
+      plt.subplot(122)
+      plt.imshow(glacier_mask)
+      plt.gca().invert_yaxis()
+      plt.title(glacier_mask_plot_title)
+      plt.xticks([])
+      plt.yticks([])
+      plt.show(block=False)
+      if output_trace_files:
+        plt.savefig(output_path+'dem_and_glacier_mask_'+end.isoformat())
+
     # Update HRU and band area fractions and state for all VIC grid cells
     logging.debug('Updating VIC grid cell area fracs and states')
     update_area_fracs(cells, cell_areas, cell_id_map, num_snow_bands,\
