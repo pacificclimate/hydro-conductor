@@ -207,6 +207,7 @@ def main():
 
   if output_plots:
     from matplotlib import pyplot as plt
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
 
   # Set up logging
   numeric_loglevel = getattr(logging, loglevel.upper())
@@ -355,6 +356,33 @@ bed_dem_file, num_neg_vals, surf_dem_in_file, new_bed_dem_file)
 
 # (initialisation done)
 
+# Show initial surface DEM and glacier mask
+  if output_plots:
+    surf_dem_plot_title = 'Surface DEM ' + global_parms.startdate.isoformat()
+    plt.subplot(121)
+    plt.title(surf_dem_plot_title)
+    plt.xticks([])
+    plt.yticks([])
+    img1 = plt.imshow(current_surf_dem)
+    plt.gca().invert_yaxis() # makes North up
+    divider1 = make_axes_locatable(plt.gca())
+    cax1 = divider1.append_axes("right", size="5%", pad=0.05)
+    plt.colorbar(img1, cax=cax1)
+    glacier_mask_plot_title = 'Glacier Mask ' + global_parms.startdate.isoformat()
+    plt.subplot(122)
+    plt.title(glacier_mask_plot_title)
+    plt.xticks([])
+    plt.yticks([])
+    img2 = plt.imshow(glacier_mask)
+    plt.gca().invert_yaxis()
+    divider2 = make_axes_locatable(plt.gca())
+    cax2 = divider2.append_axes("right", size="5%", pad=0.05)
+    plt.colorbar(img2, cax=cax2)
+    plt.show(block=False)
+    if output_trace_files:
+      plt.savefig(temp_files_path + 'dem_and_glacier_mask_' + \
+        global_parms.startdate.isoformat())
+
 #### Run the coupled VIC-RGM model for the time range specified in the VIC
   # global parameters file
   time_iterator = run_ranges(global_parms.startdate,
@@ -378,25 +406,6 @@ bed_dem_file, num_neg_vals, surf_dem_in_file, new_bed_dem_file)
     global_parms.statedate = end
     global_parms.statename = state_filename_prefix
     global_parms.write(temp_gpf)
-
-    if output_plots:
-      surf_dem_plot_title = 'Surface DEM ' + start.isoformat()
-      plt.subplot(121)
-      plt.imshow(current_surf_dem)
-      plt.gca().invert_yaxis()
-      plt.title(surf_dem_plot_title)
-      plt.xticks([])
-      plt.yticks([])
-      glacier_mask_plot_title = 'Glacier Mask ' + start.isoformat()
-      plt.subplot(122)
-      plt.imshow(glacier_mask)
-      plt.gca().invert_yaxis()
-      plt.title(glacier_mask_plot_title)
-      plt.xticks([])
-      plt.yticks([])
-      plt.show(block=False)
-      if output_trace_files:
-        plt.savefig(output_path+'dem_and_glacier_mask_'+start.isoformat())
 
     # Run VIC for a year, saving model state at the end
     print('\nRunning VIC from {} to {}'.format(start, end))
@@ -494,21 +503,28 @@ error: %s', e)
       plt.close()
       surf_dem_plot_title = 'Surface DEM ' + end.isoformat()
       plt.subplot(121)
-      plt.imshow(current_surf_dem)
-      plt.gca().invert_yaxis()
       plt.title(surf_dem_plot_title)
       plt.xticks([])
       plt.yticks([])
+      img1 = plt.imshow(current_surf_dem)
+      plt.gca().invert_yaxis() # makes North up
+      divider1 = make_axes_locatable(plt.gca())
+      cax1 = divider1.append_axes("right", size="5%", pad=0.05)
+      plt.colorbar(img1, cax=cax1)
       glacier_mask_plot_title = 'Glacier Mask ' + end.isoformat()
       plt.subplot(122)
-      plt.imshow(glacier_mask)
-      plt.gca().invert_yaxis()
       plt.title(glacier_mask_plot_title)
       plt.xticks([])
       plt.yticks([])
+      img2 = plt.imshow(glacier_mask)
+      plt.gca().invert_yaxis()
+      divider2 = make_axes_locatable(plt.gca())
+      cax2 = divider2.append_axes("right", size="5%", pad=0.05)
+      plt.colorbar(img2, cax=cax2)
       plt.show(block=False)
       if output_trace_files:
-        plt.savefig(output_path+'dem_and_glacier_mask_'+end.isoformat())
+        plt.savefig(temp_files_path + 'dem_and_glacier_mask_' + \
+          end.isoformat())
 
     # Update HRU and band area fractions and state for all VIC grid cells
     logging.debug('Updating VIC grid cell area fracs and states')
@@ -516,12 +532,17 @@ error: %s', e)
       current_surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
     # Update the VIC state file with new state information
-    logging.debug('Updating VIC state file')
-    write_state(state, cells)
-    state_dataset.close()
-
+    logging.debug('Writing updated VIC state file')
+    new_state_date = end + one_day
+    new_state_file = state_filename_prefix + '_' + new_state_date.isoformat()
     # Set the new state file name VIC will have to read in on next iteration
-    global_parms.init_state = state_filename_prefix + "_" + end.isoformat()
+    global_parms.init_state = new_state_file
+    new_state_dataset = netCDF4.Dataset(new_state_file, 'w')
+
+    write_state(cells, state_dataset, new_state_dataset, new_state_date)
+
+    state_dataset.close()
+    new_state_dataset.close()
 
 # Main program invocation.
 if __name__ == '__main__':

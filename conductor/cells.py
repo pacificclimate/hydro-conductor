@@ -47,6 +47,10 @@ class CellState(object):
   """
   def __init__(self):
     self.variables = {
+      'lat':0.0,
+      'lon':0.0,
+      'GRID_CELL':0,
+      'NUM_BANDS':0,
       'SOIL_DZ_NODE': [0]*Cell.Nnodes,
       'SOIL_ZSUM_NODE': [0]*Cell.Nnodes,
       'VEG_TYPE_NUM': 0,
@@ -932,7 +936,9 @@ to the GLACIER HRU in band %s above.', veg_type, band_id+1)
 
         # Remove HRUs marked for deletion
         for hru in hrus_to_be_deleted:
+          logging.debug('Deleting lost HRU %s', hru)
           band.delete_hru(hru)
+        logging.debug('Number of remaining HRUs in band %s is %s', band_id, band.num_hrus)
 
         # If the band has no current area fraction within the cell, set the
         # median elevation to the floor of the range
@@ -941,11 +947,12 @@ to the GLACIER HRU in band %s above.', veg_type, band_id+1)
 
         logging.debug('Finished state update for band %s.', band_id)
     else:
-      logging.debug('No changes in band or glacier area fractions were found. \
-No state changes applied.')
+      logging.debug('No changes in band or glacier area fractions were found for band %s. \
+No state changes applied.', band_id)
+      logging.debug('Number of remaining HRUs in band %s is %s', band_id, band.num_hrus)
 
-  # Update cell-level state variables
-  cell.update_cell_state()
+    # Update cell-level state variables
+    cell.update_cell_state()
 
         # TODO: replace test below with one that checks that all band HRU area fracs add to 1
         # Sanity check that glacier + non-glacier area fractions add up to Band's total area fraction, within tolerance
