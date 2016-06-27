@@ -185,7 +185,7 @@ def run_ranges(startdate, enddate, glacier_start):
   t0 = startdate
   tn = glacier_start - one_day + one_year
   yield t0, tn
-  # Secord itration aligned to water year, include glaciers
+  # Secord iteration aligned to water year, include glaciers
   # All subsequent iterations are aligned to water year and include glacier
   while tn < enddate:
     t0 = tn + one_day
@@ -385,6 +385,7 @@ bed_dem_file, num_neg_vals, surf_dem_in_file, new_bed_dem_file)
 
 #### Run the coupled VIC-RGM model for the time range specified in the VIC
   # global parameters file
+  time_step = 0
   time_iterator = run_ranges(global_parms.startdate,
                  global_parms.enddate,
                  global_parms.glacier_accum_startdate)
@@ -405,6 +406,10 @@ bed_dem_file, num_neg_vals, surf_dem_in_file, new_bed_dem_file)
     global_parms.enddate = end
     global_parms.statedate = end
     global_parms.statename = state_filename_prefix
+    if time_step > 0:
+      global_parms.glacier_accum_start_year = start.year
+      global_parms.glacier_accum_start_month = start.month
+      global_parms.glacier_accum_start_day = start.day
     global_parms.write(temp_gpf)
 
     # Run VIC for a year, saving model state at the end
@@ -538,11 +543,11 @@ error: %s', e)
     # Set the new state file name VIC will have to read in on next iteration
     global_parms.init_state = new_state_file
     new_state_dataset = netCDF4.Dataset(new_state_file, 'w')
-
     write_state(cells, state_dataset, new_state_dataset, new_state_date)
-
     state_dataset.close()
     new_state_dataset.close()
+
+    time_step = time_step + 1
 
 # Main program invocation.
 if __name__ == '__main__':
