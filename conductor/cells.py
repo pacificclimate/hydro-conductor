@@ -17,6 +17,12 @@ import logging
 MAX_SURFACE_SWE = 0.125
 CH_ICE = 2100E+03
 
+# Absolute tolerance under which HRU area fractions are considered zero
+ZERO_AREA_FRAC_TOL = 0.00001
+# This is necessary pre-Python 3.5, after which point use math.isclose()
+def isclose(a, b, rel_tol=1e-09, abs_tol=0.0):
+    return abs(a-b) <= max(rel_tol * max(abs(a), abs(b)), abs_tol)
+
 class Cell(object):
   """Class capturing VIC cells
   """
@@ -423,6 +429,8 @@ def update_area_fracs(cells, cell_areas, cell_id_map, num_snow_bands,\
       # Update total area fraction for this Band
       new_band_area_frac[band_id] = band_areas[cell_id][band_id]/cell_areas[cell_id]
       new_glacier_area_frac[band_id] = glacier_areas[cell_id][band_id]/cell_areas[cell_id]
+      if isclose(new_glacier_area_frac[band_id], 0, abs_tol=ZERO_AREA_FRAC_TOL):
+        new_glacier_area_frac[band_id] = 0
 
       # We need to update HRU area fractions if either 
       # the glacier HRU area fraction has changed for this band, or
@@ -437,6 +445,8 @@ def update_area_fracs(cells, cell_areas, cell_id_map, num_snow_bands,\
         # Calculate new open ground area fraction
         new_open_ground_area_frac[band_id] = np.max([0, (band.area_frac_open_ground\
           + new_residual_area_frac)])
+        if isclose(new_open_ground_area_frac[band_id], 0, abs_tol=ZERO_AREA_FRAC_TOL):
+          new_open_ground_area_frac[band_id] = 0
         # Use old proportions of vegetated areas for scaling their area
         # fractions in this iteration
         veg_scaling_divisor[band_id] = band.area_frac_non_glacier\
@@ -453,6 +463,8 @@ def update_area_fracs(cells, cell_areas, cell_id_map, num_snow_bands,\
             new_hru_area_frac[str(band_id)] = {}
             new_hru_area_frac[str(band_id)][str(veg_type)] = \
               band.hrus[veg_type].area_frac + delta_area_hru[str(veg_type)]
+            if isclose(new_hru_area_frac[str(band_id)][str(veg_type)], 0, abs_tol=ZERO_AREA_FRAC_TOL):
+              new_hru_area_frac[str(band_id)][str(veg_type)] = 0
 
     ### Update all HRU states for each band, then apply new HRU area
     # fractions calculated above.
