@@ -2,8 +2,6 @@
   See conftest.py for details on the test fixtures used.
 '''
 
-from collections import OrderedDict
-from pkg_resources import resource_filename
 from copy import deepcopy
 
 import pytest
