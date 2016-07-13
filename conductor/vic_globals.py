@@ -44,7 +44,7 @@ class Filename(Scalar):
   def __set__(self, instance, value):
     if not isdir(dirname(value)):
       raise ValueError("Cannot set parameter to a file in a non-existant \
-        directory: {}".format(dirname(value)))
+directory: {}".format(dirname(value)))
     super().__set__(instance, value)
 
 class Mapping(object):
@@ -212,6 +212,7 @@ class Global(metaclass = OrderedMeta):
   root_zones = Scalar(int)
   snow_band = Scalar(str) # int, str
   result_dir = Filename() # dirname
+  netcdf_output_filename = Scalar(str) # this will have a date range suffix added to it
   out_step = Scalar(int)
   skipyear = Scalar(int)
   compress = Boolean()

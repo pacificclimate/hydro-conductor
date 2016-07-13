@@ -26,21 +26,49 @@ def get_rgm_pixel_mapping(pixel_map_file):
     # create an empty two dimensional array
     cell_id_map = np.empty((ny, nx))
     cell_id_map.fill(np.nan)
-    z_map = np.empty((ny, nx))
-    z_map.fill(np.nan)
     _ = f.readline() # Consume the column headers
     for line in f:
-      _, i, j, _, median_elev, cell_id = line.split()
+      # Note that we are ignoring the median elevation data (5th column)
+      _, i, j, _, _, cell_id = line.split()
       i, j = int(i), int(j)
       if cell_id != 'NA': #otherwise we leave it as np.NaN
         cell_id_map[i,j] = cell_id
-        z_map[i, j] = median_elev
       # Increment the pixel-granularity area within the grid cell
       if cell_id in cell_areas:
         cell_areas[cell_id] += 1
       else:
         cell_areas[cell_id] = 1
-  return cell_id_map, z_map, cell_areas, nx, ny
+  vic_cell_mask = np.ma.masked_array(np.int32(cell_id_map))
+  vic_cell_mask[np.where(np.isnan(cell_id_map))] = np.ma.masked
+
+  return vic_cell_mask, cell_areas, nx, ny
+
+def mass_balances_to_rgm_grid(gmb_polys, vic_cell_mask, surf_dem, bed_dem, \
+  num_rows_dem, num_cols_dem):
+  """ Translate mass balances from grid cell GMB polynomials to 2D RGM pixel \
+    grid to use as one of the inputs to RGM
+  """
+  mass_balance_grid = np.ma.empty(vic_cell_mask.shape)
+  mass_balance_grid[np.where(vic_cell_mask.mask)] = 0
+  try:
+    for row in range(num_rows_dem):
+      for col in range(num_cols_dem):
+        # only grab elevation for pixels that fall within a VIC cell
+        if vic_cell_mask[row][col] is not np.ma.masked:
+          cell_id = str(vic_cell_mask[row][col])
+          # read most recent median elevation of this pixel
+          median_elev = surf_dem[row][col]
+          mass_balance_grid[row][col] = gmb_polys[cell_id][0] + median_elev \
+            * (gmb_polys[cell_id][1] + median_elev * gmb_polys[cell_id][2])
+        else:
+          surf_dem[row][col] = bed_dem[row][col]
+  except Exception as e:
+    print('mass_balances_to_rgm_grid: Exception while processing pixel at \
+row {} column {}: \n{}'.format(row, col, e))
+    logging.error('mass_balances_to_rgm_grid: Exception while processing pixel \
+at row %s column %s: \n %s', row, col, e)
+    sys.exit(0)
+  return mass_balance_grid
 
 def read_gsa_headers(dem_file):
   """ Opens and reads the header metadata from a GSA Digital Elevation Map
@@ -114,8 +142,8 @@ def read_state(state_in, cells):
 def write_state(cells, old_dataset, new_dataset, new_state_date):
   """Takes the dataset from the last VIC state file, copies its static
     metadata and writes a new state file with static metadata, new
-    metadata, and the new state variable values from the CellState and
-    HruState object members of each cell.
+    dynamic metadata, and the new state variable values from the CellState and
+    HruState object members of each Cell object in cells.
   """
   num_lons = len(old_dataset.variables['lon'])
   def get_2D_cell_indices(count):
@@ -141,9 +169,9 @@ def write_state(cells, old_dataset, new_dataset, new_state_date):
       new_dataset.createDimension(d_name, len(dim) if not dim.isunlimited() else None)
   # Copy variables
   for v_name, var in old_dataset.variables.items():
-     new_var = new_dataset.createVariable(v_name, var.datatype, var.dimensions)
-     # Copy variable attributes
-     new_var.setncatts({k: var.getncattr(k) for k in var.ncattrs()})
+    new_var = new_dataset.createVariable(v_name, var.datatype, var.dimensions)
+    # Copy variable attributes
+    new_var.setncatts({k: var.getncattr(k) for k in var.ncattrs()})
 
   state = new_dataset.variables
   cell_idx = 0

@@ -17,7 +17,7 @@ import netCDF4
 from dateutil.relativedelta import relativedelta
 
 from conductor.io import get_rgm_pixel_mapping, read_gsa_headers,\
-  write_grid_to_gsa_file, read_state, write_state
+  write_grid_to_gsa_file, mass_balances_to_rgm_grid, read_state, write_state
 from conductor.cells import Cell, Band, HydroResponseUnit, merge_cell_input,\
   update_glacier_mask, update_area_fracs
 from conductor.snbparams import load_snb_parms, save_snb_parms
@@ -130,34 +130,6 @@ def parse_input_parms():
     glacier_root_zone_parms, open_ground_root_zone_parms, band_size, loglevel,\
     output_plots
 
-def mass_balances_to_rgm_grid(gmb_polys, cell_id_map, dem, num_rows_dem,\
-  num_cols_dem, valid_cell_ids):
-  """ Translate mass balances from grid cell GMB polynomials to 2D RGM pixel \
-    grid to use as one of the inputs to RGM
-  """
-  mass_balance_grid = [[0 for x in range(num_cols_dem)]\
-    for x in range(num_rows_dem)]
-  try:
-    for row in range(num_rows_dem):
-      for col in range(num_cols_dem):
-        if not np.isnan(cell_id_map[row][col]):
-        # only grab elevation for pixels that fall within a VIC cell
-          cell_id = str(int(cell_id_map[row][col]))
-          # check that the cell_id agrees with reading from the veg_parm_file
-          if cell_id not in valid_cell_ids:
-            print('mass_balances_to_rgm_grid: Cell ID {} was not found in the \
-              list of VIC cell IDs read from the vegetation parameters file. \
-              Exiting.\n'.format(cell_id))
-            sys.exit(0)
-          # read most recent median elevation of this pixel
-          median_elev = dem[row][col]
-          mass_balance_grid[row][col] = gmb_polys[cell_id][0] + median_elev \
-            * (gmb_polys[cell_id][1] + median_elev * gmb_polys[cell_id][2])
-  except:
-    print('mass_balances_to_rgm_grid: Error while processing pixel {} \
-      (row {} column {})'.format(pixel, row, col))
-  return mass_balance_grid
-
 def run_ranges(startdate, enddate, glacier_start):
   """Generator which yields date ranges (a 2-tuple) that represent times at
     which to begin and end a VIC run.
@@ -269,10 +241,10 @@ def main():
   # Snow Band and Vegetation Parameter files and custom parameters
   cells = merge_cell_input(hru_cell_dict, elevation_cell_dict)
 
-  # Open and read VIC-grid-to-RGM-pixel mapping file
+  # Open and read VIC-grid-to-RGM-pixel mapping file.
   logging.info('Loading VIC-grid-to-RGM-pixel mapping from %s',\
     pixel_cell_map_file)
-  cell_id_map, elevation_map, cell_areas, num_cols_dem, num_rows_dem\
+  vic_cell_mask, cell_areas, num_cols_dem, num_rows_dem\
     = get_rgm_pixel_mapping(pixel_cell_map_file)
 
   # Get DEM xmin, xmax, ymin, ymax metadata of Bed DEM and check file header
@@ -282,7 +254,7 @@ def main():
   # Verify that number of columns & rows agree with what's stated in the
   # pixel_cell_map_file
   assert (num_cols == num_cols_dem) and (num_rows == num_rows_dem),'Mismatch \
-  of stated dimension(s) between Bed DEM in {} (num rows: {}, num columns: \
+  between stated dimension(s) between Bed DEM in {} (num rows: {}, num columns: \
   {}) and the VIC-grid-to-RGM-pixel map in {} (num rows: {}, num columns: \
   {}). Exiting.\n'.format(bed_dem_file, num_rows, num_cols,\
     pixel_cell_map_file, num_rows_dem, num_cols_dem)
@@ -307,7 +279,7 @@ def main():
   current_surf_dem = np.loadtxt(surf_dem_in_file, skiprows=5)
 
   # Check if Bed DEM has any points that are higher than the Surface DEM
-  # in the same location.  If so, set these Bed DEM points to equal the
+  # in the same location. If so, set these Bed DEM points to equal the
   # Surface DEM values, thus avoiding producing negative values when the
   # two are subtracted during glacier mask update. This reconciliation is
   # necessary because the two DEMs come from different sources, and could
@@ -322,7 +294,7 @@ def main():
 higher than those in the provided Surface DEM (%s), probably because they \
 come from different data sources. The Bed DEM has been adjusted to equal \
 the Surface DEM elevation at these points and written out to the file %s.',\
-bed_dem_file, num_neg_vals, surf_dem_in_file, new_bed_dem_file)
+    bed_dem_file, num_neg_vals, surf_dem_in_file, new_bed_dem_file)
     bed_dem_file = new_bed_dem_file
     write_grid_to_gsa_file(bed_dem, bed_dem_file, num_cols_dem, num_rows_dem,\
       dem_xmin, dem_xmax, dem_ymin, dem_ymax)
@@ -343,12 +315,16 @@ bed_dem_file, num_neg_vals, surf_dem_in_file, new_bed_dem_file)
   # Apply the initial glacier mask and modify the band and glacier area
   # fractions accordingly
   logging.debug('Applying initial area fraction update.')
-  update_area_fracs(cells, cell_areas, cell_id_map, num_snow_bands,
+  update_area_fracs(cells, cell_areas, vic_cell_mask, num_snow_bands,
     current_surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
-  # Set the VIC output state filename prefix (to be written to STATENAME
+  # Set the VIC output state file name prefix (to be written to STATENAME
   # in the global file)
   state_filename_prefix = temp_files_path + 'vic_hydrocon_state'
+
+  # Set the VIC results output file name prefix to NETCDF_OUTPUT_FILENAM given
+  # in the original global file.
+  netcdf_output_filename_prefix = global_parms.netcdf_output_filename
 
   # The RGM will always output a DEM file of the same name (if running RGM for
   # a single year at a time)
@@ -406,6 +382,8 @@ bed_dem_file, num_neg_vals, surf_dem_in_file, new_bed_dem_file)
     global_parms.enddate = end
     global_parms.statedate = end
     global_parms.statename = state_filename_prefix
+    global_parms.netcdf_output_filename = netcdf_output_filename_prefix \
+      + start.isoformat() + '-' + end.isoformat() + '.nc'
     if time_step > 0:
       global_parms.glacier_accum_start_year = start.year
       global_parms.glacier_accum_start_month = start.month
@@ -441,37 +419,60 @@ error: %s', e)
     read_state(state, cells)
     # optionally leave the last VIC state file on disk 
     if not output_trace_files:
-        os.remove(state_file)
-    # pull Glacier Mass Balance polynomials out of cell states
+      os.remove(state_file)
+
     gmb_polys = {}
     cell_ids = []
     for cell_id in cells:
-        cell_ids.append(cell_id)
-        # leave off the "fit error" term at the end of the GMB polynomial
-        # TODO: generalize this to handle variable length GMB polynomials
-        gmb_polys[cell_id] = cells[cell_id].cell_state.variables\
-          ['GLAC_MASS_BALANCE_EQN_TERMS'][0:3]
+      # Make sure VIC cell IDs in the state file agree with those in the
+      # vic_cell_mask, which is derived from the pixel_cell_map_file
+      if int(cell_id) not in vic_cell_mask:
+        print('Cell ID {} read from the VIC state file {} was not found in \
+          the VIC cell mask derived from the given RGM-Pixel-to-VIC-Cell map \
+          file (option --pixel_map) {}. Exiting.'\
+          .format(cell_id, state_file, pixel_cell_map_file))
+        logging.error('Cell ID {} read from the VIC state file {} was not found in \
+          the VIC cell mask derived from the given RGM-Pixel-to-VIC-Cell map \
+          file (option --pixel_map) {}')
+        sys.exit(0)
+      cell_ids.append(cell_id)
+      # Read Glacier Mass Balance polynomial terms from cell states;
+      # leave off 4th the "fit error" term at the end of the GMB polynomial.
+      # TODO: may want to generalize this to handle variable length polynomials
+      gmb_polys[cell_id] = cells[cell_id].cell_state.variables\
+        ['GLAC_MASS_BALANCE_EQN_TERMS'][0:3]
 
     # Translate mass balances using grid cell GMB polynomials and current
-    # surface DEM into a 2D RGM mass balance grid (MBG)
-    logging.debug('Converting glacier mass balance polynomials to 2D grid.')
-    mass_balance_grid = mass_balances_to_rgm_grid(gmb_polys, cell_id_map,\
-      current_surf_dem, num_rows_dem, num_cols_dem, cell_ids)
-
-    # write Mass Balance Grid to ASCII file to direct the RGM to use as input
+    # surface DEM into a 2D RGM mass balance grid (MBG) and write the 
+    # MBG to an ASCII file to give as input to the RGM
     mbg_file = temp_files_path + 'mass_balance_grid_' + end.isoformat()\
       + '.gsa'
-    logging.debug('Writing RGM input glacier mass balance grid to file %s', mbg_file)
+    logging.debug('Converting glacier mass balance polynomials to 2D grid \
+and writing to file %s', mbg_file)
+    mass_balance_grid = mass_balances_to_rgm_grid(gmb_polys, vic_cell_mask,\
+      current_surf_dem, bed_dem, num_rows_dem, num_cols_dem)
     write_grid_to_gsa_file(mass_balance_grid, mbg_file, num_cols_dem,\
+      num_rows_dem, dem_xmin, dem_xmax, dem_ymin, dem_ymax)
+    # Write modified surface DEM with all pixels lying outside of VIC
+    # domain set equal to the bed DEM
+# #HACK TO GET RGM TO CONVERGE ON UNMODIFIED ORIGINAL 200YR SURFACE DEM
+#     if time_step == 0:
+#       rgm_surf_dem_in_file = '/home/mfischer/vic_dev/input/peyto/hydrocon/peyto_200yr_surf_dem.gsa'
+#     else:
+#       rgm_surf_dem_in_file = temp_files_path + 'rgm_surf_dem_in_'\
+#         + end.isoformat() + '.gsa'
+    rgm_surf_dem_in_file = temp_files_path + 'rgm_surf_dem_in_'\
+      + end.isoformat() + '.gsa'
+    write_grid_to_gsa_file(current_surf_dem, rgm_surf_dem_in_file, num_cols_dem,\
       num_rows_dem, dem_xmin, dem_xmax, dem_ymin, dem_ymax)
 
     # Run RGM for one year, passing it the MBG, BDEM, SDEM
     logging.info('Running RGM for current year with parameter file %s, \
 Bed DEM file %s, Surface DEM file %s, Mass Balance Grid file %s',\
-      rgm_params_file, bed_dem_file, surf_dem_in_file, mbg_file)
+      rgm_params_file, bed_dem_file, rgm_surf_dem_in_file, mbg_file)
     try:
       subprocess.check_call([rgm_full_path, "-p", rgm_params_file, "-b",\
-        bed_dem_file, "-d", surf_dem_in_file, "-m", mbg_file, "-o",\
+        bed_dem_file, "-d", rgm_surf_dem_in_file, "-m", mbg_file, "-o",\
         temp_files_path, "-s", "0", "-e", "0" ], shell=False,\
         stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as e:
@@ -487,11 +488,12 @@ error: %s', e)
       + end.isoformat() + '.gsa'
     os.rename(rgm_surf_dem_out_file, temp_surf_dem_file)
     # this will be fed back into RGM on next time step:
-    surf_dem_in_file = temp_surf_dem_file
+    rgm_surf_dem_in_file = temp_surf_dem_file
 
     # remove temporary files if not saving for offline inspection
     if not output_trace_files:
       os.remove(mbg_file)
+      os.remove(rgm_surf_dem_in_file)
       os.remove(rgm_surf_dem_out_file)
 
     # Update glacier mask
@@ -501,6 +503,7 @@ error: %s', e)
     if output_trace_files:
       glacier_mask_file = temp_files_path + 'glacier_mask_'\
         + end.isoformat() + '.gsa'
+      logging.debug('Writing Glacier Mask to file %s', glacier_mask_file)
       write_grid_to_gsa_file(glacier_mask, glacier_mask_file, num_cols_dem,\
       num_rows_dem, dem_xmin, dem_xmax, dem_ymin, dem_ymax)
 
@@ -533,13 +536,13 @@ error: %s', e)
 
     # Update HRU and band area fractions and state for all VIC grid cells
     logging.debug('Updating VIC grid cell area fracs and states')
-    update_area_fracs(cells, cell_areas, cell_id_map, num_snow_bands,\
+    update_area_fracs(cells, cell_areas, vic_cell_mask, num_snow_bands,\
       current_surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
 
     # Update the VIC state file with new state information
-    logging.debug('Writing updated VIC state file')
     new_state_date = end + one_day
     new_state_file = state_filename_prefix + '_' + new_state_date.isoformat()
+    logging.debug('Writing updated VIC state file %s', new_state_file)
     # Set the new state file name VIC will have to read in on next iteration
     global_parms.init_state = new_state_file
     new_state_dataset = netCDF4.Dataset(new_state_file, 'w')

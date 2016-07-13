@@ -329,7 +329,7 @@ def update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem):
   glacier_mask[diffs > 0] = 1
   return glacier_mask
 
-def update_area_fracs(cells, cell_areas, cell_id_map, num_snow_bands,\
+def update_area_fracs(cells, cell_areas, vic_cell_mask, num_snow_bands,\
   surf_dem, num_rows_dem, num_cols_dem, glacier_mask):
   """Applies the updated RGM DEM and glacier mask and calculates and updates
     all HRU area fractions for all elevation bands within the VIC cells.
@@ -359,7 +359,7 @@ def update_area_fracs(cells, cell_areas, cell_id_map, num_snow_bands,\
     # Select the portion of the DEM that pertains to this cell from which we
     # will do binning
     masked_dem = np.ma.masked_array(surf_dem)
-    masked_dem[np.where(cell_id_map != float(cell_id))] = np.ma.masked
+    masked_dem[np.where(vic_cell_mask != float(cell_id))] = np.ma.masked
     # Create a regular 'flat' np.array of the DEM subset that is within the
     # VIC cell
     flat_dem = masked_dem[~masked_dem.mask]
@@ -392,10 +392,10 @@ def update_area_fracs(cells, cell_areas, cell_id_map, num_snow_bands,\
 
     # Select portion of glacier_mask pertaining to this cell
     cell_glacier_mask = np.ma.masked_array(glacier_mask)
-    cell_glacier_mask[np.where(cell_id_map != float(cell_id))] = np.ma.masked
+    cell_glacier_mask[np.where(vic_cell_mask != float(cell_id))] = np.ma.masked
     masked_dem.mask = False
-    masked_dem[np.where(cell_glacier_mask !=1)] = np.ma.masked
-    # Create a regular 'flat' np.array of the DEM subset that is the glacier mask
+    masked_dem[np.where(cell_glacier_mask != 1)] = np.ma.masked
+    # Create a regular 'flat' np.array of the DEM subset that is unmasked glacier
     flat_glacier_dem = masked_dem[~masked_dem.mask]
 
     # Do binning into band_areas[cell][band] and glacier_areas[cell][band] 
@@ -1017,6 +1017,8 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
         dest_hru.hru_state.variables[var] = source_hru.hru_state.variables[var] \
         * (source_hru.area_frac / kwargs['new_hru_area_frac'])
       elif var in spec_5_vars:
+        # TODO: if passed the veg_type, we could set this to zero for non-glacier dest_hrus
+        # rather than carrying over a nan
         carry_over(source_hru.hru_state.variables[var], \
           dest_hru.hru_state.variables[var])
       elif var in spec_6_vars: # SNOW_COLD_CONTENT
@@ -1031,9 +1033,9 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
         carry_over(source_hru.hru_state.variables[var], \
           dest_hru.hru_state.variables[var])
 
-  elif case == '4a':
+  elif case == '4a': # transferring state to open ground
     for var in source_hru.hru_state.variables:
-      if var in spec_2_vars: # transferring state to open ground
+      if var in spec_2_vars:
         if type(source_hru.hru_state.variables[var]) == np.ndarray:
           for layer_idx, layer in enumerate(source_hru.hru_state.variables[var]):
             if type(source_hru.hru_state.variables[var][layer_idx]) == np.ndarray:
@@ -1058,22 +1060,22 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
               dest_hru.hru_state.variables['SNOW_CANOPY']
             dest_hru.hru_state.variables['SNOW_CANOPY'] = 0
       elif var in spec_3_vars: # SNOW_DENSITY
-        if dest_hru.hru_state.variables['SNOW_DEPTH'] > 0: # avoid division by zero
+        # avoid division by zero
+        if dest_hru.hru_state.variables['SNOW_DEPTH'] > 0:
           dest_hru.hru_state.variables[var] \
           = (dest_hru.hru_state.variables['SNOW_SWQ'] * 1000) \
           / dest_hru.hru_state.variables['SNOW_DEPTH']
         else:
           dest_hru.hru_state.variables[var] = 0
-      elif var in spec_4_vars: # transferring state to open ground
+      elif var in spec_4_vars: # GLAC_WATER_STORAGE
         dest_hru.hru_state.variables[var] \
         = dest_hru.hru_state.variables[var] \
         + source_hru.hru_state.variables[var] \
         * (source_hru.area_frac / kwargs['new_open_ground_area_frac'])
-        if var == 'GLAC_WATER_STORAGE': # spec-10 sanity check
-          if dest_hru.hru_state.variables[var] > 0:
-            dest_hru.hru_state.variables['LAYER_MOIST'][Nlayers-1] += \
-              dest_hru.hru_state.variables['GLAC_WATER_STORAGE']
-            dest_hru.hru_state.variables['GLAC_WATER_STORAGE'] = 0
+        if dest_hru.hru_state.variables[var] > 0: # spec-10 sanity check
+          dest_hru.hru_state.variables['LAYER_MOIST'][Nlayers-1] += \
+            dest_hru.hru_state.variables['GLAC_WATER_STORAGE']
+          dest_hru.hru_state.variables['GLAC_WATER_STORAGE'] = 0
       elif var in spec_5_vars: # GLAC_CUM_MASS_BALANCE, only applies to glacier HRUs.
         # Glacier HRU gone, but shadow remains, so we have to set state to zero
         # rather than relying on deletion of the HRU to effectively do this
@@ -1084,7 +1086,7 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
         = (dest_hru.hru_state.variables['SNOW_SURF_TEMP'] \
           * (min(MAX_SURFACE_SWE, dest_hru.hru_state.variables['SNOW_SWQ'])) \
           * CH_ICE)
-      elif var in spec_7_vars: # transferring state to open ground
+      elif var in spec_7_vars:
         dest_hru.hru_state.variables[var] = (dest_hru.hru_state.variables[var] \
           * dest_hru.area_frac * (int(dest_hru.hru_state.variables['SNOW_SWQ'] >= 0)) \
           + source_hru.hru_state.variables[var] * source_hru.area_frac \
@@ -1098,9 +1100,9 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
         source_hru.hru_state.variables[var] = 0
         dest_hru.hru_state.variables[var] = 0
 
-  elif case == '4b':
+  elif case == '4b': # transferring state to glacier
     for var in source_hru.hru_state.variables:
-      if var in spec_2_vars: # transferring state to glacier
+      if var in spec_2_vars:
         if type(source_hru.hru_state.variables[var]) == np.ndarray:
           for layer_idx, layer in enumerate(source_hru.hru_state.variables[var]):
             if type(source_hru.hru_state.variables[var][layer_idx]) == np.ndarray:
@@ -1132,8 +1134,8 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
           / dest_hru.hru_state.variables['SNOW_DEPTH']
         else:
           dest_hru.hru_state.variables[var] = 0
-      elif var in spec_4_vars: # transferring state to glacier
-        dest_hru.hru_state.variables[var] = source_hru.hru_state.variables[var]
+      elif var in spec_4_vars: # GLAC_WATER_STORAGE
+        pass # this value is carried over from the previous time step
       elif var in spec_5_vars: # GLAC_CUM_MASS_BALANCE (glacier HRUs only)
         source_hru.hru_state.variables[var] = 0
         dest_hru.hru_state.variables[var] = 0
@@ -1142,7 +1144,7 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
         = (dest_hru.hru_state.variables['SNOW_SURF_TEMP'] \
           * (min(MAX_SURFACE_SWE, dest_hru.hru_state.variables['SNOW_SWQ'])) \
           * CH_ICE)
-      elif var in spec_7_vars: # transferring state to glacier
+      elif var in spec_7_vars:
         dest_hru.hru_state.variables[var] = (dest_hru.hru_state.variables[var] \
           * dest_hru.area_frac * (int(dest_hru.hru_state.variables['SNOW_SWQ'] >= 0)) \
           + source_hru.hru_state.variables[var] * source_hru.area_frac \
@@ -1156,9 +1158,9 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
         source_hru.hru_state.variables[var] = 0
         dest_hru.hru_state.variables[var] = 0
 
-  elif case == '5a' or case == '5d':
+  elif case == '5a' or case == '5d': # transferring state to glacier
     for var in source_hru.hru_state.variables:
-      if var in spec_2_vars: # transferring state to glacier
+      if var in spec_2_vars:
         if type(source_hru.hru_state.variables[var]) == np.ndarray:
           for layer_idx, layer in enumerate(source_hru.hru_state.variables[var]):
             if type(source_hru.hru_state.variables[var][layer_idx]) == np.ndarray:
@@ -1189,7 +1191,7 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
           / dest_hru.hru_state.variables['SNOW_DEPTH']
         else:
           dest_hru.hru_state.variables[var] = 0
-      elif var in spec_4_vars: # transferring state to glacier
+      elif var in spec_4_vars:
         dest_hru.hru_state.variables[var] \
         = dest_hru.hru_state.variables[var] \
         + source_hru.hru_state.variables[var] \
@@ -1204,7 +1206,7 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
         = (dest_hru.hru_state.variables['SNOW_SURF_TEMP'] \
           * (min(MAX_SURFACE_SWE, dest_hru.hru_state.variables['SNOW_SWQ'])) \
           * CH_ICE)
-      elif var in spec_7_vars: # transferring state to glacier
+      elif var in spec_7_vars:
         dest_hru.hru_state.variables[var] = (dest_hru.hru_state.variables[var] \
           * dest_hru.area_frac * (int(dest_hru.hru_state.variables['SNOW_SWQ'] >= 0)) \
           + source_hru.hru_state.variables[var] * source_hru.area_frac \
@@ -1217,9 +1219,10 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
       elif var in spec_9_vars:
         source_hru.hru_state.variables[var] = 0
         dest_hru.hru_state.variables[var] = 0
-  elif case == '5b':
+
+  elif case == '5b': # transferring state to open ground
     for var in source_hru.hru_state.variables:
-      if var in spec_2_vars: # transferring state to open ground
+      if var in spec_2_vars:
         if type(source_hru.hru_state.variables[var]) == np.ndarray:
           for layer_idx, layer in enumerate(source_hru.hru_state.variables[var]):
             if type(source_hru.hru_state.variables[var][layer_idx]) == np.ndarray:
@@ -1251,7 +1254,7 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
           / dest_hru.hru_state.variables['SNOW_DEPTH']
         else:
           dest_hru.hru_state.variables[var] = 0
-      elif var in spec_4_vars: # transferring state to open ground
+      elif var in spec_4_vars:
         dest_hru.hru_state.variables[var] \
         = dest_hru.hru_state.variables[var] \
         + source_hru.hru_state.variables[var] \
@@ -1271,7 +1274,7 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
         = (dest_hru.hru_state.variables['SNOW_SURF_TEMP'] \
           * (min(MAX_SURFACE_SWE, dest_hru.hru_state.variables['SNOW_SWQ'])) \
           * CH_ICE)
-      elif var in spec_7_vars: # transferring state to open ground
+      elif var in spec_7_vars:
         dest_hru.hru_state.variables[var] = (dest_hru.hru_state.variables[var] \
           * dest_hru.area_frac * (int(dest_hru.hru_state.variables['SNOW_SWQ'] >= 0)) \
           + source_hru.hru_state.variables[var] * source_hru.area_frac \
@@ -1284,9 +1287,10 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
       elif var in spec_9_vars:
         source_hru.hru_state.variables[var] = 0
         dest_hru.hru_state.variables[var] = 0
-  elif case == '5c':
+
+  elif case == '5c': # transferring state to vegetated HRU
     for var in source_hru.hru_state.variables:
-      if var in spec_2_vars: # transferring state to vegetated HRU
+      if var in spec_2_vars:
         if type(source_hru.hru_state.variables[var]) == np.ndarray:
           for layer_idx, layer in enumerate(source_hru.hru_state.variables[var]):
             if type(source_hru.hru_state.variables[var][layer_idx]) == np.ndarray:
@@ -1318,7 +1322,7 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
           / dest_hru.hru_state.variables['SNOW_DEPTH']
         else:
           dest_hru.hru_state.variables[var] = 0
-      elif var in spec_4_vars: # transferring state to vegetated HRU
+      elif var in spec_4_vars:
         dest_hru.hru_state.variables[var] \
         = dest_hru.hru_state.variables[var] \
         + source_hru.hru_state.variables[var] \
@@ -1338,7 +1342,7 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
         = (dest_hru.hru_state.variables['SNOW_SURF_TEMP'] \
           * (min(MAX_SURFACE_SWE, dest_hru.hru_state.variables['SNOW_SWQ'])) \
           * CH_ICE)
-      elif var in spec_7_vars: # transferring state to vegetated HRU
+      elif var in spec_7_vars:
         dest_hru.hru_state.variables[var] = (dest_hru.hru_state.variables[var] \
           * dest_hru.area_frac * (int(dest_hru.hru_state.variables['SNOW_SWQ'] >= 0)) \
           + source_hru.hru_state.variables[var] * source_hru.area_frac \
