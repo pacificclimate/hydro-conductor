@@ -391,8 +391,7 @@ def toy_domain_64px_rgm_vic_map_file_readout(toy_domain_64px_cells):
   # Load in the rgm_pixel_to_vic_cell_map_file, via get_rgm_pixel_mapping()
   fname = resource_filename(\
     'conductor', 'tests/input/rgm_vic_map_toy_64px_auto.txt')
-  cellid_map_from_file, elevation_map, cell_areas, nx, ny\
+  cellid_map_from_file, cell_areas, nx, ny\
     = get_rgm_pixel_mapping(fname)
 
-  return cellid_map_from_file, elevation_map, cell_areas, nx, ny
-
+  return cellid_map_from_file, cell_areas, nx, ny

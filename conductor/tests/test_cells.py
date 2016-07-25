@@ -244,7 +244,7 @@ class TestsAreaFracUpdate:
     initial_surf_dem, initial_glacier_mask, cell_band_pixel_elevations\
       = toy_domain_64px_cells
 
-    _, _, cell_areas, num_cols_dem, num_rows_dem\
+    _, cell_areas, num_cols_dem, num_rows_dem\
       = toy_domain_64px_rgm_vic_map_file_readout
 
     # We'll use this copy to make modifications to as the DEM evolves through
