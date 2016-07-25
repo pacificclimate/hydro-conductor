@@ -1,5 +1,8 @@
 language: python
 python: 3.4
+env:
+    - HDF5_DIR=/usr/include
+    - NETCDF4_DIR=/usr/include
 install:
     - sudo apt-get update -qq
     - sudo apt-get install -qq libhdf5-serial-dev
