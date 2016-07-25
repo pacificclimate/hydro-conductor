@@ -1,11 +1,10 @@
 language: python
 python: 3.4
-env:
-    - HDF5_DIR=/usr
-    - NETCDF4_DIR=/usr
-install:
-    - sudo apt-get update -qq
+before_install:
+    - sudo apt-get -qq update
     - sudo apt-get install -qq libhdf5-serial-dev
+    - sudo apt-get install -y -qq netcdf4
+install:
     - pip install numpy
     - pip install --install-option="--no-cython-compile" cython
     - pip install -r requirements.txt
