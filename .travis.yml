@@ -3,7 +3,7 @@ python: 3.4
 before_install:
     - sudo apt-get -qq update
     - sudo apt-get install -qq libhdf5-serial-dev
-    - sudo apt-get install -y -qq netcdf4
+    - sudo apt-get install -y -qq libnetcdf-dev
 install:
     - pip install numpy
     - pip install --install-option="--no-cython-compile" cython
