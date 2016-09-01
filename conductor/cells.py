@@ -19,6 +19,11 @@ CH_ICE = 2100E+03
 
 # Absolute tolerance under which HRU area fractions are considered zero
 ZERO_AREA_FRAC_TOL = 0.00001
+
+# Areas where snow/ice coverage exceeds GLACIER_MASK_THICKNESS_THRESHOLD
+# (in units of meters) are considered to be glacier
+GLACIER_MASK_THICKNESS_THRESHOLD = 2.0
+
 # This is necessary pre-Python 3.5, after which point use math.isclose()
 def isclose(a, b, rel_tol=1e-09, abs_tol=0.0):
     return abs(a-b) <= max(rel_tol * max(abs(a), abs(b)), abs_tol)
@@ -26,9 +31,11 @@ def isclose(a, b, rel_tol=1e-09, abs_tol=0.0):
 class Cell(object):
   """Class capturing VIC cells
   """
-  # Nlayers, Nnodes, NglacMassBalanceEqnTerms are defined on a *per-run* basis
+  # Dimensions Nlayers, Nnodes, dist, and NglacMassBalanceEqnTerms 
+  # are defined on a *per-run* basis
   Nlayers = 3
   Nnodes = 3
+  dist = 1
   NglacMassBalanceEqnTerms = 3
 
   def __init__(self, bands):
@@ -195,8 +202,8 @@ class HruState(object):
       ('HRU_BAND_INDEX', band_id),
       ('HRU_VEG_INDEX', veg_type),
       # These two have dimensions (lat, lon, hru, dist, Nlayers)
-      ('LAYER_ICE_CONTENT', [[0]*Cell.Nlayers]),
-      ('LAYER_MOIST', [[0]*Cell.Nlayers]),
+      ('LAYER_ICE_CONTENT', Cell.dist * [[0]*Cell.Nlayers]),
+      ('LAYER_MOIST', Cell.dist * [[0]*Cell.Nlayers]),
       # HRU_VEG_VAR_WDEW has dimensions (lat, lon, hru, dist)
       ('HRU_VEG_VAR_WDEW' , [0]),
       # HRU state variables with dimensions (lat, lon, hru)
@@ -326,7 +333,7 @@ def update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem):
     )
 
   glacier_mask = np.zeros((num_rows_dem, num_cols_dem))
-  glacier_mask[diffs > 0] = 1
+  glacier_mask[diffs > GLACIER_MASK_THICKNESS_THRESHOLD] = 1
   return glacier_mask
 
 def update_area_fracs(cells, cell_areas, vic_cell_mask, num_snow_bands,\
@@ -526,6 +533,9 @@ disappeared. Transferring state to the OPEN GROUND HRU in this band.')
           new_area_fracs = {
             'new_open_ground_area_frac': new_open_ground_area_frac[band_id]
           }
+          # if there's not already an open ground HRU in this band, create one
+          if Band.open_ground_id not in band.hrus:
+            band.create_hru(band_id, Band.open_ground_id, new_open_ground_area_frac[band_id])
           update_hru_state( \
             band.hrus[Band.glacier_id], \
             band.hrus[Band.open_ground_id], \
@@ -1073,7 +1083,8 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
         + source_hru.hru_state.variables[var] \
         * (source_hru.area_frac / kwargs['new_open_ground_area_frac'])
         if dest_hru.hru_state.variables[var] > 0: # spec-10 sanity check
-          dest_hru.hru_state.variables['LAYER_MOIST'][Nlayers-1] += \
+        #FIXME: hard-coding the dist dim to [0] for now
+          dest_hru.hru_state.variables['LAYER_MOIST'][0][Cell.Nlayers-1] += \
             dest_hru.hru_state.variables['GLAC_WATER_STORAGE']
           dest_hru.hru_state.variables['GLAC_WATER_STORAGE'] = 0
       elif var in spec_5_vars: # GLAC_CUM_MASS_BALANCE, only applies to glacier HRUs.
@@ -1261,7 +1272,8 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
         * (source_hru.area_frac / kwargs['new_open_ground_area_frac'])
         if var == 'GLAC_WATER_STORAGE': # spec-10 sanity check
           if dest_hru.hru_state.variables[var] > 0:
-            dest_hru.hru_state.variables['LAYER_MOIST'][Nlayers-1] += \
+            #FIXME: hard-coding the dist dim to [0] for now
+            dest_hru.hru_state.variables['LAYER_MOIST'][0][Cell.Nlayers-1] += \
               dest_hru.hru_state.variables['GLAC_WATER_STORAGE']
             dest_hru.hru_state.variables['GLAC_WATER_STORAGE'] = 0
       elif var in spec_5_vars: # GLAC_CUM_MASS_BALANCE (glacier HRUs only)
@@ -1329,7 +1341,8 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
         * (source_hru.area_frac / kwargs['new_hru_area_frac'])
         if var == 'GLAC_WATER_STORAGE': # spec-10 sanity check
           if dest_hru.hru_state.variables[var] > 0:
-            dest_hru.hru_state.variables['LAYER_MOIST'][Nlayers-1] += \
+            #FIXME: hard-coding the dist dim to [0] for now
+            dest_hru.hru_state.variables['LAYER_MOIST'][0][Cell.Nlayers-1] += \
               dest_hru.hru_state.variables['GLAC_WATER_STORAGE']
             dest_hru.hru_state.variables['GLAC_WATER_STORAGE'] = 0
       elif var in spec_5_vars: # GLAC_CUM_MASS_BALANCE (glacier HRUs only)

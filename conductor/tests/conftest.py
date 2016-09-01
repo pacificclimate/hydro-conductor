@@ -395,3 +395,7 @@ def toy_domain_64px_rgm_vic_map_file_readout(toy_domain_64px_cells):
     = get_rgm_pixel_mapping(fname)
 
   return cellid_map_from_file, cell_areas, nx, ny
+
+# @pytest.fixture(scope="function")
+# def toy_domain_64px_state():
+#   fname = resource_filename('conductor', 'tests/input/vic_state_test_file.nc')

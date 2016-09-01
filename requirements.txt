@@ -2,3 +2,4 @@ cython
 numpy
 netCDF4
 python-dateutil
+matplotlib
