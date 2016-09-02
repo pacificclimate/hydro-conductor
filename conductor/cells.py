@@ -13,16 +13,19 @@ import numpy as np
 import itertools
 import logging
 
-# These are set in the VIC header snow.h, but should probably be passed in via the state file
-MAX_SURFACE_SWE = 0.125
-CH_ICE = 2100E+03
+from conductor.conductor_params import MAX_SURFACE_SWE, CH_ICE, \
+  ZERO_AREA_FRAC_TOL, GLACIER_THICKNESS_THRESHOLD
 
-# Absolute tolerance under which HRU area fractions are considered zero
-ZERO_AREA_FRAC_TOL = 0.00001
+# # These are set in the VIC header snow.h, but should probably be passed in via the state file
+# MAX_SURFACE_SWE = 0.125
+# CH_ICE = 2100E+03
 
-# Areas where snow/ice coverage exceeds GLACIER_MASK_THICKNESS_THRESHOLD
-# (in units of meters) are considered to be glacier
-GLACIER_MASK_THICKNESS_THRESHOLD = 2.0
+# # Absolute tolerance under which HRU area fractions are considered zero
+# ZERO_AREA_FRAC_TOL = 0.00001
+
+# # Areas where snow/ice coverage exceeds GLACIER_MASK_THICKNESS_THRESHOLD
+# # (in units of meters) are considered to be glacier
+# GLACIER_MASK_THICKNESS_THRESHOLD = 2.0
 
 # This is necessary pre-Python 3.5, after which point use math.isclose()
 def isclose(a, b, rel_tol=1e-09, abs_tol=0.0):
@@ -333,7 +336,7 @@ def update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem):
     )
 
   glacier_mask = np.zeros((num_rows_dem, num_cols_dem))
-  glacier_mask[diffs > GLACIER_MASK_THICKNESS_THRESHOLD] = 1
+  glacier_mask[diffs > GLACIER_THICKNESS_THRESHOLD] = 1
   return glacier_mask
 
 def update_area_fracs(cells, cell_areas, vic_cell_mask, num_snow_bands,\

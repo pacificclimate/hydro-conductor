@@ -16,6 +16,8 @@ import numpy as np
 import netCDF4
 from dateutil.relativedelta import relativedelta
 
+from conductor.conductor_params import vic_full_path, rgm_full_path,\
+  output_path, temp_files_path
 from conductor.io import get_rgm_pixel_mapping, read_gsa_headers,\
   write_grid_to_gsa_file, mass_balances_to_rgm_grid, read_state, write_state
 from conductor.cells import Cell, Band, HydroResponseUnit, merge_cell_input,\
@@ -23,12 +25,13 @@ from conductor.cells import Cell, Band, HydroResponseUnit, merge_cell_input,\
 from conductor.snbparams import load_snb_parms, save_snb_parms
 from conductor.vegparams import load_veg_parms, save_veg_parms
 from conductor.vic_globals import Global
+from conductor.glacier_plotter import GlacierPlotter
 
 # These should become command line parameters at some point
-vic_full_path = '/home/mfischer/code/vic/vicNl'
-rgm_full_path = '/home/mfischer/code/rgm/rgm'
-output_path = '/home/mfischer/vic_dev/out/testing/'
-temp_files_path = output_path + 'hydrocon_temp/'
+# vic_full_path = '/home/mfischer/code/vic/vicNl'
+# rgm_full_path = '/home/mfischer/code/rgm/rgm'
+# output_path = '/home/mfischer/vic_dev/out/testing/'
+# temp_files_path = output_path + 'hydrocon_temp/'
 # set it as default = os.env(tmp)
 
 one_year = relativedelta(years=+1)
@@ -176,10 +179,6 @@ def main():
     glacier_root_zone_parms, open_ground_root_zone_parms, band_size,\
     loglevel, output_plots\
     = parse_input_parms()
-
-  if output_plots:
-    from matplotlib import pyplot as plt
-    from mpl_toolkits.axes_grid1 import make_axes_locatable
 
   # Set up logging
   numeric_loglevel = getattr(logging, loglevel.upper())
@@ -334,30 +333,11 @@ the Surface DEM elevation at these points and written out to the file %s.',\
 
 # Show initial surface DEM and glacier mask
   if output_plots:
-    surf_dem_plot_title = 'Surface DEM ' + global_parms.startdate.isoformat()
-    plt.subplot(121)
-    plt.title(surf_dem_plot_title)
-    plt.xticks([])
-    plt.yticks([])
-    img1 = plt.imshow(current_surf_dem)
-    plt.gca().invert_yaxis() # makes North up
-    divider1 = make_axes_locatable(plt.gca())
-    cax1 = divider1.append_axes("right", size="5%", pad=0.05)
-    plt.colorbar(img1, cax=cax1)
-    glacier_mask_plot_title = 'Glacier Mask ' + global_parms.startdate.isoformat()
-    plt.subplot(122)
-    plt.title(glacier_mask_plot_title)
-    plt.xticks([])
-    plt.yticks([])
-    img2 = plt.imshow(glacier_mask)
-    plt.gca().invert_yaxis()
-    divider2 = make_axes_locatable(plt.gca())
-    cax2 = divider2.append_axes("right", size="5%", pad=0.05)
-    plt.colorbar(img2, cax=cax2)
-    plt.show(block=False)
-    if output_trace_files:
-      plt.savefig(temp_files_path + 'dem_and_glacier_mask_' + \
-        global_parms.startdate.isoformat())
+    # figure = plot_glacier(None, current_surf_dem, glacier_mask, bed_dem, \
+    #   global_parms.startdate.isoformat(), output_trace_files, \
+    #   temp_files_path, init=True)
+    figure = GlacierPlotter(current_surf_dem, glacier_mask, bed_dem, \
+      global_parms.startdate.isoformat(), output_trace_files, temp_files_path)
 
 #### Run the coupled VIC-RGM model for the time range specified in the VIC
   # global parameters file
@@ -506,31 +486,9 @@ error: %s', e)
       num_rows_dem, dem_xmin, dem_xmax, dem_ymin, dem_ymax)
 
     if output_plots:
-      plt.close()
-      surf_dem_plot_title = 'Surface DEM ' + end.isoformat()
-      plt.subplot(121)
-      plt.title(surf_dem_plot_title)
-      plt.xticks([])
-      plt.yticks([])
-      img1 = plt.imshow(current_surf_dem)
-      plt.gca().invert_yaxis() # makes North up
-      divider1 = make_axes_locatable(plt.gca())
-      cax1 = divider1.append_axes("right", size="5%", pad=0.05)
-      plt.colorbar(img1, cax=cax1)
-      glacier_mask_plot_title = 'Glacier Mask ' + end.isoformat()
-      plt.subplot(122)
-      plt.title(glacier_mask_plot_title)
-      plt.xticks([])
-      plt.yticks([])
-      img2 = plt.imshow(glacier_mask)
-      plt.gca().invert_yaxis()
-      divider2 = make_axes_locatable(plt.gca())
-      cax2 = divider2.append_axes("right", size="5%", pad=0.05)
-      plt.colorbar(img2, cax=cax2)
-      plt.show(block=False)
-      if output_trace_files:
-        plt.savefig(temp_files_path + 'dem_and_glacier_mask_' + \
-          end.isoformat())
+      # figure = plot_glacier(figure, current_surf_dem, glacier_mask, bed_dem, end.isoformat(), \
+      #   output_trace_files, temp_files_path, init=False)
+      figure.update_plots(current_surf_dem, glacier_mask, bed_dem, end.isoformat())
 
     # Update HRU and band area fractions and state for all VIC grid cells
     logging.debug('Updating VIC grid cell area fracs and states')
