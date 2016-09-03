@@ -15,6 +15,7 @@ import logging
 import numpy as np
 import netCDF4
 from dateutil.relativedelta import relativedelta
+from time import strftime
 
 from conductor.conductor_params import vic_full_path, rgm_full_path,\
   output_path, temp_files_path
@@ -26,13 +27,6 @@ from conductor.snbparams import load_snb_parms, save_snb_parms
 from conductor.vegparams import load_veg_parms, save_veg_parms
 from conductor.vic_globals import Global
 from conductor.glacier_plotter import GlacierPlotter
-
-# These should become command line parameters at some point
-# vic_full_path = '/home/mfischer/code/vic/vicNl'
-# rgm_full_path = '/home/mfischer/code/rgm/rgm'
-# output_path = '/home/mfischer/vic_dev/out/testing/'
-# temp_files_path = output_path + 'hydrocon_temp/'
-# set it as default = os.env(tmp)
 
 one_year = relativedelta(years=+1)
 one_day = relativedelta(days=+1)
@@ -112,7 +106,7 @@ def parse_input_parms():
       open_ground_root_zone_parms = [float(x) for x in line.split()]
       if len(open_ground_root_zone_parms) != 6:
         print('Open ground root zone parameters file is malformed. Expected \
-          6 space-separated numeric values on a single line. Exiting.\n')
+6 space-separated numeric values on a single line. Exiting.\n')
         sys.exit(0)
   else:
     open_ground_root_zone_parms = None
@@ -123,7 +117,7 @@ def parse_input_parms():
       glacier_root_zone_parms = [float(x) for x in line.split()]
       if len(glacier_root_zone_parms) != 6:
         print('Glacier root zone parameters file is malformed. Expected \
-          6 space-separated numeric values on a single line. Exiting.\n')
+6 space-separated numeric values on a single line. Exiting.\n')
         sys.exit(0)
   else:
     glacier_root_zone_parms = None
@@ -182,8 +176,9 @@ def main():
 
   # Set up logging
   numeric_loglevel = getattr(logging, loglevel.upper())
-  logging.basicConfig(filename=output_path+'hydrocon.log',\
-    level=numeric_loglevel, format='%(levelname)s %(asctime)s %(message)s')
+  logging.basicConfig(filename=output_path+'hydrocon.log.'+\
+    strftime("%d-%m-%Y_%H:%M"), level=numeric_loglevel,\
+    format='%(levelname)s %(asctime)s %(message)s')
   logging.info('------- VIC-RGM Hydro-Conductor Startup -------')
 
   # Get all initial VIC global parameters from the global parameter file
@@ -192,14 +187,14 @@ def main():
     global_parms = Global(f)
 
   assert global_parms.state_format == 'NETCDF',\
-    "VIC only supports NETCDF input statefile input format."\
-    "(STATE_FORMAT in global file is currently set as {})"\
+    'VIC only supports NETCDF input statefile input format.'\
+    '(STATE_FORMAT in global file is currently set as {})'\
     .format(global_parms.state_format)
 
   # Apply custom glacier_id and open_ground_id Band attributes, if provided
   if global_parms.glacier_id is None:
     logging.info('No value for GLACIER_ID was provided in the VIC global file. \
-      Assuming default value of {}.'.format(Band.glacier_id))
+Assuming default value of {}.'.format(Band.glacier_id))
   else:
     Band.glacier_id = global_parms.glacier_id
   # FIXME: reinstate the following commented-out code once OPEN_GROUND_ID
@@ -252,13 +247,14 @@ def main():
     = read_gsa_headers(bed_dem_file)
   # Verify that number of columns & rows agree with what's stated in the
   # pixel_cell_map_file
-  assert (num_cols == num_cols_dem) and (num_rows == num_rows_dem),'Mismatch \
-  between stated dimension(s) between Bed DEM in {} (num rows: {}, num columns: \
-  {}) and the VIC-grid-to-RGM-pixel map in {} (num rows: {}, num columns: \
-  {}). Exiting.\n'.format(bed_dem_file, num_rows, num_cols,\
-    pixel_cell_map_file, num_rows_dem, num_cols_dem)
+  assert (num_cols == num_cols_dem) and (num_rows == num_rows_dem),\
+  'Mismatch of stated dimension(s) between Bed DEM in {} (num rows: {}, '
+  'num columns: {}) and the VIC-grid-to-RGM-pixel map in {} (num rows: {}, '
+  'num columns: {}). Exiting.\n'.format(bed_dem_file, num_rows, num_cols,
+  pixel_cell_map_file, num_rows_dem, num_cols_dem)
 
-  # Read in the provided Bed Digital Elevation Map (BDEM) file to 2D bed_dem array
+  # Read in the provided Bed Digital Elevation Map (BDEM) file to 2D bed_dem
+  # array
   logging.info('Loading Bed Digital Elevation Map (BDEM) from %s', bed_dem_file)
   bed_dem = np.loadtxt(bed_dem_file, skiprows=5)
 
@@ -266,10 +262,10 @@ def main():
   _, _, _, _, num_rows, num_cols = read_gsa_headers(surf_dem_in_file)
   # Verify number of columns & rows agree with what's stated in the
   # pixel_to_cell_map_file
-  assert (num_cols == num_cols_dem) and (num_rows == num_rows_dem),'Mismatch \
-  of stated dimension(s) between Surface DEM in {} (num rows: {}, \
-  num columns: {}) and the VIC-grid-to-RGM-pixel map in {} (num rows: {}, \
-  num columns: {}). Exiting.\n'.format(surf_dem_in_file, num_rows, num_cols,\
+  assert (num_cols == num_cols_dem) and (num_rows == num_rows_dem),\
+  'Mismatch of stated dimension(s) between Surface DEM in {} (num rows: {}, '
+  'num columns: {}) and the VIC-grid-to-RGM-pixel map in {} (num rows: {}, '
+  'num columns: {}). Exiting.\n'.format(surf_dem_in_file, num_rows, num_cols,\
     pixel_cell_map_file, num_rows_dem, num_cols_dem)
   # Read in the provided Surface Digital Elevation Map (SDEM) file to 2D 
   # surf_dem array
@@ -290,10 +286,11 @@ def main():
     bed_dem[neg_val_inds] = current_surf_dem[neg_val_inds]
     new_bed_dem_file = bed_dem_file[0:-4] + '_adjusted.gsa'
     logging.warning('The provided Bed DEM (%s) has %s elevation points \
-higher than those in the provided Surface DEM (%s), probably because they \
-come from different data sources. The Bed DEM has been adjusted to equal \
-the Surface DEM elevation at these points and written out to the file %s.',\
-    bed_dem_file, num_neg_vals, surf_dem_in_file, new_bed_dem_file)
+(out of a total of %s elevation points in the domain) higher than those \
+in the provided Surface DEM (%s), probably because they come from different \
+data sources. The Bed DEM has been adjusted to equal the Surface DEM elevation \
+at these points and written out to the file %s.',\
+    bed_dem_file, num_neg_vals, len(bed_dem), surf_dem_in_file, new_bed_dem_file)
     bed_dem_file = new_bed_dem_file
     write_grid_to_gsa_file(bed_dem, bed_dem_file, num_cols_dem, num_rows_dem,\
       dem_xmin, dem_xmax, dem_ymin, dem_ymax)
@@ -302,11 +299,11 @@ the Surface DEM elevation at these points and written out to the file %s.',\
   _, _, _, _, num_rows, num_cols = read_gsa_headers(init_glacier_mask_file)
   # Verify number of columns & rows agree with what's stated in the 
   # pixel_to_cell_map_file
-  assert (num_cols == num_cols_dem) and (num_rows == num_rows_dem),'Mismatch \
-  of stated dimension(s) between Glacier Mask in {} (num rows: {}, \
-  num columns: {}) and the VIC-grid-to-RGM-pixel map in {} (num rows: {}, num \
-  columns: {}). Exiting.\n'.format(init_glacier_mask_file, num_rows, num_cols,\
-  pixel_cell_map_file, num_rows_dem, num_cols_dem)
+  assert (num_cols == num_cols_dem) and (num_rows == num_rows_dem),\
+  'Mismatch of stated dimension(s) between Glacier Mask in {} (num rows: {}, '
+  'num columns: {}) and the VIC-grid-to-RGM-pixel map in {} (num rows: {}, num '
+  'columns: {}). Exiting.\n'.format(init_glacier_mask_file, num_rows, num_cols,\
+    pixel_cell_map_file, num_rows_dem, num_cols_dem)
   # Read in the provided initial glacier mask file to 2D glacier_mask array
   logging.info('Loading initial Glacier Mask from %s', init_glacier_mask_file)
   glacier_mask = np.loadtxt(init_glacier_mask_file, skiprows=5)
@@ -321,7 +318,7 @@ the Surface DEM elevation at these points and written out to the file %s.',\
   # in the global file)
   state_filename_prefix = temp_files_path + 'vic_hydrocon_state'
 
-  # Set the VIC results output file name prefix to NETCDF_OUTPUT_FILENAM given
+  # Set the VIC results output file name prefix to NETCDF_OUTPUT_FILENAME given
   # in the original global file.
   netcdf_output_filename_prefix = global_parms.netcdf_output_filename
 
@@ -331,11 +328,8 @@ the Surface DEM elevation at these points and written out to the file %s.',\
 
 # (initialisation done)
 
-# Show initial surface DEM and glacier mask
+# Display initial surface DEM and glacier mask
   if output_plots:
-    # figure = plot_glacier(None, current_surf_dem, glacier_mask, bed_dem, \
-    #   global_parms.startdate.isoformat(), output_trace_files, \
-    #   temp_files_path, init=True)
     figure = GlacierPlotter(current_surf_dem, glacier_mask, bed_dem, \
       global_parms.startdate.isoformat(), output_trace_files, temp_files_path)
 
@@ -389,7 +383,7 @@ error: %s', e)
     # leave the state file open for modification later
     state_dataset = netCDF4.Dataset(state_file, 'r+')
     state_dataset.set_auto_mask(False)
-    # these should never change within a run of the Hydro-Conductor
+    # these should never change within a run of the Hydro-Conductor:
     Cell.Nlayers = state_dataset.state_nlayer
     Cell.Nnodes = state_dataset.state_nnode
     # drop unused fit error term from glacier mass balance polynomial
@@ -408,19 +402,19 @@ error: %s', e)
       # vic_cell_mask, which is derived from the pixel_cell_map_file
       if int(cell_id) not in vic_cell_mask:
         print('Cell ID {} read from the VIC state file {} was not found in \
-          the VIC cell mask derived from the given RGM-Pixel-to-VIC-Cell map \
-          file (option --pixel_map) {}. Exiting.'\
+the VIC cell mask derived from the given RGM-Pixel-to-VIC-Cell map \
+file (option --pixel_map) {}. Exiting.'\
           .format(cell_id, state_file, pixel_cell_map_file))
         logging.error('Cell ID {} read from the VIC state file {} was not found in \
-          the VIC cell mask derived from the given RGM-Pixel-to-VIC-Cell map \
-          file (option --pixel_map) {}')
+the VIC cell mask derived from the given RGM-Pixel-to-VIC-Cell map file \
+(option --pixel_map) {}')
         sys.exit(0)
       cell_ids.append(cell_id)
       # Read Glacier Mass Balance polynomial terms from cell states;
       # leave off 4th the "fit error" term at the end of the GMB polynomial.
       # TODO: may want to generalize this to handle variable length polynomials
       gmb_polys[cell_id] = cells[cell_id].cell_state.variables\
-        ['GLAC_MASS_BALANCE_EQN_TERMS'][0:3]
+        ['GLAC_MASS_BALANCE_EQN_TERMS'][0:Cell.NglacMassBalanceEqnTerms]
 
     # Translate mass balances using grid cell GMB polynomials and current
     # surface DEM into a 2D RGM mass balance grid (MBG) and write the 
@@ -440,7 +434,6 @@ and writing to file %s', mbg_file)
     else:
       rgm_surf_dem_in_file = temp_files_path + 'rgm_surf_dem_in_'\
         + end.isoformat() + '.gsa'
-
     write_grid_to_gsa_file(current_surf_dem, rgm_surf_dem_in_file, num_cols_dem,\
       num_rows_dem, dem_xmin, dem_xmax, dem_ymin, dem_ymax)
 
@@ -486,8 +479,6 @@ error: %s', e)
       num_rows_dem, dem_xmin, dem_xmax, dem_ymin, dem_ymax)
 
     if output_plots:
-      # figure = plot_glacier(figure, current_surf_dem, glacier_mask, bed_dem, end.isoformat(), \
-      #   output_trace_files, temp_files_path, init=False)
       figure.update_plots(current_surf_dem, glacier_mask, bed_dem, end.isoformat())
 
     # Update HRU and band area fractions and state for all VIC grid cells
