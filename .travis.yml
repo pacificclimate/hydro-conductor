@@ -1,8 +1,10 @@
 language: python
 python: 3.4
-install:
-    - sudo apt-get update -qq
+before_install:
+    - sudo apt-get -qq update
     - sudo apt-get install -qq libhdf5-serial-dev
+    - sudo apt-get install -y -qq libnetcdf-dev
+install:
     - pip install numpy
     - pip install --install-option="--no-cython-compile" cython
     - pip install -r requirements.txt
