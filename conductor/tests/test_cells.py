@@ -1177,99 +1177,7 @@ the zero padding to accommodate this.' in str(message.value)
       # because of the glacier HRU)
       assert len([band for band in cells['23456'].bands if band.num_hrus > 0]) == 5
 
-    def test_confirm_final_state(self):
-      """ Final test to confirm that the final state of both grid cells is as
-        expected after the sequence of operations performed upon them in the
-        preceding tests.
-      """
-      assert cells['12345'].bands[0].num_hrus == 3
-      assert cells['12345'].bands[0].lower_bound == 2000
-      assert cells['12345'].bands[0].median_elev == \
-        np.median([2065, 2055, 2045, 2035, 2025, 2015, 2005, 2030, 2040, 2010,\
-          2015, 2020, 2015, 2010, 2000, 2080, 2075, 2065, 2055, 2045, 2035,\
-          2020, 2075, 2085, 2090, 2070, 2090, 2090])
-      assert cells['12345'].bands[0].area_frac == 28/64
-      assert cells['12345'].bands[0].area_frac_open_ground == 14/64
-      assert cells['12345'].bands[0].area_frac_glacier == 2/64
-      assert cells['12345'].bands[0].hrus[11].area_frac == 12/64
-
-      assert cells['12345'].bands[1].num_hrus == 2
-      assert cells['12345'].bands[1].lower_bound == 2100
-      assert cells['12345'].bands[1].median_elev == \
-        np.median([2100, 2120, 2140, 2130, 2120, 2120, 2130, 2145, 2150, 2140,\
-          2150, 2100, 2105, 2110, 2140, 2160, 2110, 2120, 2120, 2115])
-      assert cells['12345'].bands[1].area_frac == 20/64
-      assert cells['12345'].bands[1].area_frac_open_ground == 4/64
-      assert cells['12345'].bands[1].area_frac_glacier == 16/64
-
-      assert cells['12345'].bands[2].num_hrus == 1
-      assert cells['12345'].bands[2].lower_bound == 2200
-      assert cells['12345'].bands[2].median_elev == \
-        np.median([2250, 2270, 2260, 2240, 2250, 2250, 2230, 2230, 2240, 2240,\
-          2260, 2250])
-      assert cells['12345'].bands[2].area_frac == 12/64
-      assert cells['12345'].bands[2].area_frac_open_ground == 0/64
-      assert cells['12345'].bands[2].area_frac_glacier == 12/64
-
-      assert cells['12345'].bands[3].num_hrus == 1
-      assert cells['12345'].bands[3].lower_bound == 2300
-      assert cells['12345'].bands[3].median_elev == np.median([2377, 2310, 2340, 2320])
-      assert cells['12345'].bands[3].area_frac == 4/64
-      assert cells['12345'].bands[3].area_frac_open_ground == 4/64
-      assert cells['12345'].bands[3].area_frac_glacier == 0/64
-
-      assert len([band for band in cells['12345'].bands if band.num_hrus > 0]) == 4
-
-      # the shadow glacier HRU for the currently invalid lowest band:
-      assert cells['23456'].bands[0].num_hrus == 1
-      assert cells['23456'].bands[0].lower_bound == 1800
-      assert cells['23456'].bands[0].median_elev == 1800
-      assert cells['23456'].bands[0].area_frac == 0/64
-      assert cells['23456'].bands[0].area_frac_open_ground == 0/64
-      assert cells['23456'].bands[0].area_frac_glacier == 0/64
-
-      assert cells['23456'].bands[1].num_hrus == 3
-      assert cells['23456'].bands[1].lower_bound == 1900
-      assert cells['23456'].bands[1].median_elev == \
-        np.median([1970, 1975, 1900, 1995, 1975, 1965, 1960, 1960, 1965, 1970,\
-          1975, 1980, 1980, 1970, 1960, 1965, 1965, 1970, 1970, 1975, 1960,\
-          1950, 1970, 1975, 1985, 1990, 1980, 1970])
-      assert cells['23456'].bands[1].area_frac == 28/64
-      assert cells['23456'].bands[1].area_frac_open_ground == 10/64
-      assert cells['23456'].bands[1].area_frac_glacier == 2/64
-      assert cells['23456'].bands[1].hrus[11].area_frac == 16/64
-
-      assert cells['23456'].bands[2].num_hrus == 3
-      assert cells['23456'].bands[2].lower_bound == 2000
-      assert cells['23456'].bands[2].median_elev == \
-        np.median([2000, 2045, 2055, 2005, 2005, 2000, 2000, 2000, 2005, 2000,\
-          2000, 2000, 2000, 2020, 2035, 2025, 2000, 2005, 2010, 2005])
-      assert cells['23456'].bands[2].area_frac == 20/64
-      assert cells['23456'].bands[2].area_frac_open_ground == 8/64
-      assert cells['23456'].bands[2].area_frac_glacier == 2/64
-      assert cells['23456'].bands[2].hrus[11].area_frac == 10/64
-
-      assert cells['23456'].bands[3].num_hrus == 2 # includes shadow glacier HRU
-      assert cells['23456'].bands[3].lower_bound == 2100
-      assert cells['23456'].bands[3].median_elev == np.median([2100, 2125, 2130, 2110,\
-                                                         2105, 2130, 2150, 2100,\
-                                                         2110, 2120, 2110, 2105,\
-                                                         2105, 2105, 2110, 2100])
-      assert cells['23456'].bands[3].area_frac == 16/64
-      assert cells['23456'].bands[3].area_frac_open_ground == 16/64
-      assert cells['23456'].bands[3].area_frac_glacier == 0
-
-      assert cells['23456'].bands[4].num_hrus == 1 # shadow glacier HRU
-      assert cells['23456'].bands[4].lower_bound == 2200
-      assert cells['23456'].bands[4].median_elev == 2200
-      assert cells['23456'].bands[4].area_frac == 0
-      assert cells['23456'].bands[4].area_frac_open_ground == 0
-      assert cells['23456'].bands[4].area_frac_glacier == 0
-
-      # This should include all bands, including the lowest and highest,
-      # now each consisting of a shadow glacier HRU
-      assert len([band for band in cells['23456'].bands if band.num_hrus > 0]) == 5
-
+# Run all the above tests
     test_no_changes(self)
     test_glacier_growth_over_some_open_ground_in_band(self)
     test_glacier_growth_over_remaining_open_ground_in_band(self)
@@ -1290,4 +1198,3 @@ the zero padding to accommodate this.' in str(message.value)
     test_glacier_receding_entirely_from_band(self)
     test_glacier_receding_from_top_band_leaving_band_area_as_zero_2(self)
     test_glacier_concealing_entire_multi_hru_band(self)
-    # test_confirm_final_state(self)
