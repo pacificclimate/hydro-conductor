@@ -151,8 +151,7 @@ class OrderedMeta(type):
   
 class Global(metaclass = OrderedMeta):
   """An object representation of the global parameter file for the
-   Variable Inflow and Capacity (VIC) hydrologic model. This object
-   contains attributes for everything that affects an invocation of VIC.
+   Variable Inflow and Capacity (VIC) hydrologic model.
   """
   time_step = Scalar(int)
   snow_step = Scalar(int)
@@ -171,6 +170,7 @@ class Global(metaclass = OrderedMeta):
   min_wind_speed = Scalar(float)
   prec_expt = Scalar(float)
   #open_ground_id = Scalar(int)
+  glacier_dynamics = Boolean()
   glacier_id = Scalar(int)
   glacier_accum_start_year = Scalar(int)
   glacier_accum_start_month = Scalar(int)
