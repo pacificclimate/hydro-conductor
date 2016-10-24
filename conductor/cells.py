@@ -457,7 +457,8 @@ def update_area_fracs(cells, cell_areas, vic_cell_mask, num_snow_bands,\
             # Calculate change in HRU area fraction & update
             delta_area_hru[str(veg_type)] = delta_area_vegetated[band_id] * \
               (band.hrus[veg_type].area_frac / veg_scaling_divisor[band_id])
-            new_hru_area_frac[str(band_id)] = {}
+            if str(band_id) not in new_hru_area_frac:
+              new_hru_area_frac[str(band_id)] = {}
             new_hru_area_frac[str(band_id)][str(veg_type)] = \
               band.hrus[veg_type].area_frac + delta_area_hru[str(veg_type)]
             if isclose(new_hru_area_frac[str(band_id)][str(veg_type)], 0, abs_tol=ZERO_AREA_FRAC_TOL):
