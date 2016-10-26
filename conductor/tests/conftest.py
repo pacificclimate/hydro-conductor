@@ -54,11 +54,10 @@ import numpy as np
 
 import pytest
 
-from conductor.io import get_rgm_pixel_mapping
+from conductor.file_io import get_rgm_pixel_mapping
 from conductor.cells import *
 from conductor.snbparams import load_snb_parms
 from conductor.vegparams import load_veg_parms
-from conductor.io import get_rgm_pixel_mapping
 
 def pytest_report_header(config):
   return "VIC-RGM Conductor - Automated Test Suite"

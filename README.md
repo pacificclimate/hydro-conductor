@@ -42,6 +42,7 @@ We have a `pytest` config file in the repo at `pytest.cfg`. `pytest` should auto
 
 ```bash
 $ pip install pytest
+$ pip install mock
 ```
 
 * Run `pytest`
