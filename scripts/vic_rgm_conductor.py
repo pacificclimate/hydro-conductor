@@ -19,7 +19,7 @@ from time import strftime
 
 from conductor.conductor_params import vic_full_path, rgm_full_path,\
   output_path, temp_files_path
-from conductor.io import get_rgm_pixel_mapping, read_gsa_headers,\
+from conductor.file_io import get_rgm_pixel_mapping, read_gsa_headers,\
   write_grid_to_gsa_file, mass_balances_to_rgm_grid, read_state, write_state
 from conductor.cells import Cell, Band, HydroResponseUnit, merge_cell_input,\
   update_glacier_mask, update_area_fracs
