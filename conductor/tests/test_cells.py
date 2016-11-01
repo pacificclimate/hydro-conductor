@@ -257,7 +257,7 @@ class TestsAreaFracUpdate:
       cells_orig = deepcopy(cells)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
-        initial_surf_dem, num_rows_dem, num_cols_dem, initial_glacier_mask)
+        initial_surf_dem, num_rows_dem, num_cols_dem, initial_glacier_mask, update_state=False)
 
       assert cells == cells_orig
 

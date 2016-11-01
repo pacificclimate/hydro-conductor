@@ -308,11 +308,11 @@ at these points and written out to the file %s.',\
   logging.info('Loading initial Glacier Mask from %s', init_glacier_mask_file)
   glacier_mask = np.loadtxt(init_glacier_mask_file, skiprows=5)
 
-  # Apply the initial glacier mask and modify the band and glacier area
-  # fractions accordingly
+  # Apply the initial glacier mask and modify the band and HRU area
+  # fractions accordingly, but do not update state
   logging.debug('Applying initial area fraction update.')
   update_area_fracs(cells, cell_areas, vic_cell_mask, num_snow_bands,
-    current_surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+    current_surf_dem, num_rows_dem, num_cols_dem, glacier_mask, update_state=False)
 
   # Set the VIC output state file name prefix (to be written to STATENAME
   # in the global file)
