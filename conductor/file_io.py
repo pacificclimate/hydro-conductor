@@ -109,6 +109,7 @@ def read_state(state_in, cells):
     the most recent VIC run and updates the CellState and HruState object
     members of each cell.
   """
+  import netCDF4
   num_lons = len(state_in['lon'])
   def get_2D_cell_indices(count):
     """Returns the 2D lat/lon indices of the cell for accessing it from the
@@ -116,28 +117,31 @@ def read_state(state_in, cells):
     """
     return count // num_lons, count % num_lons
 
-  cell_idx = 0
-  for cell_id, cell in cells.items():
+  for cell_idx in range(0, len(cells)-1):
+    # for cell_id, cell in cells.items():
     cell_lat_idx, cell_lon_idx = get_2D_cell_indices(cell_idx)
+    cell_id = state_in['GRID_CELL'][cell_lat_idx][cell_lon_idx]
     cell_hru_idx = 0
-    # read all cell state variables
-    for variable in cell.cell_state.variables:
-      if variable == 'lat':
-        cell.cell_state.variables[variable] = state_in[variable][cell_lat_idx]
-      elif variable == 'lon':
-        cell.cell_state.variables[variable] = state_in[variable][cell_lon_idx]
-      else:
-        cell.cell_state.variables[variable] = \
-          state_in[variable][cell_lat_idx][cell_lon_idx]
-    for band in cell.bands:
-      # HRUs are sorted by ascending veg_type_num in VIC state file
-      for hru_veg_type in band.hru_keys_sorted:
-        # read all HRU state variables with dimensions (lat, lon, hru)
-        for variable in band.hrus[hru_veg_type].hru_state.variables:
-          band.hrus[hru_veg_type].hru_state.variables[variable] = \
-            state_in[variable][cell_lat_idx][cell_lon_idx][cell_hru_idx]
-        cell_hru_idx += 1
-    cell_idx += 1
+    if cell_id != netCDF4.default_fillvals['i4']:
+      cell_id = str(cell_id)
+      # read all cell state variables
+      for variable in cells[cell_id].cell_state.variables:
+        if variable == 'lat':
+          cells[cell_id].cell_state.variables[variable] = state_in[variable][cell_lat_idx]
+        elif variable == 'lon':
+          cells[cell_id].cell_state.variables[variable] = state_in[variable][cell_lon_idx]
+        else:
+          cells[cell_id].cell_state.variables[variable] = \
+            state_in[variable][cell_lat_idx][cell_lon_idx]
+      for band in cells[cell_id].bands:
+        # HRUs are sorted by ascending veg_type_num in VIC state file
+        for hru_veg_type in band.hru_keys_sorted:
+          # read all HRU state variables with dimensions (lat, lon, hru)
+          for variable in band.hrus[hru_veg_type].hru_state.variables:
+            band.hrus[hru_veg_type].hru_state.variables[variable] = \
+              state_in[variable][cell_lat_idx][cell_lon_idx][cell_hru_idx]
+          cell_hru_idx += 1
+      # cell_idx += 1
 
 def write_state(cells, old_dataset, new_dataset, new_state_date):
   """Takes the dataset from the last VIC state file, copies its static
