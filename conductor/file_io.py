@@ -118,7 +118,6 @@ def read_state(state_in, cells):
     return count // num_lons, count % num_lons
 
   for cell_idx in range(0, len(cells)-1):
-    # for cell_id, cell in cells.items():
     cell_lat_idx, cell_lon_idx = get_2D_cell_indices(cell_idx)
     cell_id = state_in['GRID_CELL'][cell_lat_idx][cell_lon_idx]
     cell_hru_idx = 0
@@ -141,7 +140,6 @@ def read_state(state_in, cells):
             band.hrus[hru_veg_type].hru_state.variables[variable] = \
               state_in[variable][cell_lat_idx][cell_lon_idx][cell_hru_idx]
           cell_hru_idx += 1
-      # cell_idx += 1
 
 def write_state(cells, old_dataset, new_dataset, new_state_date):
   """Takes the dataset from the last VIC state file, copies its static

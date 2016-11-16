@@ -523,46 +523,47 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
       # CASE 1: A new glacier HRU has appeared in this band. Create a new
       # glacier HRU (HRU state defaults are automatically set upon HRU
       # creation, so technically there's no need to call update_hru_state())
-      logging.debug('State update CASE 1 identified. New glacier appeared. \
-    Creating GLACIER HRU with area fraction %s', new_glacier_area_frac[band_id])
+      logging.debug('State update CASE 1 identified. New glacier appeared. '
+        'Creating GLACIER HRU with area fraction %s',
+        new_glacier_area_frac[band_id])
       band.create_hru(band_id, Band.glacier_id, new_glacier_area_frac[band_id])
       new_area_fracs = {}
       update_hru_state(None, None, '1', **new_area_fracs)
     elif new_glacier_area_frac[band_id] == band.area_frac_glacier:
       # CASE 2: Trivial case. There was no change in glacier HRU area,
       # so we don't call update_hru_state())
-      logging.debug('State update CASE 2 identified. No change in GLACIER \
-    HRU area. No state update required.')
+      logging.debug('State update CASE 2 identified. No change in GLACIER '
+        'HRU area. No state update required.')
     elif new_glacier_area_frac[band_id] > 0 and band.area_frac_glacier > 0 \
             and new_glacier_area_frac[band_id] != band.area_frac_glacier:
       # CASE 3: Glacier HRU exists in previous and current time steps, but
       # its area fraction has changed.
-      logging.debug('State update CASE 3 identified. GLACIER HRU area \
-    fraction has changed from %s to %s.', band.area_frac_glacier, \
-                    new_glacier_area_frac[band_id])
+      logging.debug('State update CASE 3 identified. GLACIER HRU area '
+        'fraction has changed from %s to %s.', band.area_frac_glacier,
+        new_glacier_area_frac[band_id])
       new_area_fracs = {
         'new_hru_area_frac': new_glacier_area_frac[band_id]
       }
-      update_hru_state( \
-        band.hrus[Band.glacier_id], \
-        band.hrus[Band.glacier_id], \
+      update_hru_state(
+        band.hrus[Band.glacier_id],
+        band.hrus[Band.glacier_id],
         '3', **new_area_fracs)
     elif new_glacier_area_frac[band_id] == 0 and band.area_frac_glacier > 0 \
             and new_band_area_frac[band_id] > 0 and band.area_frac > 0:
       # CASE 4a: Glacier HRU has disappeared, but the band remains
       # (implies open ground HRU is expanding). Add state to open ground
       # HRU (leave the zero area "shadow glacier" HRU in place for VIC).
-      logging.debug('State update CASE 4a identified. Glacier has \
-    disappeared. Transferring state to the OPEN GROUND HRU in this band.')
+      logging.debug('State update CASE 4a identified. Glacier has '
+        'disappeared. Transferring state to the OPEN GROUND HRU in this band.')
       new_area_fracs = {
         'new_open_ground_area_frac': new_open_ground_area_frac[band_id]
       }
       # if there's not already an open ground HRU in this band, create one
       if Band.open_ground_id not in band.hrus:
         band.create_hru(band_id, Band.open_ground_id, new_open_ground_area_frac[band_id])
-      update_hru_state( \
-        band.hrus[Band.glacier_id], \
-        band.hrus[Band.open_ground_id], \
+      update_hru_state(
+        band.hrus[Band.glacier_id],
+        band.hrus[Band.open_ground_id],
         '4a', **new_area_fracs)
     elif new_glacier_area_frac[band_id] == 0 and band.area_frac_glacier > 0 \
             and new_band_area_frac[band_id] == 0 and band.area_frac != 0 \
@@ -572,24 +573,24 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
       # An adjacent lower band exists and there's glacier in it
       # (with non-zero area fraction, i.e. not a shadow glacier). Add
       # state to the glacier HRU in the lower band.
-      logging.debug('State update CASE 5a identified. Glacier and the band \
-    have disappeared. Transferring state to the GLACIER HRU in band %s below.', \
-                    band_id - 1)
+      logging.debug('State update CASE 5a identified. Glacier and the band '
+        'have disappeared. Transferring state to the GLACIER HRU in band %s '
+        'below.', band_id - 1)
       if not Band.glacier_id in cell.bands[band_id - 1].hrus:
         # Due to the top-to-bottom iteration ordering of band processing,
         # we need to create a glacier HRU in the lower band if one doesn't
         # already exist
-        logging.debug('(CASE 5a) New GLACIER has appeared in band %s. \
-    Creating GLACIER HRU with area fraction %s', band_id - 1, \
-                      new_glacier_area_frac[band_id - 1])
+        logging.debug('(CASE 5a) New GLACIER has appeared in band %s. '
+          'Creating GLACIER HRU with area fraction %s', band_id - 1,
+          new_glacier_area_frac[band_id - 1])
         cell.bands[band_id - 1].create_hru(band_id - 1, Band.glacier_id, \
                                            new_glacier_area_frac[band_id - 1])
       new_area_fracs = {
         'new_glacier_area_frac': new_glacier_area_frac[band_id - 1]
       }
-      update_hru_state( \
-        band.hrus[Band.glacier_id], \
-        cell.bands[band_id - 1].hrus[Band.glacier_id], \
+      update_hru_state(
+        band.hrus[Band.glacier_id],
+        cell.bands[band_id - 1].hrus[Band.glacier_id],
         '5a', **new_area_fracs)
     elif new_glacier_area_frac[band_id] == 0 and band.area_frac_glacier > 0 \
             and new_band_area_frac[band_id] == 0 and band.area_frac > 0 \
@@ -598,24 +599,24 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
       # CASE 5b: Glacier HRU and the band have disappeared.
       # An adjacent lower band exists with a non-zero area fraction open
       # ground HRU in it. Add state to that lower band's open ground HRU.
-      logging.debug('State update CASE 5b identified. Glacier and the band \
-    have disappeared. Transferring state to the OPEN GROUND HRU in band %s below.', \
-                    band_id - 1)
+      logging.debug('State update CASE 5b identified. Glacier and the band '
+        'have disappeared. Transferring state to the OPEN GROUND HRU in '
+        'band %s below.', band_id - 1)
       if not Band.open_ground_id in cell.bands[band_id - 1].hrus:
         # Due to the top-to-bottom iteration ordering of band processing,
         # we need to create an open ground HRU in the lower band if one
         # doesn't already exist
-        logging.debug('(CASE 5b) New OPEN GROUND has appeared in band %s. \
-    Creating OPEN GROUND HRU with area fraction %s.', band_id - 1, \
-                      new_open_ground_area_frac[band_id - 1])
+        logging.debug('(CASE 5b) New OPEN GROUND has appeared in band %s. '
+          'Creating OPEN GROUND HRU with area fraction %s.', band_id - 1,
+          new_open_ground_area_frac[band_id - 1])
         cell.bands[band_id - 1].create_hru(band_id - 1, Band.open_ground_id, \
                                            new_open_ground_area_frac[band_id - 1])
       new_area_fracs = {
         'new_open_ground_area_frac': new_open_ground_area_frac[band_id - 1]
       }
-      update_hru_state( \
-        band.hrus[Band.glacier_id], \
-        cell.bands[band_id - 1].hrus[Band.open_ground_id], \
+      update_hru_state(
+        band.hrus[Band.glacier_id],
+        cell.bands[band_id - 1].hrus[Band.open_ground_id],
         '5b', **new_area_fracs)
     elif new_glacier_area_frac[band_id] == 0 and band.area_frac_glacier > 0 \
             and new_band_area_frac[band_id] == 0 and band.area_frac > 0 \
@@ -627,15 +628,15 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
       valid_vegetated_hrus_below = list(filter(lambda x: x[1].area_frac > 0, \
                                                new_hru_area_frac[str(band_id - 1)].items()))
       max_veg_type_below = max(valid_vegetated_hrus_below)[0]
-      logging.debug('State update CASE 5c identified. Glacier and the band \
-    have disappeared. Transferring state to the VEGETATED HRU %s in band %s below.', \
-                    max_veg_type_below, band_id - 1)
+      logging.debug('State update CASE 5c identified. Glacier and the band '
+        'have disappeared. Transferring state to the VEGETATED HRU %s in '
+        'band %s below.', max_veg_type_below, band_id - 1)
       new_area_fracs = {
         'new_hru_area_frac': new_hru_area_frac[str(band_id - 1)][str(max_veg_type_below)]
       }
-      update_hru_state( \
-        band.hrus[Band.glacier_id], \
-        cell.bands[band_id - 1].hrus[int(max_veg_type_below)], \
+      update_hru_state(
+        band.hrus[Band.glacier_id],
+        cell.bands[band_id - 1].hrus[int(max_veg_type_below)],
         '5c', **new_area_fracs)
     elif new_glacier_area_frac[band_id] == 0 and band.area_frac_glacier > 0 \
             and new_band_area_frac[band_id] == 0 and band.area_frac != 0 \
@@ -644,20 +645,20 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
       # to glacier. No adjacent lower band exists (or not one has non-zero
       # area fraction) to transfer state to. In this special case, add
       # state to glacier in the band above.
-      logging.debug('State update CASE 5d identified. Glacier and the band \
-    have disappeared, and no adjacent lower band exists. Transferring state to the \
-    GLACIER HRU in band %s above.', band_id + 1)
+      logging.debug('State update CASE 5d identified. Glacier and the band '
+        'have disappeared, and no adjacent lower band exists. Transferring '
+        'state to the GLACIER HRU in band %s above.', band_id + 1)
       new_area_fracs = {
         'new_glacier_area_frac': new_glacier_area_frac[band_id + 1]
       }
-      update_hru_state( \
-        band.hrus[Band.glacier_id], \
-        cell.bands[band_id + 1].hrus[Band.glacier_id], \
+      update_hru_state(
+        band.hrus[Band.glacier_id],
+        cell.bands[band_id + 1].hrus[Band.glacier_id],
         '5d', **new_area_fracs)
     else:
       raise Exception(
-        'Error: No state update case identified for cell {}, band {}, HRU {}.'. \
-          format(cell_id, band_id, Band.glacier_id)
+        'Error: No state update case identified for cell {}, band {}, HRU {}.'
+        .format(cell_id, band_id, Band.glacier_id)
       )
 
     # Save the glacier area fraction for this band for checking against
@@ -675,46 +676,46 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
       # create a new open ground HRU (HRU state defaults are
       # automatically set upon HRU creation, so technically
       # there's no need to call update_hru_state())
-      logging.debug('State update CASE 1 identified. New open ground \
-    exposed. Creating OPEN GROUND HRU with area fraction %s.', \
-                    new_open_ground_area_frac[band_id])
-      band.create_hru(band_id, Band.open_ground_id, \
+      logging.debug('State update CASE 1 identified. New open ground '
+        'exposed. Creating OPEN GROUND HRU with area fraction %s.',
+        new_open_ground_area_frac[band_id])
+      band.create_hru(band_id, Band.open_ground_id,
                       new_open_ground_area_frac[band_id])
       new_area_fracs = {}
       update_hru_state(None, None, '1', **new_area_fracs)
     elif new_open_ground_area_frac[band_id] == band.area_frac_open_ground:
       # CASE 2: Trivial case. There was no change in open ground HRU area,
       # so we don't call update_hru_state())
-      logging.debug('State update CASE 2 identified. No change in OPEN \
-    GROUND HRU area. No state update required.')
+      logging.debug('State update CASE 2 identified. No change in OPEN '
+        'GROUND HRU area. No state update required.')
     elif new_open_ground_area_frac[band_id] > 0 and band.area_frac_open_ground > 0 \
             and new_open_ground_area_frac[band_id] != band.area_frac_open_ground:
       # CASE 3: Open ground HRU exists in previous and current time
       # steps, but its area fraction has changed.
-      logging.debug('State update CASE 3 identified. OPEN GROUND HRU \
-    area fraction has changed from %s to %s.', band.area_frac_open_ground, \
-                    new_open_ground_area_frac[band_id])
+      logging.debug('State update CASE 3 identified. OPEN GROUND HRU '
+        'area fraction has changed from %s to %s.',
+        band.area_frac_open_ground, new_open_ground_area_frac[band_id])
       new_area_fracs = {
         'new_hru_area_frac': new_open_ground_area_frac[band_id]
       }
-      update_hru_state( \
-        band.hrus[Band.open_ground_id], \
-        band.hrus[Band.open_ground_id], \
+      update_hru_state(
+        band.hrus[Band.open_ground_id],
+        band.hrus[Band.open_ground_id],
         '3', **new_area_fracs)
     elif new_open_ground_area_frac[band_id] == 0 and band.area_frac_open_ground > 0 \
             and new_band_area_frac[band_id] != 0 and band.area_frac > 0:
       # CASE 4b: Open ground has disappeared, but the band remains
       # (implies glacier HRU expanding). Add state to the glacier HRU.
       # Mark the open ground HRU for deletion.
-      logging.debug('State update CASE 4b identified. Open ground has \
-    disappeared. Transferring state to the GLACIER HRU in this band.')
+      logging.debug('State update CASE 4b identified. Open ground has '
+        'disappeared. Transferring state to the GLACIER HRU in this band.')
       hrus_to_be_deleted.append(Band.open_ground_id)
       new_area_fracs = {
         'new_glacier_area_frac': new_glacier_area_frac[band_id]
       }
-      update_hru_state( \
-        band.hrus[Band.open_ground_id], \
-        band.hrus[Band.glacier_id], \
+      update_hru_state(
+        band.hrus[Band.open_ground_id],
+        band.hrus[Band.glacier_id],
         '4b', **new_area_fracs)
     elif new_open_ground_area_frac[band_id] == 0 and band.area_frac_open_ground > 0 \
             and new_band_area_frac[band_id] == 0 and band.area_frac > 0 \
@@ -725,24 +726,25 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
       # (with non-zero area fraction, i.e. not a shadow glacier). Add
       # state to the glacier HRU in the lower band. Mark the open
       # ground HRU for deletion.
-      logging.debug('State update CASE 5a identified. Open ground and the \
-    band have disappeared. Transferring state to the GLACIER HRU in band %s below.', \
-                    band_id - 1)
+      logging.debug('State update CASE 5a identified. Open ground and the '
+        'band have disappeared. Transferring state to the GLACIER HRU in band '
+        '%s below.', band_id - 1)
       hrus_to_be_deleted.append(Band.open_ground_id)
       if not Band.glacier_id in cell.bands[band_id - 1].hrus:
         # Due to the top-to-bottom iteration ordering of band processing,
         # we need to create a glacier HRU in the lower band if one doesn't
         # already exist (only if new_glacier_area_frac[band_id - 1] > 0)
-        logging.debug('(CASE 5a) New GLACIER has appeared in band %s. \
-    Creating GLACIER HRU with area_frac %s.', band_id - 1, new_glacier_area_frac[band_id - 1])
+        logging.debug('(CASE 5a) New GLACIER has appeared in band %s. '
+          'Creating GLACIER HRU with area_frac %s.',
+          band_id - 1, new_glacier_area_frac[band_id - 1])
         cell.bands[band_id - 1].create_hru(band_id - 1, Band.glacier_id, \
                                            new_glacier_area_frac[band_id - 1])
       new_area_fracs = {
         'new_glacier_area_frac': new_glacier_area_frac[band_id - 1]
       }
-      update_hru_state( \
-        band.hrus[Band.open_ground_id], \
-        cell.bands[band_id - 1].hrus[Band.glacier_id], \
+      update_hru_state(
+        band.hrus[Band.open_ground_id],
+        cell.bands[band_id - 1].hrus[Band.glacier_id],
         '5a', **new_area_fracs)
     elif new_open_ground_area_frac[band_id] == 0 and band.area_frac_open_ground > 0 \
             and new_band_area_frac[band_id] == 0 and band.area_frac > 0 \
@@ -752,25 +754,25 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
       # An adjacent lower band exists with a non-zero area fraction open
       # ground HRU in it. Add state to that lower band's open ground HRU.
       # Mark the open ground HRU for deletion.
-      logging.debug('State update CASE 5b identified. Open ground and the \
-    band have disappeared. Transferring state to the OPEN GROUND HRU in band %s \
-    below.', band_id - 1)
+      logging.debug('State update CASE 5b identified. Open ground and the '
+        'band have disappeared. Transferring state to the OPEN GROUND HRU in '
+        'band %s below.', band_id - 1)
       hrus_to_be_deleted.append(Band.open_ground_id)
       if not Band.open_ground_id in cell.bands[band_id - 1].hrus:
         # Due to the top-to-bottom iteration ordering of band processing,
         # we need to create an open ground HRU in the lower band if one
         # doesn't already exist
-        logging.debug('(CASE 5b) New OPEN GROUND has appeared in band %s. \
-    Creating OPEN GROUND HRU with area fraction %s.', band_id - 1, \
-                      new_open_ground_area_frac[band_id - 1])
-        cell.bands[band_id - 1].create_hru(band_id - 1, Band.open_ground_id, \
-                                           new_open_ground_area_frac[band_id - 1])
+        logging.debug('(CASE 5b) New OPEN GROUND has appeared in band %s. '
+          'Creating OPEN GROUND HRU with area fraction %s.', band_id - 1,
+          new_open_ground_area_frac[band_id - 1])
+        cell.bands[band_id - 1].create_hru(band_id - 1, Band.open_ground_id,
+                                        new_open_ground_area_frac[band_id - 1])
       new_area_fracs = {
         'new_open_ground_area_frac': new_open_ground_area_frac[band_id - 1]
       }
-      update_hru_state( \
-        band.hrus[Band.open_ground_id], \
-        cell.bands[band_id - 1].hrus[Band.open_ground_id], \
+      update_hru_state(
+        band.hrus[Band.open_ground_id],
+        cell.bands[band_id - 1].hrus[Band.open_ground_id],
         '5b', **new_area_fracs)
     elif new_open_ground_area_frac[band_id] == 0 and band.area_frac_open_ground > 0 \
             and new_band_area_frac[band_id] == 0 and band.area_frac > 0 \
@@ -780,19 +782,19 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
       # lower band exists (with non-zero area_frac), add state to the
       # vegetated HRU with non-zero area_frac and the greatest vegetation
       # type index in that band.
-      valid_vegetated_hrus_below = list(filter(lambda x: x[1].area_frac > 0, \
-                                               new_hru_area_frac[str(band_id - 1)].items()))
+      valid_vegetated_hrus_below = list(filter(lambda x: x[1].area_frac > 0,
+                                    new_hru_area_frac[str(band_id - 1)].items()))
       max_veg_type_below = max(valid_vegetated_hrus_below)[0]
-      logging.debug('State update CASE 5c identified. Open ground and the \
-    band have disappeared. Transferring state to the VEGETATED HRU %s in band %s \
-    below.', max_veg_type_below, band_id - 1)
+      logging.debug('State update CASE 5c identified. Open ground and the '
+        'band have disappeared. Transferring state to the VEGETATED HRU %s in '
+        'band %s below.', max_veg_type_below, band_id - 1)
       hrus_to_be_deleted.append(Band.open_ground_id)
       new_area_fracs = {
         'new_hru_area_frac': new_hru_area_frac[str(band_id - 1)][str(max_veg_type_below)]
       }
-      update_hru_state( \
-        band.hrus[Band.open_ground_id], \
-        cell.bands[band_id - 1].hrus[int(max_veg_type_below)], \
+      update_hru_state(
+        band.hrus[Band.open_ground_id],
+        cell.bands[band_id - 1].hrus[int(max_veg_type_below)],
         '5c', **new_area_fracs)
     elif new_open_ground_area_frac[band_id] == 0 and band.area_frac_open_ground > 0 \
             and new_band_area_frac[band_id] == 0 and band.area_frac > 0 \
@@ -802,21 +804,21 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
       # exists (or not one has non-zero area fraction) to transfer
       # state to. In this special case, add state to glacier in the
       # band above.
-      logging.debug('State update CASE 5d identified. Open ground and the \
-    band have disappeared, and no adjacent lower band exists. Transferring state \
-    to the GLACIER HRU in band %s above.', band_id + 1)
+      logging.debug('State update CASE 5d identified. Open ground and the '
+        'band have disappeared, and no adjacent lower band exists. Transferring '
+        'state to the GLACIER HRU in band %s above.', band_id + 1)
       hrus_to_be_deleted.append(Band.open_ground_id)
       new_area_fracs = {
         'new_glacier_area_frac': new_glacier_area_frac[band_id + 1]
       }
-      update_hru_state( \
-        band.hrus[Band.open_ground_id], \
-        cell.bands[band_id + 1].hrus[Band.glacier_id], \
+      update_hru_state(
+        band.hrus[Band.open_ground_id],
+        cell.bands[band_id + 1].hrus[Band.glacier_id],
         '5d', **new_area_fracs)
     else:
       raise Exception(
-        'Error: No state update case identified for cell {}, band {}, HRU {}.'. \
-          format(cell_id, band_id, Band.open_ground_id)
+        'Error: No state update case identified for cell {}, band {}, HRU {}.'
+        .format(cell_id, band_id, Band.open_ground_id)
       )
     # Apply update to open ground HRU area fraction. HRU will get deleted later
     # if this is 0 (it will have already been added to hrus_to_be_deleted)
@@ -830,30 +832,30 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
         logging.debug('VEGETATED HRU %s update phase...', veg_type)
         if new_hru_area_frac[str(band_id)][str(veg_type)] < 0:
           raise Exception(
-            'Error: cell {}, band {}: HRU {} has a negative area fraction ({}).' \
-              .format(cell_id, band_id, veg_type, \
-                      new_hru_area_frac[str(band_id)][str(veg_type)])
+            'Error: cell {}, band {}: HRU {} has a negative area fraction ({}).'
+            .format(cell_id, band_id, veg_type, \
+                    new_hru_area_frac[str(band_id)][str(veg_type)])
           )
         if new_hru_area_frac[str(band_id)][str(veg_type)] == band.hrus[veg_type].area_frac:
           # CASE 2: Trivial case. There was no change in this HRU's area,
           # so we don't call update_hru_state())
-          logging.debug('State update CASE 2 identified. No change in \
-    VEGETATED HRU %s area. No state update required.', veg_type)
+          logging.debug('State update CASE 2 identified. No change in '
+            'VEGETATED HRU %s area. No state update required.', veg_type)
         elif new_hru_area_frac[str(band_id)][str(veg_type)] > 0 \
                 and delta_area_hru[str(veg_type)] != 0:
           # CASE 3: Vegetated HRU exists in previous and current time
           # steps, but its area fraction has changed.
-          logging.debug('State update CASE 3 identified. HRU %s area \
-    fraction has changed from %s to %s.', \
-                        veg_type, new_hru_area_frac[str(band_id)][str(veg_type)] - \
-                        delta_area_hru[str(veg_type)], \
-                        new_hru_area_frac[str(band_id)][str(veg_type)])
+          logging.debug('State update CASE 3 identified. HRU %s area '
+            'fraction has changed from %s to %s.',
+            veg_type, new_hru_area_frac[str(band_id)][str(veg_type)] - \
+            delta_area_hru[str(veg_type)],
+            new_hru_area_frac[str(band_id)][str(veg_type)])
           new_area_fracs = {
             'new_hru_area_frac': new_hru_area_frac[str(band_id)][str(veg_type)]
           }
-          update_hru_state( \
-            hru, \
-            hru, \
+          update_hru_state(
+            hru,
+            hru,
             '3', **new_area_fracs)
         elif new_hru_area_frac[str(band_id)][str(veg_type)] == 0 \
                 and new_band_area_frac[band_id] > 0 and band.area_frac > 0:
@@ -861,15 +863,16 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
           # (implies glacier HRU expanding). Mark the HRU for deletion
           # (never to return -- only open ground can come back in its place)
           # and add state to the glacier HRU.
-          logging.debug('State update CASE 4b identified. HRU %s has \
-    disappeared. Transferring state to the GLACIER HRU in this band.', veg_type)
+          logging.debug('State update CASE 4b identified. HRU %s has '
+            'disappeared. Transferring state to the GLACIER HRU in this band.',
+            veg_type)
           hrus_to_be_deleted.append(veg_type)
           new_area_fracs = {
             'new_glacier_area_frac': new_glacier_area_frac[band_id]
           }
-          update_hru_state( \
-            hru, \
-            band.hrus[Band.glacier_id], \
+          update_hru_state(
+            hru,
+            band.hrus[Band.glacier_id],
             '4b', **new_area_fracs)
         elif new_hru_area_frac[str(band_id)][str(veg_type)] == 0 and band.area_frac > 0 \
                 and new_band_area_frac[band_id] == 0 and band.area_frac > 0 \
@@ -880,25 +883,25 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
           # (with non-zero area fraction, i.e. not a shadow glacier). Add
           # state to the glacier HRU in the lower band. Mark the vegetated
           # HRU for deletion.
-          logging.debug('State update CASE 5a identified. HRU %s and the \
-    band have disappeared. Transferring state to the GLACIER HRU in band %s below.', \
-                        veg_type, band_id - 1)
+          logging.debug('State update CASE 5a identified. HRU %s and the '
+            'band have disappeared. Transferring state to the GLACIER HRU in '
+            'band %s below.', veg_type, band_id - 1)
           hrus_to_be_deleted.append(veg_type)
           if not Band.glacier_id in cell.bands[band_id - 1].hrus:
             # Due to the top-to-bottom iteration ordering of band processing,
             # we need to create a glacier HRU in the lower band if one doesn't
             # already exist (only if new_glacier_area_frac[band_id - 1] > 0)
-            logging.debug('(CASE 5a) New GLACIER has appeared in band %s. \
-    Creating GLACIER HRU with area fraction %s.', band_id - 1, \
-                          new_glacier_area_frac[band_id - 1])
+            logging.debug('(CASE 5a) New GLACIER has appeared in band %s. '
+              'Creating GLACIER HRU with area fraction %s.', band_id - 1,
+              new_glacier_area_frac[band_id - 1])
             cell.bands[band_id - 1].create_hru(band_id - 1, Band.glacier_id, \
                                                new_glacier_area_frac[band_id - 1])
           new_area_fracs = {
             'new_glacier_area_frac': new_glacier_area_frac[band_id - 1]
           }
-          update_hru_state( \
-            hru, \
-            cell.bands[band_id - 1].hrus[Band.glacier_id], \
+          update_hru_state(
+            hru,
+            cell.bands[band_id - 1].hrus[Band.glacier_id],
             '5a', **new_area_fracs)
         elif new_hru_area_frac[str(band_id)][str(veg_type)] == 0 and band.area_frac > 0 \
                 and new_band_area_frac[band_id] == 0 and band.area_frac > 0 \
@@ -908,25 +911,25 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
           # An adjacent lower band exists with a non-zero area fraction open
           # ground HRU in it. Add state to that lower band's open ground HRU.
           # Mark the vegetated HRU for deletion.
-          logging.debug('State update CASE 5b identified. HRU %s and the band \
-    have disappeared. Transferring state to the OPEN GROUND HRU in band %s below.', \
-                        veg_type, band_id - 1)
+          logging.debug('State update CASE 5b identified. HRU %s and the band '
+            'have disappeared. Transferring state to the OPEN GROUND HRU in '
+            'band %s below.', veg_type, band_id - 1)
           hrus_to_be_deleted.append(veg_type)
           if not Band.open_ground_id in cell.bands[band_id - 1].hrus:
             # Due to the top-to-bottom iteration ordering of band processing,
             # we need to create an open ground HRU in the lower band if one
             # doesn't already exist
-            logging.debug('(CASE 5b) New OPEN GROUND has appeared in band %s. \
-    Creating OPEN GROUND HRU with area fraction %s.', \
-                          band_id - 1, new_open_ground_area_frac[band_id - 1])
-            cell.bands[band_id - 1].create_hru(band_id - 1, Band.open_ground_id, \
-                                               new_open_ground_area_frac[band_id - 1])
+            logging.debug('(CASE 5b) New OPEN GROUND has appeared in band %s. '
+              'Creating OPEN GROUND HRU with area fraction %s.',
+              band_id - 1, new_open_ground_area_frac[band_id - 1])
+            cell.bands[band_id - 1].create_hru(band_id - 1, Band.open_ground_id,
+                                          new_open_ground_area_frac[band_id - 1])
           new_area_fracs = {
             'new_open_ground_area_frac': new_open_ground_area_frac[band_id - 1]
           }
-          update_hru_state( \
-            hru, \
-            cell.bands[band_id - 1].hrus[Band.open_ground_id], \
+          update_hru_state(
+            hru,
+            cell.bands[band_id - 1].hrus[Band.open_ground_id],
             '5b', **new_area_fracs)
         elif new_hru_area_frac[str(band_id)][str(veg_type)] == 0 \
                 and new_band_area_frac[band_id] == 0 and band.area_frac > 0 \
@@ -936,19 +939,19 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
           # lower band exists (with non-zero area fraction), where we will
           # add state to the vegetated HRU with non-zero area fraction and
           # the greatest vegetation type index in that band.
-          valid_vegetated_hrus_below = list(filter(lambda x: x[1].area_frac > 0, \
+          valid_vegetated_hrus_below = list(filter(lambda x: x[1].area_frac > 0,
                                                    new_hru_area_frac[str(band_id - 1)].items()))
           max_veg_type_below = max(valid_vegetated_hrus_below)[0]
-          logging.debug('State update CASE 5c identified. HRU %s and the \
-    band have disappeared. Transferring state to the VEGETATED HRU %s in band %s \
-    below.', veg_type, max_veg_type_below, band_id - 1)
+          logging.debug('State update CASE 5c identified. HRU %s and the '
+            'band have disappeared. Transferring state to the VEGETATED HRU %s '
+            'in band %s below.', veg_type, max_veg_type_below, band_id - 1)
           hrus_to_be_deleted.append(veg_type)
           new_area_fracs = {
             'new_hru_area_frac': new_hru_area_frac[str(band_id - 1)][str(max_veg_type_below)]
           }
-          update_hru_state( \
-            hru, \
-            cell.bands[band_id - 1].hrus[int(max_veg_type_below)], \
+          update_hru_state(
+            hru,
+            cell.bands[band_id - 1].hrus[int(max_veg_type_below)],
             '5c', **new_area_fracs)
         elif new_hru_area_frac[str(band_id)][str(veg_type)] == 0 \
                 and new_band_area_frac[band_id] == 0 and band.area_frac > 0 \
@@ -958,21 +961,22 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
           # lower band exists (or not one has non-zero area fraction) to
           # transfer state to. In this special case, add state to glacier
           # in the band above.
-          logging.debug('State update CASE 5d identified. HRU %s and the \
-    band have disappeared, and no adjacent lower band exists. Transferring state \
-    to the GLACIER HRU in band %s above.', veg_type, band_id + 1)
+          logging.debug('State update CASE 5d identified. HRU %s and the '
+            'band have disappeared, and no adjacent lower band exists. '
+            'Transferring state to the GLACIER HRU in band %s above.',
+            veg_type, band_id + 1)
           hrus_to_be_deleted.append(veg_type)
           new_area_fracs = {
             'new_glacier_area_frac': new_glacier_area_frac[band_id + 1]
           }
-          update_hru_state( \
-            hru, \
-            cell.bands[band_id + 1].hrus[Band.glacier_id], \
+          update_hru_state(
+            hru,
+            cell.bands[band_id + 1].hrus[Band.glacier_id],
             '5d', **new_area_fracs)
         else:
           raise Exception(
-            'Error: No state update case identified for cell {}, band {}, HRU {}.'. \
-              format(cell_id, band_id, veg_type)
+            'Error: No state update case identified for cell {}, band {}, HRU {}.'
+            .format(cell_id, band_id, veg_type)
           )
         # Apply update to the HRU's area fraction. HRU will get deleted later
         # if this is 0 (it will have already been added to hrus_to_be_deleted)
@@ -992,9 +996,10 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
     logging.debug('Finished state update for band %s.', band_id)
 
   else:
-    logging.debug('No changes in band or glacier area fractions were found for band %s. \
-      No state changes applied.', band_id)
-  logging.debug('Number of remaining HRUs in band %s is %s', band_id, band.num_hrus)
+    logging.debug('No changes in band or glacier area fractions were found for '
+      'band %s. No state changes applied.', band_id)
+  logging.debug('Number of remaining HRUs in band %s is %s',
+                band_id, band.num_hrus)
 
 
 def update_hru_state(source_hru, dest_hru, case, **kwargs):
@@ -1161,11 +1166,11 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
         dest_hru.hru_state.variables[var] = 0
       elif var in spec_6_vars: # SNOW_COLD_CONTENT
         dest_hru.hru_state.variables[var] \
-        = (dest_hru.hru_state.variables['SNOW_SURF_TEMP'] \
-          * (min(MAX_SURFACE_SWE, dest_hru.hru_state.variables['SNOW_SWQ'])) \
+        = (dest_hru.hru_state.variables['SNOW_SURF_TEMP']
+          * (min(MAX_SURFACE_SWE, dest_hru.hru_state.variables['SNOW_SWQ']))
           * CH_ICE)
       elif var in spec_7_vars:
-        dest_hru.hru_state.variables[var] = (dest_hru.hru_state.variables[var] \
+        dest_hru.hru_state.variables[var] = (dest_hru.hru_state.variables[var]
           * dest_hru.area_frac * (int(dest_hru.hru_state.variables['SNOW_SWQ'] >= 0)) \
           + source_hru.hru_state.variables[var] * source_hru.area_frac \
           * (int(source_hru.hru_state.variables['SNOW_SWQ'] >= 0))) \
