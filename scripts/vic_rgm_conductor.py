@@ -21,8 +21,8 @@ from conductor.conductor_params import vic_full_path, rgm_full_path,\
   output_path, temp_files_path
 from conductor.file_io import get_rgm_pixel_mapping, read_gsa_headers,\
   write_grid_to_gsa_file, mass_balances_to_rgm_grid, read_state, write_state
-from conductor.cells import Cell, Band, HydroResponseUnit, merge_cell_input,\
-  update_glacier_mask, update_area_fracs
+from conductor.cells import Cell, Band, HydroResponseUnit, merge_cell_input, \
+  bin_bands_and_glaciers, digitize_domain, update_glacier_mask, update_area_fracs
 from conductor.snbparams import load_snb_parms, save_snb_parms
 from conductor.vegparams import load_veg_parms, save_veg_parms
 from conductor.vic_globals import Global
@@ -165,8 +165,7 @@ def run_ranges(startdate, enddate, glacier_start):
 
 # Main program
 def main():
-  print('\n\nVIC + RGM ... together at last!')
-
+  print('\n\nVIC + RGM Hydro-Conductor starting...')
   # Parse command line parameters
   vic_global_file, rgm_params_file, surf_dem_in_file, bed_dem_file,\
     pixel_cell_map_file, init_glacier_mask_file, output_trace_files,\
@@ -309,10 +308,14 @@ at these points and written out to the file %s.',\
   glacier_mask = np.loadtxt(init_glacier_mask_file, skiprows=5)
 
   # Apply the initial glacier mask and modify the band and HRU area
-  # fractions accordingly, but do not update state
-  logging.debug('Applying initial area fraction update.')
-  update_area_fracs(cells, cell_areas, vic_cell_mask, num_snow_bands,
-    current_surf_dem, num_rows_dem, num_cols_dem, glacier_mask, update_state=False)
+  # fractions according to their digitized fractions of the DEM
+  logging.debug('Applying initial band and HRU area fraction digitization.')
+  # update_area_fracs(cells, cell_areas, vic_cell_mask, num_snow_bands,
+  #   current_surf_dem, num_rows_dem, num_cols_dem, glacier_mask, update_state=False)
+  band_areas, glacier_areas = bin_bands_and_glaciers(cells, cell_areas,
+                                vic_cell_mask, num_snow_bands, current_surf_dem,
+                                glacier_mask)
+  digitize_domain(cells, cell_areas, band_areas, glacier_areas)
 
   # Set the VIC output state file name prefix (to be written to STATENAME
   # in the global file)
@@ -401,18 +404,17 @@ error: %s', e)
       # Make sure VIC cell IDs in the state file agree with those in the
       # vic_cell_mask, which is derived from the pixel_cell_map_file
       if int(cell_id) not in vic_cell_mask:
-        print('Cell ID {} read from the VIC state file {} was not found in \
-the VIC cell mask derived from the given RGM-Pixel-to-VIC-Cell map \
-file (option --pixel_map) {}. Exiting.'\
+        print('Cell ID {} read from the VIC state file {} was not found in '
+          'the VIC cell mask derived from the given RGM-Pixel-to-VIC-Cell map '
+          'file (option --pixel_map) {}. Exiting.'
           .format(cell_id, state_file, pixel_cell_map_file))
-        logging.error('Cell ID {} read from the VIC state file {} was not found in \
-the VIC cell mask derived from the given RGM-Pixel-to-VIC-Cell map file \
-(option --pixel_map) {}')
+        logging.error('Cell ID {} read from the VIC state file {} was not '
+          'found in the VIC cell mask derived from the given '
+          'RGM-Pixel-to-VIC-Cell map file (option --pixel_map) {}')
         sys.exit(0)
       cell_ids.append(cell_id)
       # Read Glacier Mass Balance polynomial terms from cell states;
       # leave off 4th the "fit error" term at the end of the GMB polynomial.
-      # TODO: may want to generalize this to handle variable length polynomials
       gmb_polys[cell_id] = cells[cell_id].cell_state.variables\
         ['GLAC_MASS_BALANCE_EQN_TERMS'][0:Cell.NglacMassBalanceEqnTerms]
 
@@ -482,13 +484,13 @@ error: %s', e)
       figure.update_plots(current_surf_dem, glacier_mask, bed_dem, end.isoformat())
 
     # Update HRU and band area fractions and state for all VIC grid cells
-    logging.debug('Updating VIC grid cell area fracs and states')
+    logging.debug('Updating VIC grid cell area fractions and states')
     update_area_fracs(cells, cell_areas, vic_cell_mask, num_snow_bands,\
-      current_surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+      current_surf_dem, glacier_mask)
 
     # Update the VIC state file with new state information
     new_state_date = end + one_day
-    new_state_file = state_filename_prefix + '_' + new_state_date.isoformat()
+    new_state_file = state_filename_prefix + '_' + new_state_date.isoformat() + '.nc'
     logging.debug('Writing updated VIC state file %s', new_state_file)
     # Set the new state file name VIC will have to read in on next iteration
     global_parms.init_state = new_state_file
@@ -502,3 +504,4 @@ error: %s', e)
 # Main program invocation.
 if __name__ == '__main__':
   main()
+  print('Hydro-Conductor finished.')

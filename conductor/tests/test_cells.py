@@ -257,7 +257,7 @@ class TestsAreaFracUpdate:
       cells_orig = deepcopy(cells)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
-        initial_surf_dem, num_rows_dem, num_cols_dem, initial_glacier_mask, update_state=False)
+        initial_surf_dem, initial_glacier_mask, update_state=False)
 
       assert cells == cells_orig
 
@@ -300,7 +300,7 @@ class TestsAreaFracUpdate:
         num_cols_dem)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
-        surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+        surf_dem, glacier_mask)
 
       # Confirm that update_hru_state() was called for CASE 3 twice
       assert mock_update_hru_state_fcn.call_count == 2
@@ -343,7 +343,7 @@ class TestsAreaFracUpdate:
         num_cols_dem)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
-        surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+        surf_dem, glacier_mask)
 
       # Confirm that update_hru_state() was called for CASE 3 and CASE 4b
       assert mock_update_hru_state_fcn.call_count == 2
@@ -389,7 +389,7 @@ class TestsAreaFracUpdate:
         num_cols_dem)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
-        surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+        surf_dem, glacier_mask)
 
       # Confirm that update_hru_state() was called for CASE 3, 4b, and 3
       assert mock_update_hru_state_fcn.call_count == 3
@@ -433,7 +433,7 @@ class TestsAreaFracUpdate:
         num_cols_dem)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
-        surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+        surf_dem, glacier_mask)
 
       # Confirm that update_hru_state() was called for CASE 3 and 4b
       assert mock_update_hru_state_fcn.call_count == 2
@@ -473,7 +473,7 @@ class TestsAreaFracUpdate:
         num_cols_dem)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
-        surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+        surf_dem, glacier_mask)
 
       # Confirm that update_hru_state() was called for CASE 1 and 3
       assert mock_update_hru_state_fcn.call_count == 2
@@ -515,7 +515,7 @@ class TestsAreaFracUpdate:
         num_cols_dem)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
-        surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+        surf_dem, glacier_mask)
 
       # Confirm that update_hru_state() was called for CASE 3 and 1
       assert mock_update_hru_state_fcn.call_count == 2
@@ -555,7 +555,7 @@ class TestsAreaFracUpdate:
         num_cols_dem)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
-        surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+        surf_dem, glacier_mask)
 
       # Confirm that update_hru_state() was called for CASE 3 twice
       assert mock_update_hru_state_fcn.call_count == 2
@@ -602,7 +602,7 @@ class TestsAreaFracUpdate:
         num_cols_dem)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
-        surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+        surf_dem, glacier_mask)
 
       # Confirm that update_hru_state() was called for CASE 3 and 1
       assert mock_update_hru_state_fcn.call_count == 2
@@ -655,7 +655,7 @@ class TestsAreaFracUpdate:
         num_cols_dem)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
-        surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+        surf_dem, glacier_mask)
 
       # Confirm that update_hru_state() was called for CASE 1 and 4b
       assert mock_update_hru_state_fcn.call_count == 2
@@ -705,7 +705,7 @@ class TestsAreaFracUpdate:
         num_cols_dem)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
-        surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+        surf_dem, glacier_mask)
 
       # Confirm that update_hru_state() was called for CASE 3 and 5d
       assert mock_update_hru_state_fcn.call_count == 2
@@ -736,7 +736,7 @@ class TestsAreaFracUpdate:
       glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,\
         num_cols_dem)
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
-        surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+        surf_dem, glacier_mask)
 
     @mock.patch('conductor.cells.update_hru_state', side_effect=mock_update_hru_state)
     def test_glacier_growth_into_new_higher_band(self, mock_update_hru_state_fcn):
@@ -766,7 +766,7 @@ class TestsAreaFracUpdate:
         num_cols_dem)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
-        surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+        surf_dem, glacier_mask)
 
       # Confirm that update_hru_state() was called for CASE 1 and 3
       assert mock_update_hru_state_fcn.call_count == 2
@@ -805,13 +805,13 @@ class TestsAreaFracUpdate:
       """
       surf_dem[dem_padding_thickness + 0][dem_padding_thickness + 8 + 3] = 1799
 
-      glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,\
+      glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,
         num_cols_dem)
 
       with pytest.raises(Exception) as message:
-        update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
-          surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
-      assert 'One or more RGM output DEM pixels lies below the bounds of the \
+        update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
+          surf_dem, glacier_mask)
+      assert 'One or more DEM pixels lies below the bounds of the \
 lowest defined elevation band (< 1800.0m) as defined by the Snow Band \
 Parameter File for cell 23456. You may need to add or shift the zero \
 padding to accommodate this.' in str(message.value)
@@ -819,10 +819,10 @@ padding to accommodate this.' in str(message.value)
       # Remove error condition by reinstating glacier in offending pixel in
       # the surface DEM for the next test
       surf_dem[dem_padding_thickness + 0][dem_padding_thickness + 8 + 3] = 1995
-      glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,\
+      glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,
         num_cols_dem)
-      update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
-        surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+      update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
+        surf_dem, glacier_mask)
 
     def test_attempt_new_glacier_growth_into_unavailable_higher_band(self):
       """ Simulates a (failing) attempt to grow the glacier into a new yet
@@ -846,8 +846,8 @@ padding to accommodate this.' in str(message.value)
 
       with pytest.raises(Exception) as message:
         update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
-          surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
-      assert 'One or more RGM output DEM pixels lies above the bounds of \
+          surf_dem, glacier_mask)
+      assert 'One or more DEM pixels lies above the bounds of \
 the highest defined elevation band (>= 2300.0m) as defined by the \
 Snow Band Parameter File for cell 23456. You may need to add or shift \
 the zero padding to accommodate this.' in str(message.value)
@@ -858,7 +858,7 @@ the zero padding to accommodate this.' in str(message.value)
       glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,\
         num_cols_dem)
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
-        surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+        surf_dem, glacier_mask)
 
     @mock.patch('conductor.cells.update_hru_state', side_effect=mock_update_hru_state)
     def test_glacier_thickening_to_conceal_lowest_band_of_glacier(self, mock_update_hru_state_fcn):
@@ -890,7 +890,7 @@ the zero padding to accommodate this.' in str(message.value)
         num_cols_dem)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
-        surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+        surf_dem, glacier_mask)
 
       # Confirm that update_hru_state() was called for CASE 3 and 5d
       assert mock_update_hru_state_fcn.call_count == 2
@@ -943,7 +943,7 @@ the zero padding to accommodate this.' in str(message.value)
       glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
-                surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+                surf_dem, glacier_mask)
 
       # Confirm that update_hru_state() was called for CASE 5a and 3
       assert mock_update_hru_state_fcn.call_count == 2
@@ -970,7 +970,7 @@ the zero padding to accommodate this.' in str(message.value)
       glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,\
         num_cols_dem)
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
-        surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+        surf_dem, glacier_mask)
 
     @mock.patch('conductor.cells.update_hru_state', side_effect=mock_update_hru_state)
     def test_glacier_receding_entirely_from_band(self, mock_update_hru_state_fcn):
@@ -1007,7 +1007,7 @@ the zero padding to accommodate this.' in str(message.value)
       glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
-                surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+                surf_dem, glacier_mask)
 
       # Confirm that update_hru_state() was called for CASE 4a and 3
       assert mock_update_hru_state_fcn.call_count == 2
@@ -1055,7 +1055,7 @@ the zero padding to accommodate this.' in str(message.value)
       glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
-                surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+                surf_dem, glacier_mask)
 
       # Confirm that update_hru_state() was called for CASE 5b and 3
       assert mock_update_hru_state_fcn.call_count == 2
@@ -1137,7 +1137,7 @@ the zero padding to accommodate this.' in str(message.value)
         num_cols_dem)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
-        surf_dem, num_rows_dem, num_cols_dem, glacier_mask)
+        surf_dem, glacier_mask)
 
       # Confirm that update_hru_state() was called for CASE 3 and 5d three times
       assert mock_update_hru_state_fcn.call_count == 5
