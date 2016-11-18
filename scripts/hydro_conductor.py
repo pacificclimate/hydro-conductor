@@ -189,7 +189,7 @@ def main():
 
   # Set up logging
   numeric_loglevel = getattr(logging, loglevel.upper())
-  logging.basicConfig(filename=output_path+'hydrocon.log.'+\
+  logging.basicConfig(filename=output_path+'/hydrocon.log.'+\
     strftime("%d-%m-%Y_%H:%M"), level=numeric_loglevel,\
     format='%(levelname)s %(asctime)s %(message)s')
   logging.info('------- VIC-RGM Hydro-Conductor Startup -------')

@@ -11,6 +11,7 @@ from conductor.cells import *
 
 GLACIER_ID = Band.glacier_id
 OPEN_GROUND_ID = Band.open_ground_id
+glacier_thickness_threshold = 2.0
 
 # Initially we have 4 valid bands loaded for cell 0, and 3 for cell 1
 expected_band_ids = {
@@ -257,7 +258,7 @@ class TestsAreaFracUpdate:
       cells_orig = deepcopy(cells)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
-        initial_surf_dem, initial_glacier_mask, update_state=False)
+        initial_surf_dem, initial_glacier_mask)
 
       assert cells == cells_orig
 
@@ -297,7 +298,7 @@ class TestsAreaFracUpdate:
         dem_padding_thickness + 4] = [2230, 2240]
 
       glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,\
-        num_cols_dem)
+        num_cols_dem, glacier_thickness_threshold)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, glacier_mask)
@@ -340,7 +341,7 @@ class TestsAreaFracUpdate:
         dem_padding_thickness + 6] = [2240, 2230]
 
       glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,\
-        num_cols_dem)
+        num_cols_dem, glacier_thickness_threshold)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, glacier_mask)
@@ -386,7 +387,7 @@ class TestsAreaFracUpdate:
         dem_padding_thickness + 7] = [2140, 2160, 2160, 2150]
 
       glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,\
-        num_cols_dem)
+        num_cols_dem, glacier_thickness_threshold)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, glacier_mask)
@@ -430,7 +431,7 @@ class TestsAreaFracUpdate:
         dem_padding_thickness + 3] = [2110, 2125]
 
       glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,\
-        num_cols_dem)
+        num_cols_dem, glacier_thickness_threshold)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, glacier_mask)
@@ -470,7 +471,7 @@ class TestsAreaFracUpdate:
       surf_dem[dem_padding_thickness + 1][dem_padding_thickness + 7] = 2040
 
       glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,\
-        num_cols_dem)
+        num_cols_dem, glacier_thickness_threshold)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, glacier_mask)
@@ -512,7 +513,7 @@ class TestsAreaFracUpdate:
         dem_padding_thickness + 3] = [2100, 2105]
 
       glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,\
-        num_cols_dem)
+        num_cols_dem, glacier_thickness_threshold)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, glacier_mask)
@@ -552,7 +553,7 @@ class TestsAreaFracUpdate:
         dem_padding_thickness + 5] = [2110, 2140]
 
       glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,\
-        num_cols_dem)
+        num_cols_dem, glacier_thickness_threshold)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, glacier_mask)
@@ -599,7 +600,7 @@ class TestsAreaFracUpdate:
       surf_dem[dem_padding_thickness + 0][dem_padding_thickness + 8 + 2] = 1850
 
       glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,\
-        num_cols_dem)
+        num_cols_dem, glacier_thickness_threshold)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, glacier_mask)
@@ -652,7 +653,7 @@ class TestsAreaFracUpdate:
       surf_dem[dem_padding_thickness + 0][dem_padding_thickness + 8 + 2] = 1880
 
       glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,\
-        num_cols_dem)
+        num_cols_dem, glacier_thickness_threshold)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, glacier_mask)
@@ -702,7 +703,7 @@ class TestsAreaFracUpdate:
       surf_dem[dem_padding_thickness + 0][dem_padding_thickness + 8 + 2] = 1905
 
       glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,\
-        num_cols_dem)
+        num_cols_dem, glacier_thickness_threshold)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, glacier_mask)
@@ -734,7 +735,7 @@ class TestsAreaFracUpdate:
       # Reinstate lowest band with single glaciated pixel at 1880m for the next test
       surf_dem[dem_padding_thickness + 0][dem_padding_thickness + 8 + 2] = 1880
       glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,\
-        num_cols_dem)
+        num_cols_dem, glacier_thickness_threshold)
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, glacier_mask)
 
@@ -763,7 +764,7 @@ class TestsAreaFracUpdate:
         dem_padding_thickness + 8 + 5] = [2200, 2210]
 
       glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,\
-        num_cols_dem)
+        num_cols_dem, glacier_thickness_threshold)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, glacier_mask)
@@ -806,7 +807,7 @@ class TestsAreaFracUpdate:
       surf_dem[dem_padding_thickness + 0][dem_padding_thickness + 8 + 3] = 1799
 
       glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,
-        num_cols_dem)
+        num_cols_dem, glacier_thickness_threshold)
 
       with pytest.raises(Exception) as message:
         update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
@@ -820,7 +821,7 @@ padding to accommodate this.' in str(message.value)
       # the surface DEM for the next test
       surf_dem[dem_padding_thickness + 0][dem_padding_thickness + 8 + 3] = 1995
       glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,
-        num_cols_dem)
+        num_cols_dem, glacier_thickness_threshold)
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,
         surf_dem, glacier_mask)
 
@@ -842,7 +843,7 @@ padding to accommodate this.' in str(message.value)
       surf_dem[dem_padding_thickness + 3][dem_padding_thickness + 8 + 3] = 2300
 
       glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,\
-        num_cols_dem)
+        num_cols_dem, glacier_thickness_threshold)
 
       with pytest.raises(Exception) as message:
         update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
@@ -856,7 +857,7 @@ the zero padding to accommodate this.' in str(message.value)
       # the surface DEM for the next test
       surf_dem[dem_padding_thickness + 3][dem_padding_thickness + 8 + 3] = 2200
       glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,\
-        num_cols_dem)
+        num_cols_dem, glacier_thickness_threshold)
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, glacier_mask)
 
@@ -887,7 +888,7 @@ the zero padding to accommodate this.' in str(message.value)
       surf_dem[dem_padding_thickness + 0][dem_padding_thickness + 8 + 2] = 1900
 
       glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,\
-        num_cols_dem)
+        num_cols_dem, glacier_thickness_threshold)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, glacier_mask)
@@ -940,7 +941,7 @@ the zero padding to accommodate this.' in str(message.value)
       """
       surf_dem[dem_padding_thickness + 3][dem_padding_thickness + 8 + 3 : dem_padding_thickness + 8 + 5] = [2150, 2170]
 
-      glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem)
+      glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem, glacier_thickness_threshold)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
                 surf_dem, glacier_mask)
@@ -968,7 +969,7 @@ the zero padding to accommodate this.' in str(message.value)
       # Reinstate the two glacier pixels of Band 4 to start elevations for the next test
       surf_dem[dem_padding_thickness + 3][dem_padding_thickness + 8 + 3 : dem_padding_thickness + 8 + 5] = [2200, 2210]
       glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,\
-        num_cols_dem)
+        num_cols_dem, glacier_thickness_threshold)
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, glacier_mask)
 
@@ -1004,7 +1005,7 @@ the zero padding to accommodate this.' in str(message.value)
         [dem_padding_thickness + 8 + 3 : dem_padding_thickness + 8 + 5]\
         = [2120, 2110]
 
-      glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem)
+      glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem, glacier_thickness_threshold)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
                 surf_dem, glacier_mask)
@@ -1052,7 +1053,7 @@ the zero padding to accommodate this.' in str(message.value)
         [dem_padding_thickness + 8 + 3 : dem_padding_thickness + 8 + 5]\
         = [2130, 2150]
 
-      glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem)
+      glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem, glacier_thickness_threshold)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
                 surf_dem, glacier_mask)
@@ -1134,7 +1135,7 @@ the zero padding to accommodate this.' in str(message.value)
         = [2001, 2001, 2001, 2001, 2001, 2001, 2001, 2001]
 
       glacier_mask = update_glacier_mask(surf_dem, bed_dem, num_rows_dem,\
-        num_cols_dem)
+        num_cols_dem, glacier_thickness_threshold)
 
       update_area_fracs(cells, cell_areas, cellid_map, num_snow_bands,\
         surf_dem, glacier_mask)
