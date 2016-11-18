@@ -17,8 +17,6 @@ import netCDF4
 from dateutil.relativedelta import relativedelta
 from time import strftime
 
-from conductor.conductor_params import vic_full_path, rgm_full_path,\
-  output_path, temp_files_path
 from conductor.file_io import get_rgm_pixel_mapping, read_gsa_headers,\
   write_grid_to_gsa_file, mass_balances_to_rgm_grid, read_state, write_state
 from conductor.cells import Cell, Band, HydroResponseUnit, merge_cell_input, \
@@ -40,46 +38,56 @@ class MyParser(argparse.ArgumentParser):
 def parse_input_parms():
   # Get all global parameters 
   parser = MyParser()
-  parser.add_argument('--g', action='store', dest='vic_global_file', type=str,\
+  parser.add_argument('--vic-path', action='store', dest='vic_path', type=str,
+                      help='path and name of the VIC executable file')
+  parser.add_argument('--rgm-path', action='store', dest='rgm_path', type=str,
+                      help='path and name of the RGM executable file')
+  parser.add_argument('--output-path', action='store', dest='output_path', type=str,
+                      help='path to save output files to. Temporary files will go \
+                      in the hydrocon_temp subdirectory.')
+  parser.add_argument('--g', action='store', dest='vic_global_file', type=str,
       help='file name and path of the VIC global parameters file')
-  parser.add_argument('--rgm-params', action='store', dest='rgm_params_file',\
+  parser.add_argument('--rgm-params', action='store', dest='rgm_params_file',
     type=str, help='file name and path of the Regional Glacier Model (RGM)\
     parameters file')
-  parser.add_argument('--sdem', action='store', dest='surf_dem_file', type=str,\
+  parser.add_argument('--sdem', action='store', dest='surf_dem_file', type=str,
     help='file name and path of the initial Surface Digital Elevation Model \
     (SDEM) file (GSA format)')
-  parser.add_argument('--bdem', action='store', dest='bed_dem_file', type=str,\
+  parser.add_argument('--bdem', action='store', dest='bed_dem_file', type=str,
     help='file name and path of the Bed Digital Elevation Model (BDEM) file \
     (GSA format)')
-  parser.add_argument('--pixel-map', action='store', dest='pixel_cell_map_file',\
+  parser.add_argument('--pixel-map', action='store', dest='pixel_cell_map_file',
     type=str, help='file name and path of the RGM Pixel to VIC Grid Cell \
     mapping file')
-  parser.add_argument('--glacier-mask', action='store',\
+  parser.add_argument('--glacier-mask', action='store',
     dest='init_glacier_mask_file', type=str, help='file name and path of the \
     file containing the initial glacier mask (GSA format)')
-  parser.add_argument('--trace-files', action='store_true', default=False,\
+  parser.add_argument('--glacier-min-thickness', action='store',
+    dest='glacier_thickness_threshold', type=float, help='minimum thickness \
+    (meters) where snow on top of DEM is to be considered as glacier')
+  parser.add_argument('--trace-files', action='store_true', default=2.0,
     dest='trace_files', help='write out persistent GSA format surface DEMs \
     and glacier masks, and 2D mass balance grid files, on each time step for \
     offline inspection')
-  parser.add_argument('--open-ground-root-zone', action='store',\
-    dest='open_ground_root_zone_file', type=str, default=None,\
+  parser.add_argument('--open-ground-root-zone', action='store',
+    dest='open_ground_root_zone_file', type=str, default=None,
     help='file name and path of one-line text file containing 6 custom root \
     parameters for the bare soil vegetation type / HRU (same format as a \
       vegetation tile line in the vegetation parameters file). \
       Default: 0.10  1.00  0.10  0.00  0.10  0.00')
-  parser.add_argument('--glacier-root-zone', action='store',\
-    dest='glacier_root_zone_file', type=str, default=None,\
+  parser.add_argument('--glacier-root-zone', action='store',
+    dest='glacier_root_zone_file', type=str, default=None,
     help='file name and path of one-line text file containing 6 custom root \
     parameters for the glacier vegetation type / HRU (same format as a \
       vegetation tile line in the vegetation parameters file). \
       Default: 0.10  1.00  0.10  0.00  0.10  0.00')
-  parser.add_argument('--band-size', action='store', dest='band_size',\
-    type=int, default=100,\
+  parser.add_argument('--band-size', action='store', dest='band_size',
+    type=int, default=100,
     help='vertical size of VIC elevation bands in metres (default = 100m)')
-  parser.add_argument('--loglevel', action='store', dest='loglevel', type=str,\
+  parser.add_argument('--loglevel', action='store', dest='loglevel', type=str,
     default='INFO', help='the logging verbosity level to be written to the \
       log file. Options are: DEBUG, INFO, WARNING, ERROR.')
-  parser.add_argument('--plots', action='store_true', dest='output_plots', \
+  parser.add_argument('--plots', action='store_true', dest='output_plots',
     default=False, help='plot the Surface DEM and glacier mask to screen on \
       every iteration.')
 
@@ -87,12 +95,16 @@ def parse_input_parms():
     parser.print_help()
     sys.exit(1)
   options = parser.parse_args()
+  vic_path = options.vic_path
+  rgm_path = options.rgm_path
+  output_path = options.output_path
   vic_global_file = options.vic_global_file
   rgm_params_file = options.rgm_params_file
   surf_dem_in_file = options.surf_dem_file
   bed_dem_file = options.bed_dem_file
   pixel_cell_map_file = options.pixel_cell_map_file
   init_glacier_mask_file = options.init_glacier_mask_file
+  glacier_thickness_threshold = options.glacier_thickness_threshold
   output_trace_files = options.trace_files
   open_ground_root_zone_file = options.open_ground_root_zone_file
   glacier_root_zone_file = options.glacier_root_zone_file
@@ -122,8 +134,9 @@ def parse_input_parms():
   else:
     glacier_root_zone_parms = None
 
-  return vic_global_file, rgm_params_file, surf_dem_in_file, bed_dem_file, \
-    pixel_cell_map_file, init_glacier_mask_file, output_trace_files, \
+  return vic_path, rgm_path, output_path, vic_global_file, rgm_params_file, \
+    surf_dem_in_file, bed_dem_file, pixel_cell_map_file, \
+    init_glacier_mask_file, glacier_thickness_threshold, output_trace_files, \
     glacier_root_zone_parms, open_ground_root_zone_parms, band_size, loglevel,\
     output_plots
 
@@ -167,10 +180,11 @@ def run_ranges(startdate, enddate, glacier_start):
 def main():
   print('\n\nVIC + RGM Hydro-Conductor starting...')
   # Parse command line parameters
-  vic_global_file, rgm_params_file, surf_dem_in_file, bed_dem_file,\
-    pixel_cell_map_file, init_glacier_mask_file, output_trace_files,\
-    glacier_root_zone_parms, open_ground_root_zone_parms, band_size,\
-    loglevel, output_plots\
+  vic_path, rgm_path, output_path, vic_global_file, rgm_params_file, \
+  surf_dem_in_file, bed_dem_file, pixel_cell_map_file, \
+  init_glacier_mask_file, glacier_thickness_threshold, output_trace_files,\
+  glacier_root_zone_parms, open_ground_root_zone_parms, band_size,\
+  loglevel, output_plots\
     = parse_input_parms()
 
   # Set up logging
@@ -179,6 +193,9 @@ def main():
     strftime("%d-%m-%Y_%H:%M"), level=numeric_loglevel,\
     format='%(levelname)s %(asctime)s %(message)s')
   logging.info('------- VIC-RGM Hydro-Conductor Startup -------')
+
+  logging.info('VIC executable at {} '.format(vic_path))
+  logging.info('RGM executable at {} '.format(rgm_path))
 
   # Get all initial VIC global parameters from the global parameter file
   logging.info('Loading initial VIC global parameters from %s', vic_global_file)
@@ -204,8 +221,17 @@ Assuming default value of {}.'.format(Band.glacier_id))
   # Assuming default value of {}.'.format(Band.open_ground_id))
   # else:
   #     Band.open_ground_id = global_parms.open_ground_id
+
+  # Set custom elevation band size, if provided
   if band_size:
     Band.band_size = band_size
+
+  logging.info('Elevation band size set to {} meters.'.format(Band.band_size))
+
+  # Create temp_files_path, if it doesn't already exist
+  temp_files_path = output_path + '/hydrocon_temp/'
+  os.makedirs(temp_files_path, exist_ok=True)
+  logging.info('Temporary output files will be written to {}.'.format(temp_files_path))
 
   # Load parameters from Snow Band Parameters File
   num_snow_bands, snb_file = global_parms.snow_band.split()
@@ -370,7 +396,7 @@ at these points and written out to the file %s.',\
     logging.info('\nRunning VIC from %s to %s using global parameter file %s',\
       start, end, temp_gpf)
     try:
-      subprocess.check_call([vic_full_path, "-g", temp_gpf], shell=False,\
+      subprocess.check_call([vic_path, "-g", temp_gpf], shell=False,\
         stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as e:
       logging.error('Subprocess invocation of VIC failed with the following \
@@ -442,7 +468,7 @@ and writing to file %s', mbg_file)
 Bed DEM file %s, Surface DEM file %s, Mass Balance Grid file %s',\
       rgm_params_file, bed_dem_file, rgm_surf_dem_in_file, mbg_file)
     try:
-      subprocess.check_call([rgm_full_path, "-p", rgm_params_file, "-b",\
+      subprocess.check_call([rgm_path, "-p", rgm_params_file, "-b",\
         bed_dem_file, "-d", rgm_surf_dem_in_file, "-m", mbg_file, "-o",\
         temp_files_path, "-s", "0", "-e", "0" ], shell=False,\
         stderr=subprocess.STDOUT)
@@ -469,13 +495,13 @@ error: %s', e)
 
     # Update glacier mask
     logging.debug('Updating Glacier Mask')
-    glacier_mask = update_glacier_mask(current_surf_dem, bed_dem,\
-      num_rows_dem, num_cols_dem)
+    glacier_mask = update_glacier_mask(current_surf_dem, bed_dem,
+      num_rows_dem, num_cols_dem, glacier_thickness_threshold)
     if output_trace_files:
       glacier_mask_file = temp_files_path + 'glacier_mask_'\
         + end.isoformat() + '.gsa'
       logging.debug('Writing Glacier Mask to file %s', glacier_mask_file)
-      write_grid_to_gsa_file(glacier_mask, glacier_mask_file, num_cols_dem,\
+      write_grid_to_gsa_file(glacier_mask, glacier_mask_file, num_cols_dem,
       num_rows_dem, dem_xmin, dem_xmax, dem_ymin, dem_ymax)
 
     if output_plots:
@@ -483,7 +509,7 @@ error: %s', e)
 
     # Update HRU and band area fractions and state for all VIC grid cells
     logging.debug('Updating VIC grid cell area fractions and states')
-    update_area_fracs(cells, cell_areas, vic_cell_mask, num_snow_bands,\
+    update_area_fracs(cells, cell_areas, vic_cell_mask, num_snow_bands,
       current_surf_dem, glacier_mask)
 
     # Update the VIC state file with new state information

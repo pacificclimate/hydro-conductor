@@ -13,8 +13,14 @@ import numpy as np
 import itertools
 import logging
 
-from conductor.conductor_params import MAX_SURFACE_SWE, CH_ICE, \
-  ZERO_AREA_FRAC_TOL, GLACIER_THICKNESS_THRESHOLD
+# Some global constants. These are set in the VIC header snow.h.
+# TODO: Maybe they should be passed in via command line parameter or state file?
+MAX_SURFACE_SWE = 0.125
+CH_ICE = 2100E+03
+# Absolute tolerance under which HRU area fractions are considered zero
+# TODO: this is probably redundant since we use 1/cell_areas[cell_id]
+# for determining the minimum possible non-zero area fraction
+ZERO_AREA_FRAC_TOL = 0.00001
 
 # This is necessary pre-Python 3.5, after which point use math.isclose()
 def isclose(a, b, rel_tol=1e-09, abs_tol=0.0):
@@ -313,7 +319,8 @@ def merge_cell_input(hru_cell_dict, elevation_cell_dict):
     cells[cell_id].update_cell_state()
   return cells
 
-def update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem):
+def update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem,
+                        glacier_thickness_threshold):
   """ Takes output Surface DEM from RGM and uses element-wise differencing 
     with the Bed DEM to form an updated glacier mask 
   """
@@ -325,7 +332,7 @@ def update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem):
     )
 
   glacier_mask = np.zeros((num_rows_dem, num_cols_dem))
-  glacier_mask[diffs > GLACIER_THICKNESS_THRESHOLD] = 1
+  glacier_mask[diffs > glacier_thickness_threshold] = 1
   return glacier_mask
 
 def bin_bands_and_glaciers(cells, cell_areas, vic_cell_mask, num_snow_bands,
