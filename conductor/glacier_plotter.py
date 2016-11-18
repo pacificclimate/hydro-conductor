@@ -54,7 +54,8 @@ class GlacierPlotter:
       self.fig.savefig(temp_files_path + 'dem_+_glacier_mask_+_thickness_' + \
         date, dpi=self.fig.dpi)
 
-  def update_plots(self, current_surf_dem, glacier_mask, bed_dem, date):
+  def update_plots(self, current_surf_dem, glacier_mask,
+                   glacier_thickness_threshold, bed_dem, date):
     self.surf_dem_plot_title = 'Surface DEM ' + date
     self.sub1.set_title(self.surf_dem_plot_title)
     self.img1.set_array(current_surf_dem)

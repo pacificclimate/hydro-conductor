@@ -506,7 +506,8 @@ error: %s', e)
       num_rows_dem, dem_xmin, dem_xmax, dem_ymin, dem_ymax)
 
     if output_plots:
-      figure.update_plots(current_surf_dem, glacier_mask, bed_dem, end.isoformat())
+      figure.update_plots(current_surf_dem, glacier_mask,
+                          glacier_thickness_threshold, bed_dem, end.isoformat())
 
     # Update HRU and band area fractions and state for all VIC grid cells
     logging.debug('Updating VIC grid cell area fractions and states')
