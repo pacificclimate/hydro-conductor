@@ -7,6 +7,7 @@
 
 import numpy as np
 import csv
+import netCDF4
 
 def get_rgm_pixel_mapping(pixel_map_file):
   """ Parses the RGM pixel to VIC grid cell mapping file and initialises a 2D
@@ -109,18 +110,14 @@ def read_state(state_in, cells):
     the most recent VIC run and updates the CellState and HruState object
     members of each cell.
   """
-  import netCDF4
+  num_lats = len(state_in['lat'])
   num_lons = len(state_in['lon'])
-  def get_2D_cell_indices(count):
-    """Returns the 2D lat/lon indices of the cell for accessing it from the
-      state file
-    """
-    return count // num_lons, count % num_lons
 
-  for cell_idx in range(0, len(cells)-1):
-    cell_lat_idx, cell_lon_idx = get_2D_cell_indices(cell_idx)
+  for cell_idx in range(0, num_lats*num_lons):
+    cell_lat_idx, cell_lon_idx = np.unravel_index(cell_idx, (num_lats, num_lons))
     cell_id = state_in['GRID_CELL'][cell_lat_idx][cell_lon_idx]
     cell_hru_idx = 0
+    # Skip dummy cells (found in non-rectangular domains)
     if cell_id != netCDF4.default_fillvals['i4']:
       cell_id = str(cell_id)
       # read all cell state variables
@@ -147,12 +144,8 @@ def write_state(cells, old_dataset, new_dataset, new_state_date):
     dynamic metadata, and the new state variable values from the CellState and
     HruState object members of each Cell object in cells.
   """
+  num_lats = len(old_dataset.variables['lat'])
   num_lons = len(old_dataset.variables['lon'])
-  def get_2D_cell_indices(count):
-    """Returns the 2D lat/lon indices of the cell for accessing it from the
-      state file
-    """
-    return count // num_lons, count % num_lons
 
   new_dataset.state_year = np.int32(new_state_date.year)
   new_dataset.state_month = np.int32(new_state_date.month)
@@ -176,25 +169,28 @@ def write_state(cells, old_dataset, new_dataset, new_state_date):
     new_var.setncatts({k: var.getncattr(k) for k in var.ncattrs()})
 
   state = new_dataset.variables
-  cell_idx = 0
-  for cell_id, cell in cells.items():
-    cell_lat_idx, cell_lon_idx = get_2D_cell_indices(cell_idx)
+  for cell_idx in range(0, num_lats*num_lons):
+    cell_lat_idx, cell_lon_idx = np.unravel_index(cell_idx, (num_lats, num_lons))
+    cell_id = old_dataset.variables['GRID_CELL'][cell_lat_idx][cell_lon_idx]
     cell_hru_idx = 0
-    # write all cell state variables
-    for variable in cell.cell_state.variables:
-      if variable == 'lat':
-        state[variable][cell_lat_idx] = cell.cell_state.variables[variable]
-      elif variable == 'lon':
-        state[variable][cell_lon_idx] = cell.cell_state.variables[variable]
-      else:
-        state[variable][cell_lat_idx, cell_lon_idx] = \
-          cell.cell_state.variables[variable]
-    for band in cell.bands:
-      # HRUs are sorted by ascending veg_type_num in VIC state file
-      for hru_veg_type in band.hru_keys_sorted:
-        # write all HRU state variables with dimensions (lat, lon, hru)
-        for variable in band.hrus[hru_veg_type].hru_state.variables:
-          state[variable][cell_lat_idx, cell_lon_idx, cell_hru_idx] = \
-            band.hrus[hru_veg_type].hru_state.variables[variable]
-        cell_hru_idx += 1
-    cell_idx += 1
+    # Skip dummy cells (found in non-rectangular domains)
+    if cell_id != netCDF4.default_fillvals['i4']:
+      cell_id = str(cell_id)
+      # write all cell state variables
+      for variable in cells[cell_id].cell_state.variables:
+        if variable == 'lat':
+          state[variable][cell_lat_idx] = cells[cell_id].cell_state.variables[variable]
+        elif variable == 'lon':
+          state[variable][cell_lon_idx] = cells[cell_id].cell_state.variables[variable]
+        else:
+          # print('writing CellState variable {} for cell {} (value = {})').format(variable, cell_id, cells[cell_id].cell_state.variables[variable])
+          state[variable][cell_lat_idx, cell_lon_idx] = \
+            cells[cell_id].cell_state.variables[variable]
+      for band in cells[cell_id].bands:
+        # HRUs are sorted by ascending veg_type_num in VIC state file
+        for hru_veg_type in band.hru_keys_sorted:
+          # write all HRU state variables with dimensions (lat, lon, hru)
+          for variable in band.hrus[hru_veg_type].hru_state.variables:
+            state[variable][cell_lat_idx, cell_lon_idx, cell_hru_idx] = \
+              band.hrus[hru_veg_type].hru_state.variables[variable]
+          cell_hru_idx += 1

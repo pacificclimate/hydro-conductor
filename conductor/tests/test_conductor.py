@@ -3,7 +3,7 @@ import numpy as np
 
 import pytest
 
-from vic_rgm_conductor import run_ranges
+from hydro_conductor import run_ranges
 
 @pytest.mark.parametrize(('start', 'end', 'glac', 'expected'), [
   # Simulation ends after the end of water year

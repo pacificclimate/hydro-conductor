@@ -1,7 +1,5 @@
 from pkg_resources import resource_filename
 
-#import pytest
-
 from conductor.vegparams import load_veg_parms
 
 def test_load_veg_parms():

@@ -494,6 +494,7 @@ error: %s', e)
     global_parms.init_state = new_state_file
     new_state_dataset = netCDF4.Dataset(new_state_file, 'w')
     write_state(cells, state_dataset, new_state_dataset, new_state_date)
+    logging.debug('Closing old and updated NetCDF state files.')
     state_dataset.close()
     new_state_dataset.close()
 
