@@ -63,9 +63,9 @@ def parse_input_parms():
     dest='init_glacier_mask_file', type=str, help='file name and path of the \
     file containing the initial glacier mask (GSA format)')
   parser.add_argument('--glacier-min-thickness', action='store',
-    dest='glacier_thickness_threshold', type=float, help='minimum thickness \
+    dest='glacier_thickness_threshold', type=float, default=2.0, help='minimum thickness \
     (meters) where snow on top of DEM is to be considered as glacier')
-  parser.add_argument('--trace-files', action='store_true', default=2.0,
+  parser.add_argument('--trace-files', action='store_true', default=False,
     dest='trace_files', help='write out persistent GSA format surface DEMs \
     and glacier masks, and 2D mass balance grid files, on each time step for \
     offline inspection')
