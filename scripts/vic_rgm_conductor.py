@@ -310,8 +310,6 @@ at these points and written out to the file %s.',\
   # Apply the initial glacier mask and modify the band and HRU area
   # fractions according to their digitized fractions of the DEM
   logging.debug('Applying initial band and HRU area fraction digitization.')
-  # update_area_fracs(cells, cell_areas, vic_cell_mask, num_snow_bands,
-  #   current_surf_dem, num_rows_dem, num_cols_dem, glacier_mask, update_state=False)
   band_areas, glacier_areas = bin_bands_and_glaciers(cells, cell_areas,
                                 vic_cell_mask, num_snow_bands, current_surf_dem,
                                 glacier_mask)
@@ -490,7 +488,7 @@ error: %s', e)
 
     # Update the VIC state file with new state information
     new_state_date = end + one_day
-    new_state_file = state_filename_prefix + '_' + new_state_date.isoformat() + '.nc'
+    new_state_file = state_filename_prefix + '_' + new_state_date.isoformat()
     logging.debug('Writing updated VIC state file %s', new_state_file)
     # Set the new state file name VIC will have to read in on next iteration
     global_parms.init_state = new_state_file
