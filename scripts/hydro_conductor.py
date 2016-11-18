@@ -357,8 +357,9 @@ at these points and written out to the file %s.',\
 
 # Display initial surface DEM and glacier mask
   if output_plots:
-    figure = GlacierPlotter(current_surf_dem, glacier_mask, bed_dem, \
-      global_parms.startdate.isoformat(), output_trace_files, temp_files_path)
+    figure = GlacierPlotter(current_surf_dem, glacier_mask, bed_dem,
+      global_parms.startdate.isoformat(), output_trace_files, temp_files_path,
+      glacier_thickness_threshold)
 
 #### Run the coupled VIC-RGM model for the time range specified in the VIC
   # global parameters file

@@ -1,13 +1,12 @@
 from matplotlib import pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-from conductor.conductor_params import GLACIER_THICKNESS_THRESHOLD
-
 class GlacierPlotter:
   def __init__(self, current_surf_dem, glacier_mask, bed_dem, date, \
-    output_trace_files, temp_files_path):
+    output_trace_files, temp_files_path, glacier_thickness_threshold):
     self.output_trace_files = output_trace_files
     self.temp_files_path = temp_files_path
+    self.glacier_thickness_threshold = glacier_thickness_threshold
 
     self.fig = plt.figure(figsize=(16,12))
     self.surf_dem_plot_title = 'Surface DEM ' + date
@@ -42,7 +41,7 @@ class GlacierPlotter:
     self.sub3.set_yticks([])
     self.sub3.get_axes().set_frame_on(True)
     self.img3 = self.sub3.imshow( \
-      current_surf_dem - GLACIER_THICKNESS_THRESHOLD - bed_dem)
+      current_surf_dem - glacier_thickness_threshold - bed_dem)
     self.sub3.invert_yaxis()
     self.divider3 = make_axes_locatable(plt.gca())
     self.cax3 = self.divider3.append_axes("right", size="5%", pad=0.05)
@@ -71,7 +70,7 @@ class GlacierPlotter:
     self.glacier_thickness_plot_title = 'Glacier Thickness ' + date
     self.sub3.set_title(self.glacier_thickness_plot_title)
     self.img3.set_array(\
-      current_surf_dem - GLACIER_THICKNESS_THRESHOLD - bed_dem)
+      current_surf_dem - glacier_thickness_threshold - bed_dem)
     plt.show(block=False)
     plt.pause(0.01)
 
