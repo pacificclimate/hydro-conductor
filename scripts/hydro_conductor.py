@@ -456,11 +456,8 @@ and writing to file %s', mbg_file)
       num_rows_dem, dem_xmin, dem_xmax, dem_ymin, dem_ymax)
     # Write modified surface DEM with all pixels lying outside of VIC
     # domain set equal to the bed DEM
-    if time_step == 0:
-      rgm_surf_dem_in_file = '/home/mfischer/vic_dev/input/peyto/hydrocon/peyto_200yr_surf_dem.gsa'
-    else:
-      rgm_surf_dem_in_file = temp_files_path + 'rgm_surf_dem_in_'\
-        + end.isoformat() + '.gsa'
+    rgm_surf_dem_in_file = temp_files_path + 'rgm_surf_dem_in_'\
+      + end.isoformat() + '.gsa'
     write_grid_to_gsa_file(current_surf_dem, rgm_surf_dem_in_file, num_cols_dem,\
       num_rows_dem, dem_xmin, dem_xmax, dem_ymin, dem_ymax)
 
