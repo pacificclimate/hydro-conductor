@@ -50,7 +50,8 @@ def mass_balances_to_rgm_grid(gmb_polys, vic_cell_mask, surf_dem, bed_dem, \
     grid to use as one of the inputs to RGM
   """
   mass_balance_grid = np.ma.empty(vic_cell_mask.shape)
-  mass_balance_grid[np.where(vic_cell_mask.mask)] = 0
+  #mass_balance_grid[np.where(vic_cell_mask.mask)] = 0
+  mass_balance_grid[np.where(vic_cell_mask.mask)] = -1
   try:
     for row in range(num_rows_dem):
       for col in range(num_cols_dem):

@@ -19,8 +19,9 @@ from time import strftime
 
 from conductor.file_io import get_rgm_pixel_mapping, read_gsa_headers,\
   write_grid_to_gsa_file, mass_balances_to_rgm_grid, read_state, write_state
-from conductor.cells import Cell, Band, HydroResponseUnit, merge_cell_input, \
-  bin_bands_and_glaciers, digitize_domain, update_glacier_mask, update_area_fracs
+from conductor.cells import Cell, Band, HydroResponseUnit, \
+  apply_custom_root_zone_parms, merge_cell_input, bin_bands_and_glaciers, \
+  digitize_domain, update_glacier_mask, update_area_fracs
 from conductor.snbparams import load_snb_parms, save_snb_parms
 from conductor.vegparams import load_veg_parms, save_veg_parms
 from conductor.vic_globals import Global
@@ -246,7 +247,7 @@ Assuming default value of {}.'.format(Band.glacier_id))
 
   # Apply custom HRU root_zone_parms attributes, if provided
   if glacier_root_zone_parms or open_ground_root_zone_parms:
-    cells.apply_custom_root_zone_parms(hru_cell_dict, glacier_root_zone_parms,\
+    apply_custom_root_zone_parms(hru_cell_dict, glacier_root_zone_parms,\
       open_ground_root_zone_parms)
     Band.glacier_root_zone_parms = glacier_root_zone_parms
     Band.open_ground_root_zone_parms = open_ground_root_zone_parms

@@ -55,6 +55,7 @@ def save_veg_parms(cells, filename):
     for cell_id, cell in cells.items():
       writer.writerow( [ cell_id, sum([band.num_hrus for band in cell.bands]) ] )
       for band_id, band in enumerate(cell.bands):
-        for veg_type, hru in band.hrus.items():
-          line = [veg_type, hru.area_frac] + hru.root_zone_parms + [ band_id ]
+        for hru_veg_type in band.hru_keys_sorted:
+          line = [hru_veg_type, band.hrus[hru_veg_type].area_frac] + band.hrus[hru_veg_type].root_zone_parms \
+                 + [ band_id ]
           writer.writerow(line)
