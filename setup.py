@@ -13,7 +13,7 @@ setup(
     author_email="mfischer@uvic.ca",
     install_requires = ['numpy', 'netCDF4'],
     tests_require = ['pytest', 'mock'],
-    scripts = ['scripts/vic_rgm_conductor.py'],
+    scripts = ['scripts/hydro_conductor.py'],
     package_data = {'conductor': ['tests/input/global.txt',
                                   'tests/input/snow_band.txt',
                                   'tests/input/veg.txt',
