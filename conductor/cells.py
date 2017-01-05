@@ -587,10 +587,11 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
       band.hrus[Band.glacier_id],
       '3', **new_area_fracs)
   elif new_glacier_area_frac[band_id] == 0 and band.area_frac_glacier > 0 \
-          and new_band_area_frac[band_id] > 0 and band.area_frac > 0:
-    # CASE 4a: Glacier HRU has disappeared, but the band remains
-    # (implies open ground HRU is expanding). Add state to open ground
-    # HRU (leave the zero area "shadow glacier" HRU in place for VIC).
+          and new_band_area_frac[band_id] > 0 and band.area_frac > 0 \
+          and new_open_ground_area_frac[band_id] > 0:
+    # CASE 4a: Glacier HRU has disappeared, but the band with
+    # an open ground HRU remains. Add state to open ground HRU
+    # (leave the zero area "shadow glacier" HRU in place for VIC).
     logging.debug('State update CASE 4a identified. Glacier has '
       'disappeared. Transferring state to the OPEN GROUND HRU in this band.')
     new_area_fracs = {
@@ -603,6 +604,26 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
       band.hrus[Band.glacier_id],
       band.hrus[Band.open_ground_id],
       '4a', **new_area_fracs)
+  elif new_glacier_area_frac[band_id] == 0 and band.area_frac_glacier > 0 \
+          and new_band_area_frac[band_id] > 0 and band.area_frac > 0 \
+          and new_open_ground_area_frac[band_id] == 0:
+    # CASE 4c: Both glacier and open ground HRU have disappeared, but
+    # the band remains. Add state to the vegetated HRU with non-zero
+    # area_frac and the greatest vegetation type index in that band
+    # (leave the zero area "shadow glacier" HRU in place for VIC).
+    valid_vegetated_hrus = list(filter(lambda x: x[1] > 0,
+                            new_hru_area_frac[str(band_id)].items()))
+    max_veg_type = max(valid_vegetated_hrus)[0]
+    logging.debug('State update CASE 4c identified. Both glacier and open '
+      'ground HRUs have disappeared. Transferring state to the VEGETATED HRU '
+      '%s in this band.', max_veg_type)
+    new_area_fracs = {
+      'new_hru_area_frac': new_hru_area_frac[str(band_id)][str(max_veg_type)]
+    }
+    update_hru_state(
+      band.hrus[Band.glacier_id],
+      cell.bands[band_id].hrus[int(max_veg_type)],
+      '4c', **new_area_fracs)
   elif new_glacier_area_frac[band_id] == 0 and band.area_frac_glacier > 0 \
           and new_band_area_frac[band_id] == 0 and band.area_frac != 0 \
           and (band_id - 1) >= 0 \
