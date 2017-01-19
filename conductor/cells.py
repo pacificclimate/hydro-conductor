@@ -264,6 +264,8 @@ spec_2_vars = ['LAYER_ICE_CONTENT', 'LAYER_MOIST',\
   'SNOW_PACK_WATER', 'SNOW_SURF_WATER', 'SNOW_SWQ',\
   'SNOW_PACK_TEMP', 'SNOW_SURF_TEMP']
 
+spec_2b_vars = ['SNOW_SURF_TEMP'] # Special cases for spec 2
+
 spec_3_vars = ['SNOW_DENSITY']
 
 spec_4_vars = ['GLAC_WATER_STORAGE']
@@ -490,8 +492,11 @@ def update_area_fracs(cells, cell_areas, vic_cell_mask, num_snow_bands,
             if str(band_id) not in new_hru_area_frac:
               new_hru_area_frac[str(band_id)] = {}
               delta_area_hru[str(band_id)] = {}
-            delta_area_hru[str(band_id)][str(veg_type)] = delta_area_vegetated[band_id] * \
-              (band.hrus[veg_type].area_frac / veg_scaling_divisor[band_id])
+            if veg_scaling_divisor[band_id] != 0:
+              delta_area_hru[str(band_id)][str(veg_type)] = delta_area_vegetated[band_id] * \
+                (band.hrus[veg_type].area_frac / veg_scaling_divisor[band_id])
+            else:
+              delta_area_hru[str(band_id)][str(veg_type)] = 0
             new_hru_area_frac[str(band_id)][str(veg_type)] = \
               band.hrus[veg_type].area_frac + delta_area_hru[str(band_id)][str(veg_type)]
             if isclose(new_hru_area_frac[str(band_id)][str(veg_type)], 0, abs_tol=ZERO_AREA_FRAC_TOL):
@@ -1097,20 +1102,23 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
   elif case == '3':
     for var in source_hru.hru_state.variables:
       if var in spec_2_vars:
-        if type(source_hru.hru_state.variables[var]) == np.ndarray:
-          for layer_idx, layer in enumerate(source_hru.hru_state.variables[var]):
-            if type(source_hru.hru_state.variables[var][layer_idx]) == np.ndarray:
-              for item_idx, item in enumerate(source_hru.hru_state.variables[var][layer_idx]):
-                dest_hru.hru_state.variables[var][layer_idx][item_idx] \
-                = source_hru.hru_state.variables[var][layer_idx][item_idx] \
-                * (source_hru.area_frac / kwargs['new_hru_area_frac'])
-            else:
-              dest_hru.hru_state.variables[var][layer_idx] \
-              = source_hru.hru_state.variables[var][layer_idx] \
-              * (source_hru.area_frac / kwargs['new_hru_area_frac'])
+        if var in spec_2b_vars: # SNOW_SURF_TEMP
+          dest_hru.hru_state.variables[var] = source_hru.hru_state.variables[var]
         else:
-          dest_hru.hru_state.variables[var] = source_hru.hru_state.variables[var] \
-          * (source_hru.area_frac / kwargs['new_hru_area_frac'])
+          if type(source_hru.hru_state.variables[var]) == np.ndarray:
+            for layer_idx, layer in enumerate(source_hru.hru_state.variables[var]):
+              if type(source_hru.hru_state.variables[var][layer_idx]) == np.ndarray:
+                for item_idx, item in enumerate(source_hru.hru_state.variables[var][layer_idx]):
+                  dest_hru.hru_state.variables[var][layer_idx][item_idx] \
+                  = source_hru.hru_state.variables[var][layer_idx][item_idx] \
+                  * (source_hru.area_frac / kwargs['new_hru_area_frac'])
+              else:
+                dest_hru.hru_state.variables[var][layer_idx] \
+                = source_hru.hru_state.variables[var][layer_idx] \
+                * (source_hru.area_frac / kwargs['new_hru_area_frac'])
+          else:
+            dest_hru.hru_state.variables[var] = source_hru.hru_state.variables[var] \
+            * (source_hru.area_frac / kwargs['new_hru_area_frac'])
       elif var in spec_3_vars: # SNOW_DENSITY
         if dest_hru.hru_state.variables['SNOW_DEPTH'] > 0: # avoid division by zero
           dest_hru.hru_state.variables[var] \

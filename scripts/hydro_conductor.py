@@ -217,11 +217,11 @@ Assuming default value of {}.'.format(Band.glacier_id))
   # FIXME: reinstate the following commented-out code once OPEN_GROUND_ID
   # is supported in VIC
   # Numeric code indicating an open ground vegetation tile (HRU)
-  # if global_parms.open_ground_id is None:
-  #     print('No value for OPEN_GROUND_ID was provided in the VIC global file.
-  # Assuming default value of {}.'.format(Band.open_ground_id))
-  # else:
-  #     Band.open_ground_id = global_parms.open_ground_id
+  if global_parms.open_ground_id is None:
+      print('No value for OPEN_GROUND_ID was provided in the VIC global file. \
+  Assuming default value of {}.'.format(Band.open_ground_id))
+  else:
+      Band.open_ground_id = global_parms.open_ground_id
 
   # Set custom elevation band size, if provided
   if band_size:
