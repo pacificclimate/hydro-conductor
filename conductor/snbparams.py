@@ -73,7 +73,7 @@ def load_snb_parms(snb_file, num_snow_bands):
       #       .format(len(split_line), snb_file, num_snow_bands)
       #   )
       # elevs = [ int(z) for z in split_line[num_snow_bands+1:] ] 
-      elevs = [ int(z) for z in split_line[num_snow_bands+1:2*num_snow_bands+1] ] 
+      elevs = [ int(float(z)) for z in split_line[num_snow_bands+1:2*num_snow_bands+1] ] 
 
       # Assign median (floor) elevations to 0-pad-derived dummy bands
       elevs = assign_dummy_band_elevations(elevs)
