@@ -415,7 +415,10 @@ def digitize_domain(cells, cell_areas, band_areas, glacier_areas):
         old_residual_area_frac = band.area_frac - band.area_frac_glacier
         new_band_area_frac = band_areas[cell_id][band_id] / cell_areas[cell_id]
         new_residual_area_frac = new_band_area_frac - glacier_areas[cell_id][band_id] / cell_areas[cell_id]
-        digitizing_scale_factor = new_residual_area_frac / old_residual_area_frac
+        if old_residual_area_frac != 0:
+          digitizing_scale_factor = new_residual_area_frac / old_residual_area_frac
+        else:
+          digitizing_scale_factor = 1
         for veg_type, hru in band.hrus.items():
           if veg_type is not Band.glacier_id:
             band.hrus[veg_type].area_frac = band.hrus[veg_type].area_frac * digitizing_scale_factor
