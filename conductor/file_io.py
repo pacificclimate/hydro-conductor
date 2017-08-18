@@ -61,8 +61,6 @@ def mass_balances_to_rgm_grid(gmb_polys, vic_cell_mask, surf_dem, bed_dem, \
           median_elev = surf_dem[row][col]
           mass_balance_grid[row][col] = gmb_polys[cell_id][0] + median_elev \
             * (gmb_polys[cell_id][1] + median_elev * gmb_polys[cell_id][2])
-        else:
-          surf_dem[row][col] = bed_dem[row][col]
   except Exception as e:
     print('mass_balances_to_rgm_grid: Exception while processing pixel at \
 row {} column {}: \n{}'.format(row, col, e))
