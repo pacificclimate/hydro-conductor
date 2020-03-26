@@ -143,8 +143,8 @@ def large_merge_cells_unit_test_parms():
   elevation_cells = load_snb_parms(fname, 15)
   fname = resource_filename('conductor', 'tests/input/veg.txt')
   hru_cells = load_veg_parms(fname)
-  expected_zs = [ 2076, 2159, 2264, 2354, 2451, 2550, 2620, 2714, 2802, 2900,\
-    3000, 3100, 3200, 3300, 3400 ]
+  expected_zs = [ 2076, 2159, 2264, 2354, 2451, 2550, 2620, 2714, 2802, 2950,\
+    3050, 3150, 3250, 3350, 3450 ]
   expected_afs = { 0.000765462339, 0.000873527611, 0.009125511809,\
     0.009314626034, 0.004426673711, 0.004558753487, 0.001388838859, 0.000737445417 }
 

@@ -24,7 +24,7 @@ ZERO_AREA_FRAC_TOL = 0.00001
 
 # This is necessary pre-Python 3.5, after which point use math.isclose()
 def isclose(a, b, rel_tol=1e-09, abs_tol=0.0):
-    return abs(a-b) <= max(rel_tol * max(abs(a), abs(b)), abs_tol)
+    return abs(a-b) < max(rel_tol * max(abs(a), abs(b)), abs_tol)
 
 class Cell(object):
   """Class capturing VIC cells
@@ -380,7 +380,7 @@ def bin_bands_and_glaciers(cells, cell_areas, vic_cell_mask, num_snow_bands,
       band_pixels = flat_dem[np.where((flat_dem >= band.lower_bound) & \
                                       (flat_dem < band.upper_bound))]
       if not band_pixels.size:  # if there are no pixels in this band
-        band.median_elev = band.lower_bound
+        band.median_elev = band.lower_bound + band.band_size/2
       else:
         band.median_elev = np.median(band_pixels)
 
@@ -1080,7 +1080,7 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
   # If the band has no current area fraction within the cell, set the
   # median elevation to the floor of the range
   if band.area_frac == 0:
-    band.median_elev = band.lower_bound
+    band.median_elev = band.lower_bound + band.band_size/2
 
   logging.debug('Finished state update for band %s.', band_id)
 

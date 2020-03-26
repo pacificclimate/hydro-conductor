@@ -717,7 +717,7 @@ class TestsAreaFracUpdate:
 
       assert cells['23456'].bands[0].num_hrus == 0 # we delete open ground HRUs
       assert cells['23456'].bands[0].lower_bound == 1800
-      assert cells['23456'].bands[0].median_elev == 1800
+      assert cells['23456'].bands[0].median_elev == 1850
       assert cells['23456'].bands[0].area_frac == 0
       assert cells['23456'].bands[0].area_frac_open_ground == 0
       assert cells['23456'].bands[0].area_frac_glacier == 0
@@ -903,7 +903,7 @@ the zero padding to accommodate this.' in str(message.value)
       # we never delete glacier HRUs, vis-a-vis VIC's shadow glaciers:
       assert cells['23456'].bands[0].num_hrus == 1
       assert cells['23456'].bands[0].lower_bound == 1800
-      assert cells['23456'].bands[0].median_elev == 1800
+      assert cells['23456'].bands[0].median_elev == 1850
       assert cells['23456'].bands[0].area_frac == 0
       assert cells['23456'].bands[0].area_frac_open_ground == 0
       assert cells['23456'].bands[0].area_frac_glacier == 0
@@ -1156,14 +1156,14 @@ the zero padding to accommodate this.' in str(message.value)
       # we never delete glacier HRUs, vis-a-vis VIC's shadow glaciers:
       assert cells['23456'].bands[0].num_hrus == 1
       assert cells['23456'].bands[0].lower_bound == 1800
-      assert cells['23456'].bands[0].median_elev == 1800
+      assert cells['23456'].bands[0].median_elev == 1850
       assert cells['23456'].bands[0].area_frac == 0
       assert cells['23456'].bands[0].area_frac_open_ground == 0
       assert cells['23456'].bands[0].area_frac_glacier == 0
 
       assert cells['23456'].bands[1].num_hrus == 1
       assert cells['23456'].bands[1].lower_bound == 1900
-      assert cells['23456'].bands[1].median_elev == 1900
+      assert cells['23456'].bands[1].median_elev == 1950
       assert cells['23456'].bands[1].area_frac == 0
       assert cells['23456'].bands[1].area_frac_open_ground == 0
       assert cells['23456'].bands[1].area_frac_glacier == 0
