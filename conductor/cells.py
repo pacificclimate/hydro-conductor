@@ -21,6 +21,8 @@ CH_ICE = 2100E+03
 # TODO: this is probably redundant since we use 1/cell_areas[cell_id]
 # for determining the minimum possible non-zero area fraction
 ZERO_AREA_FRAC_TOL = 0.00001
+# Absolute tolerance under which DEM differences are considered zero
+DEM_DIFF_TOL = 0.0001
 
 # This is necessary pre-Python 3.5, after which point use math.isclose()
 def isclose(a, b, rel_tol=1e-09, abs_tol=0.0):
@@ -256,8 +258,7 @@ class HruState(object):
 # Note that the order of variables within the follow lists matters in some
 # cases, where the updated value of variable is derived from the updated
 # value of another.
-spec_1_vars = ['SOIL_DZ_NODE', 'SOIL_ZSUM_NODE',\
-  'VEG_TYPE_NUM']
+spec_1_vars = ['SOIL_DZ_NODE', 'SOIL_ZSUM_NODE', 'VEG_TYPE_NUM']
 
 spec_2_vars = ['LAYER_ICE_CONTENT', 'LAYER_MOIST',\
   'HRU_VEG_VAR_WDEW', 'SNOW_CANOPY', 'SNOW_DEPTH',\
@@ -328,10 +329,16 @@ def update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem,
   """
   diffs = surf_dem - bed_dem
   if np.any(diffs < 0):
-    raise Exception(
-      'update_glacier_mask: Error: Subtraction of Bed DEM from the output \
-      Surface DEM of RGM produced one or more negative values.'
-    )
+    if np.any(diffs < -DEM_DIFF_TOL):
+      raise Exception(
+        'update_glacier_mask: Error: Subtraction of Bed DEM from the output '
+        'Surface DEM of RGM produced one or more negative values.'
+      )
+    neg_val_inds = np.where(diffs < 0)
+    num_neg_vals = len(neg_val_inds[0])
+    logging.warning('Subtraction of Bed DEM from the output Surface DEM '
+                    'of RGM produced {} small (<{}m) negative values.'\
+                    .format(num_neg_vals,DEM_DIFF_TOL))
 
   glacier_mask = np.zeros((num_rows_dem, num_cols_dem))
   glacier_mask[diffs > glacier_thickness_threshold] = 1
@@ -411,10 +418,16 @@ def digitize_domain(cells, cell_areas, band_areas, glacier_areas):
   '''
   for cell_id, cell in cells.items():
     for band_id, band in enumerate(cell.bands):
-      if band.area_frac > 0:
+      new_band_area_frac = band_areas[cell_id][band_id] / cell_areas[cell_id]
+      new_residual_area_frac = new_band_area_frac - glacier_areas[cell_id][band_id] / cell_areas[cell_id]
+      if band.area_frac == 0:
+        if new_band_area_frac > 0:
+          # new band, therefore need create open_ground and glacier HRUs
+          band.create_hru(band_id, band.open_ground_id, new_residual_area_frac)
+          if new_residual_area_frac != new_band_area_frac:
+            band.create_hru(band_id, band.glacier_id, new_band_area_frac - new_residual_area_frac)
+      else:
         old_residual_area_frac = band.area_frac - band.area_frac_glacier
-        new_band_area_frac = band_areas[cell_id][band_id] / cell_areas[cell_id]
-        new_residual_area_frac = new_band_area_frac - glacier_areas[cell_id][band_id] / cell_areas[cell_id]
         if old_residual_area_frac != 0:
           digitizing_scale_factor = new_residual_area_frac / old_residual_area_frac
         else:
