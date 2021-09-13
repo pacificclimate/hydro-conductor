@@ -31,7 +31,7 @@ def isclose(a, b, rel_tol=1e-09, abs_tol=0.0):
 class Cell(object):
   """Class capturing VIC cells
   """
-  # Dimensions Nlayers, Nnodes, dist, and NglacMassBalanceEqnTerms 
+  # Dimensions Nlayers, Nnodes, dist, and NglacMassBalanceEqnTerms
   # are defined on a *per-run* basis
   Nlayers = 3
   Nnodes = 3
@@ -82,7 +82,7 @@ class Band(object):
   """Class capturing VIC cell parameters at the elevation band level
     (aka "snow band")
   """
-  # glacier_id and open_ground_id, glacier_root_zone_parms, 
+  # glacier_id and open_ground_id, glacier_root_zone_parms,
   # open_ground_root_zone_parms, and band_size are defined on a *per-run*
   # basis.
   glacier_id = 22
@@ -117,7 +117,7 @@ class Band(object):
     return len(self.hrus)
 
   @property
-  def area_frac(self): 
+  def area_frac(self):
     """The Band area fraction, equal to the sum of HRU area fractions within
       this band, which should be equal to the total area fraction of the band
       as represented in the Snow Band Parameters file (initial conditions)
@@ -241,7 +241,7 @@ class HruState(object):
       ('SNOW_TMP_INT_STORAGE', 0),
       ('SNOW_VAPOR_FLUX', 0)
     ])
-    
+
   def __repr__(self):
     return '{} (\n  '.format(self.__class__.__name__) + ' \n  '\
       .join([': '.join([key, str(value)]) \
@@ -302,7 +302,7 @@ def merge_cell_input(hru_cell_dict, elevation_cell_dict):
     vegparams.load_veg_parms() with the list of Bands loaded at start-up via
     snbparams.load_snb_parms() into one unified structure capturing all VIC
     cells' initial properties (but not state).
-  """ 
+  """
   missing_keys = hru_cell_dict.keys() ^ elevation_cell_dict.keys()
   if missing_keys:
     raise Exception("One or more cell IDs were found in one input file,"
@@ -324,7 +324,7 @@ def merge_cell_input(hru_cell_dict, elevation_cell_dict):
 
 def update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem,
                         glacier_thickness_threshold):
-  """ Takes output Surface DEM from RGM and uses element-wise differencing 
+  """ Takes output Surface DEM from RGM and uses element-wise differencing
     with the Bed DEM to form an updated glacier mask 
   """
   diffs = surf_dem - bed_dem
@@ -437,6 +437,15 @@ def digitize_domain(cells, cell_areas, band_areas, glacier_areas):
             band.hrus[veg_type].area_frac = band.hrus[veg_type].area_frac * digitizing_scale_factor
           elif veg_type is Band.glacier_id:
             band.hrus[veg_type].area_frac = new_band_area_frac - new_residual_area_frac
+        # In certain cases if the old band is composed of only a single glacier HRU
+        # (i.e. old_residual_area_frac == 0) which 'shrinks' or 'disappear' after binning,
+        # band.area_frac becomes less than new_band_area_frac by an amount equal to
+        # new_residual_area_frac
+        if band.area_frac < new_band_area_frac:
+          if band.num_hrus == 1:
+            if band.hru_keys_sorted[0] == Band.glacier_id:
+              # need to add open_ground HRU
+              band.create_hru(band_id, band.open_ground_id, new_residual_area_frac)
 
 def update_area_fracs(cells, cell_areas, vic_cell_mask, num_snow_bands,
   surf_dem, glacier_mask):
