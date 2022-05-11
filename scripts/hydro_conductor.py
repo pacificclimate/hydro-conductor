@@ -396,11 +396,11 @@ at these points and written out to the file %s.',\
     # Run VIC for a year, saving model state at the end
     print('\nRunning VIC from {} to {}'.format(start, end))
     logging.info('\nRunning VIC from %s to %s using global parameter file %s', start, end, temp_gpf)
-    #try:
-    #  subprocess.check_call([vic_path, "-g", temp_gpf], shell=False, stderr=subprocess.STDOUT)
-    #except subprocess.CalledProcessError as e:
-    #  logging.error('Subprocess invocation of VIC failed with the following error: %s', e)
-    #  sys.exit(0)
+    try:
+      subprocess.check_call([vic_path, "-g", temp_gpf], shell=False, stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as e:
+      logging.error('Subprocess invocation of VIC failed with the following error: %s', e)
+      sys.exit(0)
 
     # Open VIC NetCDF state file and load the most recent set of state
     # variable values for all grid cells being modeled
