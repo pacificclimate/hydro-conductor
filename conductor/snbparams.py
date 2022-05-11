@@ -46,11 +46,12 @@ def load_snb_parms(snb_file, num_snow_bands):
         rightmost_floor = elev - elev % Band.band_size
         break
     elevs.reverse()
-    left_fills = list(range((leftmost_floor - left_pads*Band.band_size),\
-      leftmost_floor, Band.band_size ))
-    right_fills = list(range((rightmost_floor + Band.band_size),\
-      (rightmost_floor + right_pads*Band.band_size + Band.band_size),\
-      Band.band_size ))
+    left_fills = list(range((leftmost_floor - left_pads*Band.band_size + int(Band.band_size/2)),
+                            leftmost_floor,
+                            Band.band_size))
+    right_fills = list(range((rightmost_floor + Band.band_size + int(Band.band_size/2)),
+                             (rightmost_floor + right_pads*Band.band_size + Band.band_size),
+                             Band.band_size))
     elevs[0:len(left_fills)] = left_fills
     elevs[elevs.index(0):] = right_fills
     return elevs
@@ -73,7 +74,7 @@ def load_snb_parms(snb_file, num_snow_bands):
       #       .format(len(split_line), snb_file, num_snow_bands)
       #   )
       # elevs = [ int(z) for z in split_line[num_snow_bands+1:] ] 
-      elevs = [ int(z) for z in split_line[num_snow_bands+1:2*num_snow_bands+1] ] 
+      elevs = [ int(float(z)) for z in split_line[num_snow_bands+1:2*num_snow_bands+1] ] 
 
       # Assign median (floor) elevations to 0-pad-derived dummy bands
       elevs = assign_dummy_band_elevations(elevs)

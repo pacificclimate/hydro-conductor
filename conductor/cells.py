@@ -21,15 +21,17 @@ CH_ICE = 2100E+03
 # TODO: this is probably redundant since we use 1/cell_areas[cell_id]
 # for determining the minimum possible non-zero area fraction
 ZERO_AREA_FRAC_TOL = 0.00001
+# Absolute tolerance under which DEM differences are considered zero
+DEM_DIFF_TOL = 0.0001
 
 # This is necessary pre-Python 3.5, after which point use math.isclose()
 def isclose(a, b, rel_tol=1e-09, abs_tol=0.0):
-    return abs(a-b) <= max(rel_tol * max(abs(a), abs(b)), abs_tol)
+    return abs(a-b) < max(rel_tol * max(abs(a), abs(b)), abs_tol)
 
 class Cell(object):
   """Class capturing VIC cells
   """
-  # Dimensions Nlayers, Nnodes, dist, and NglacMassBalanceEqnTerms 
+  # Dimensions Nlayers, Nnodes, dist, and NglacMassBalanceEqnTerms
   # are defined on a *per-run* basis
   Nlayers = 3
   Nnodes = 3
@@ -80,7 +82,7 @@ class Band(object):
   """Class capturing VIC cell parameters at the elevation band level
     (aka "snow band")
   """
-  # glacier_id and open_ground_id, glacier_root_zone_parms, 
+  # glacier_id and open_ground_id, glacier_root_zone_parms,
   # open_ground_root_zone_parms, and band_size are defined on a *per-run*
   # basis.
   glacier_id = 22
@@ -115,7 +117,7 @@ class Band(object):
     return len(self.hrus)
 
   @property
-  def area_frac(self): 
+  def area_frac(self):
     """The Band area fraction, equal to the sum of HRU area fractions within
       this band, which should be equal to the total area fraction of the band
       as represented in the Snow Band Parameters file (initial conditions)
@@ -239,7 +241,7 @@ class HruState(object):
       ('SNOW_TMP_INT_STORAGE', 0),
       ('SNOW_VAPOR_FLUX', 0)
     ])
-    
+
   def __repr__(self):
     return '{} (\n  '.format(self.__class__.__name__) + ' \n  '\
       .join([': '.join([key, str(value)]) \
@@ -256,13 +258,14 @@ class HruState(object):
 # Note that the order of variables within the follow lists matters in some
 # cases, where the updated value of variable is derived from the updated
 # value of another.
-spec_1_vars = ['SOIL_DZ_NODE', 'SOIL_ZSUM_NODE',\
-  'VEG_TYPE_NUM']
+spec_1_vars = ['SOIL_DZ_NODE', 'SOIL_ZSUM_NODE', 'VEG_TYPE_NUM']
 
 spec_2_vars = ['LAYER_ICE_CONTENT', 'LAYER_MOIST',\
   'HRU_VEG_VAR_WDEW', 'SNOW_CANOPY', 'SNOW_DEPTH',\
   'SNOW_PACK_WATER', 'SNOW_SURF_WATER', 'SNOW_SWQ',\
   'SNOW_PACK_TEMP', 'SNOW_SURF_TEMP']
+
+spec_2b_vars = ['SNOW_SURF_TEMP'] # Special cases for spec 2
 
 spec_3_vars = ['SNOW_DENSITY']
 
@@ -289,9 +292,9 @@ def apply_custom_root_zone_parms(hru_cell_dict, glacier_root_zone_parms,\
   """
   for cell in hru_cell_dict.keys():
     for key in hru_cell_dict[cell]:
-      if glacier_root_zone_parms and (key[1] == global_parms.glacier_id):
+      if glacier_root_zone_parms and (key[1] == Band.glacier_id):
         hru_cell_dict[cell][key].root_zone_parms = glacier_root_zone_parms
-      if open_ground_root_zone_parms and (key[1] == global_parms.open_ground_id):
+      if open_ground_root_zone_parms and (key[1] == Band.open_ground_id):
         hru_cell_dict[cell][key].root_zone_parms = open_ground_root_zone_parms
 
 def merge_cell_input(hru_cell_dict, elevation_cell_dict):
@@ -299,7 +302,7 @@ def merge_cell_input(hru_cell_dict, elevation_cell_dict):
     vegparams.load_veg_parms() with the list of Bands loaded at start-up via
     snbparams.load_snb_parms() into one unified structure capturing all VIC
     cells' initial properties (but not state).
-  """ 
+  """
   missing_keys = hru_cell_dict.keys() ^ elevation_cell_dict.keys()
   if missing_keys:
     raise Exception("One or more cell IDs were found in one input file,"
@@ -321,15 +324,21 @@ def merge_cell_input(hru_cell_dict, elevation_cell_dict):
 
 def update_glacier_mask(surf_dem, bed_dem, num_rows_dem, num_cols_dem,
                         glacier_thickness_threshold):
-  """ Takes output Surface DEM from RGM and uses element-wise differencing 
+  """ Takes output Surface DEM from RGM and uses element-wise differencing
     with the Bed DEM to form an updated glacier mask 
   """
   diffs = surf_dem - bed_dem
   if np.any(diffs < 0):
-    raise Exception(
-      'update_glacier_mask: Error: Subtraction of Bed DEM from the output \
-      Surface DEM of RGM produced one or more negative values.'
-    )
+    if np.any(diffs < -DEM_DIFF_TOL):
+      raise Exception(
+        'update_glacier_mask: Error: Subtraction of Bed DEM from the output '
+        'Surface DEM of RGM produced one or more negative values.'
+      )
+    neg_val_inds = np.where(diffs < 0)
+    num_neg_vals = len(neg_val_inds[0])
+    logging.warning('Subtraction of Bed DEM from the output Surface DEM '
+                    'of RGM produced {} small (<{}m) negative values.'\
+                    .format(num_neg_vals,DEM_DIFF_TOL))
 
   glacier_mask = np.zeros((num_rows_dem, num_cols_dem))
   glacier_mask[diffs > glacier_thickness_threshold] = 1
@@ -378,7 +387,7 @@ def bin_bands_and_glaciers(cells, cell_areas, vic_cell_mask, num_snow_bands,
       band_pixels = flat_dem[np.where((flat_dem >= band.lower_bound) & \
                                       (flat_dem < band.upper_bound))]
       if not band_pixels.size:  # if there are no pixels in this band
-        band.median_elev = band.lower_bound
+        band.median_elev = band.lower_bound + band.band_size/2
       else:
         band.median_elev = np.median(band_pixels)
 
@@ -409,13 +418,34 @@ def digitize_domain(cells, cell_areas, band_areas, glacier_areas):
   '''
   for cell_id, cell in cells.items():
     for band_id, band in enumerate(cell.bands):
-      if band.area_frac > 0:
+      new_band_area_frac = band_areas[cell_id][band_id] / cell_areas[cell_id]
+      new_residual_area_frac = new_band_area_frac - glacier_areas[cell_id][band_id] / cell_areas[cell_id]
+      if band.area_frac == 0:
+        if new_band_area_frac > 0:
+          # new band, therefore need create open_ground and glacier HRUs
+          band.create_hru(band_id, band.open_ground_id, new_residual_area_frac)
+          if new_residual_area_frac != new_band_area_frac:
+            band.create_hru(band_id, band.glacier_id, new_band_area_frac - new_residual_area_frac)
+      else:
         old_residual_area_frac = band.area_frac - band.area_frac_glacier
-        new_band_area_frac = band_areas[cell_id][band_id] / cell_areas[cell_id]
-        new_residual_area_frac = new_band_area_frac - glacier_areas[cell_id][band_id] / cell_areas[cell_id]
-        digitizing_scale_factor = new_residual_area_frac / old_residual_area_frac
+        if old_residual_area_frac != 0:
+          digitizing_scale_factor = new_residual_area_frac / old_residual_area_frac
+        else:
+          digitizing_scale_factor = 1
         for veg_type, hru in band.hrus.items():
-          band.hrus[veg_type].area_frac = band.hrus[veg_type].area_frac * digitizing_scale_factor
+          if veg_type is not Band.glacier_id:
+            band.hrus[veg_type].area_frac = band.hrus[veg_type].area_frac * digitizing_scale_factor
+          elif veg_type is Band.glacier_id:
+            band.hrus[veg_type].area_frac = new_band_area_frac - new_residual_area_frac
+        # In certain cases if the old band is composed of only a single glacier HRU
+        # (i.e. old_residual_area_frac == 0) which 'shrinks' or 'disappear' after binning,
+        # band.area_frac becomes less than new_band_area_frac by an amount equal to
+        # new_residual_area_frac
+        if band.area_frac < new_band_area_frac:
+          if band.num_hrus == 1:
+            if band.hru_keys_sorted[0] == Band.glacier_id:
+              # need to add open_ground HRU
+              band.create_hru(band_id, band.open_ground_id, new_residual_area_frac)
 
 def update_area_fracs(cells, cell_areas, vic_cell_mask, num_snow_bands,
   surf_dem, glacier_mask):
@@ -481,17 +511,22 @@ def update_area_fracs(cells, cell_areas, vic_cell_mask, num_snow_bands,
         delta_area_vegetated[band_id] = np.min([0, (band.area_frac_open_ground
           + new_residual_area_frac)])
 
-        for veg_type, hru in band.hrus.items():
-          if veg_type is not Band.glacier_id and veg_type is not Band.open_ground_id:
-            # Calculate change in HRU area fraction & update
-            delta_area_hru[str(veg_type)] = delta_area_vegetated[band_id] * \
+      # Determine new HRU area fractions
+      for veg_type, hru in band.hrus.items():
+        if veg_type is not Band.glacier_id and veg_type is not Band.open_ground_id:
+          # Calculate change in HRU area fraction & update
+          if str(band_id) not in new_hru_area_frac:
+            new_hru_area_frac[str(band_id)] = {}
+            delta_area_hru[str(band_id)] = {}
+          if veg_scaling_divisor[band_id] != 0:
+            delta_area_hru[str(band_id)][str(veg_type)] = delta_area_vegetated[band_id] * \
               (band.hrus[veg_type].area_frac / veg_scaling_divisor[band_id])
-            if str(band_id) not in new_hru_area_frac:
-              new_hru_area_frac[str(band_id)] = {}
-            new_hru_area_frac[str(band_id)][str(veg_type)] = \
-              band.hrus[veg_type].area_frac + delta_area_hru[str(veg_type)]
-            if isclose(new_hru_area_frac[str(band_id)][str(veg_type)], 0, abs_tol=ZERO_AREA_FRAC_TOL):
-              new_hru_area_frac[str(band_id)][str(veg_type)] = 0
+          else:
+            delta_area_hru[str(band_id)][str(veg_type)] = 0
+          new_hru_area_frac[str(band_id)][str(veg_type)] = \
+            band.hrus[veg_type].area_frac + delta_area_hru[str(band_id)][str(veg_type)]
+          if isclose(new_hru_area_frac[str(band_id)][str(veg_type)], 0, abs_tol=ZERO_AREA_FRAC_TOL):
+            new_hru_area_frac[str(band_id)][str(veg_type)] = 0
 
     # Update all HRU states for each band, then apply new HRU area
     # fractions calculated above.
@@ -583,10 +618,11 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
       band.hrus[Band.glacier_id],
       '3', **new_area_fracs)
   elif new_glacier_area_frac[band_id] == 0 and band.area_frac_glacier > 0 \
-          and new_band_area_frac[band_id] > 0 and band.area_frac > 0:
-    # CASE 4a: Glacier HRU has disappeared, but the band remains
-    # (implies open ground HRU is expanding). Add state to open ground
-    # HRU (leave the zero area "shadow glacier" HRU in place for VIC).
+          and new_band_area_frac[band_id] > 0 and band.area_frac > 0 \
+          and new_open_ground_area_frac[band_id] > 0:
+    # CASE 4a: Glacier HRU has disappeared, but the band with
+    # an open ground HRU remains. Add state to open ground HRU
+    # (leave the zero area "shadow glacier" HRU in place for VIC).
     logging.debug('State update CASE 4a identified. Glacier has '
       'disappeared. Transferring state to the OPEN GROUND HRU in this band.')
     new_area_fracs = {
@@ -599,6 +635,24 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
       band.hrus[Band.glacier_id],
       band.hrus[Band.open_ground_id],
       '4a', **new_area_fracs)
+  elif new_glacier_area_frac[band_id] == 0 and band.area_frac_glacier > 0 \
+          and new_band_area_frac[band_id] > 0 and band.area_frac > 0 \
+          and new_open_ground_area_frac[band_id] == 0:
+    # CASE 4c: Both glacier and open ground HRU have disappeared, but
+    # the band remains. Add state to the vegetated HRU with the greatest
+    # #vegetation type index in that band (leave the zero area "shadow
+    # glacier" HRU in place for VIC).
+    max_veg_type = max(list(map(int, list(new_hru_area_frac[str(band_id)]))))
+    logging.debug('State update CASE 4c identified. Both glacier and open '
+      'ground HRUs have disappeared. Transferring state to the VEGETATED HRU '
+      '%s in this band.', max_veg_type)
+    new_area_fracs = {
+      'new_hru_area_frac': new_hru_area_frac[str(band_id)][str(max_veg_type)]
+    }
+    update_hru_state(
+      band.hrus[Band.glacier_id],
+      cell.bands[band_id].hrus[int(max_veg_type)],
+      '4c', **new_area_fracs)
   elif new_glacier_area_frac[band_id] == 0 and band.area_frac_glacier > 0 \
           and new_band_area_frac[band_id] == 0 and band.area_frac != 0 \
           and (band_id - 1) >= 0 \
@@ -657,11 +711,9 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
           and (band_id - 1) >= 0 and new_band_area_frac[band_id - 1] > 0:
     # CASE 5c: Glacier HRU and the band have disappeared due to glacier.
     # If an adjacent lower band exists (with non-zero area fraction), add
-    # state to the vegetated HRU with non-zero area fraction and the
-    # greatest vegetation type index in that band.
-    valid_vegetated_hrus_below = list(filter(lambda x: x[1].area_frac > 0, \
-                                             new_hru_area_frac[str(band_id - 1)].items()))
-    max_veg_type_below = max(valid_vegetated_hrus_below)[0]
+    # state to the vegetated HRU with the greatest vegetation type index
+    # in that band.
+    max_veg_type_below = max(list(map(int, list(new_hru_area_frac[str(band_id - 1)]))))
     logging.debug('State update CASE 5c identified. Glacier and the band '
       'have disappeared. Transferring state to the VEGETATED HRU %s in '
       'band %s below.', max_veg_type_below, band_id - 1)
@@ -692,7 +744,7 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
   else:
     raise Exception(
       'Error: No state update case identified for cell {}, band {}, HRU {}.'
-      .format(cell_id, band_id, Band.glacier_id)
+      .format(cell.cell_state.variables['GRID_CELL'], band_id, Band.glacier_id)
     )
 
   # Save the glacier area fraction for this band for checking against
@@ -752,6 +804,24 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
       band.hrus[Band.open_ground_id],
       band.hrus[Band.glacier_id],
       '4b', **new_area_fracs)
+  elif new_open_ground_area_frac[band_id] == 0 and band.area_frac_open_ground > 0 \
+          and new_band_area_frac[band_id] != 0 and band.area_frac > 0\
+          and new_glacier_area_frac[band_id] == 0:
+    # CASE 4c: Open ground has disappeared, but the band remains
+    # (due to change in band hypsometry). Add state to the vegetated
+    # HRU with the greatest vegetation type index in that band.
+    max_veg_type = max(list(map(int, list(new_hru_area_frac[str(band_id)]))))
+    logging.debug('State update CASE 4c identified. Open ground has '
+      'disappeared. Transferring state to the VEGETATED HRU %s in '
+      'current band.', max_veg_type)
+    hrus_to_be_deleted.append(Band.open_ground_id)
+    new_area_fracs = {
+      'new_hru_area_frac': new_hru_area_frac[str(band_id)][str(max_veg_type)]
+    }
+    update_hru_state(
+      band.hrus[Band.open_ground_id],
+      cell.bands[band_id].hrus[int(max_veg_type)],
+      '4c', **new_area_fracs)
   elif new_open_ground_area_frac[band_id] == 0 and band.area_frac_open_ground > 0 \
           and new_band_area_frac[band_id] == 0 and band.area_frac > 0 \
           and (band_id - 1) >= 0 \
@@ -815,11 +885,8 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
     # CASE 5c: Open ground HRU and the band have disappeared due to
     # glacier. Mark the open ground HRU for deletion. If an adjacent
     # lower band exists (with non-zero area_frac), add state to the
-    # vegetated HRU with non-zero area_frac and the greatest vegetation
-    # type index in that band.
-    valid_vegetated_hrus_below = list(filter(lambda x: x[1].area_frac > 0,
-                                  new_hru_area_frac[str(band_id - 1)].items()))
-    max_veg_type_below = max(valid_vegetated_hrus_below)[0]
+    # vegetated HRU with the greatest vegetation type index in that band.
+    max_veg_type_below = max(list(map(int, list(new_hru_area_frac[str(band_id - 1)]))))
     logging.debug('State update CASE 5c identified. Open ground and the '
       'band have disappeared. Transferring state to the VEGETATED HRU %s in '
       'band %s below.', max_veg_type_below, band_id - 1)
@@ -853,7 +920,7 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
   else:
     raise Exception(
       'Error: No state update case identified for cell {}, band {}, HRU {}.'
-      .format(cell_id, band_id, Band.open_ground_id)
+      .format(cell.cell_state.variables['GRID_CELL'], band_id, Band.open_ground_id)
     )
   # Apply update to open ground HRU area fraction. HRU will get deleted later
   # if this is 0 (it will have already been added to hrus_to_be_deleted)
@@ -868,7 +935,7 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
       if new_hru_area_frac[str(band_id)][str(veg_type)] < 0:
         raise Exception(
           'Error: cell {}, band {}: HRU {} has a negative area fraction ({}).'
-          .format(cell_id, band_id, veg_type, \
+          .format(cell.cell_state.variables['GRID_CELL'], band_id, veg_type,
                   new_hru_area_frac[str(band_id)][str(veg_type)])
         )
       if new_hru_area_frac[str(band_id)][str(veg_type)] == band.hrus[veg_type].area_frac:
@@ -877,13 +944,13 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
         logging.debug('State update CASE 2 identified. No change in '
           'VEGETATED HRU %s area. No state update required.', veg_type)
       elif new_hru_area_frac[str(band_id)][str(veg_type)] > 0 \
-              and delta_area_hru[str(veg_type)] != 0:
+              and delta_area_hru[str(band_id)][str(veg_type)] != 0:
         # CASE 3: Vegetated HRU exists in previous and current time
         # steps, but its area fraction has changed.
         logging.debug('State update CASE 3 identified. HRU %s area '
           'fraction has changed from %s to %s.',
           veg_type, new_hru_area_frac[str(band_id)][str(veg_type)] - \
-          delta_area_hru[str(veg_type)],
+          delta_area_hru[str(band_id)][str(veg_type)],
           new_hru_area_frac[str(band_id)][str(veg_type)])
         new_area_fracs = {
           'new_hru_area_frac': new_hru_area_frac[str(band_id)][str(veg_type)]
@@ -895,7 +962,7 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
       elif new_hru_area_frac[str(band_id)][str(veg_type)] == 0 \
               and new_band_area_frac[band_id] > 0 and band.area_frac > 0:
         # CASE 4b: Vegetated HRU has disappeared, but the band remains
-        # (implies glacier HRU expanding). Mark the HRU for deletion
+        # (due to a glacier HRU expanding). Mark the HRU for deletion
         # (never to return -- only open ground can come back in its place)
         # and add state to the glacier HRU.
         logging.debug('State update CASE 4b identified. HRU %s has '
@@ -972,11 +1039,9 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
         # CASE 5c: Both the vegetated HRU and the band have disappeared due to
         # glacier. Mark the vegetated HRU for deletion. An adjacent
         # lower band exists (with non-zero area fraction), where we will
-        # add state to the vegetated HRU with non-zero area fraction and
-        # the greatest vegetation type index in that band.
-        valid_vegetated_hrus_below = list(filter(lambda x: x[1].area_frac > 0,
-                                                 new_hru_area_frac[str(band_id - 1)].items()))
-        max_veg_type_below = max(valid_vegetated_hrus_below)[0]
+        # add state to the vegetated HRU with the greatest vegetation type
+        # index in that band.
+        max_veg_type_below = max(list(map(int, list(new_hru_area_frac[str(band_id - 1)]))))
         logging.debug('State update CASE 5c identified. HRU %s and the '
           'band have disappeared. Transferring state to the VEGETATED HRU %s '
           'in band %s below.', veg_type, max_veg_type_below, band_id - 1)
@@ -1026,7 +1091,7 @@ def update_band_state(cell, band, band_id, new_band_area_frac,
   # If the band has no current area fraction within the cell, set the
   # median elevation to the floor of the range
   if band.area_frac == 0:
-    band.median_elev = band.lower_bound
+    band.median_elev = band.lower_bound + band.band_size/2
 
   logging.debug('Finished state update for band %s.', band_id)
 
@@ -1051,20 +1116,23 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
   elif case == '3':
     for var in source_hru.hru_state.variables:
       if var in spec_2_vars:
-        if type(source_hru.hru_state.variables[var]) == np.ndarray:
-          for layer_idx, layer in enumerate(source_hru.hru_state.variables[var]):
-            if type(source_hru.hru_state.variables[var][layer_idx]) == np.ndarray:
-              for item_idx, item in enumerate(source_hru.hru_state.variables[var][layer_idx]):
-                dest_hru.hru_state.variables[var][layer_idx][item_idx] \
-                = source_hru.hru_state.variables[var][layer_idx][item_idx] \
-                * (source_hru.area_frac / kwargs['new_hru_area_frac'])
-            else:
-              dest_hru.hru_state.variables[var][layer_idx] \
-              = source_hru.hru_state.variables[var][layer_idx] \
-              * (source_hru.area_frac / kwargs['new_hru_area_frac'])
+        if var in spec_2b_vars: # SNOW_SURF_TEMP
+          dest_hru.hru_state.variables[var] = source_hru.hru_state.variables[var]
         else:
-          dest_hru.hru_state.variables[var] = source_hru.hru_state.variables[var] \
-          * (source_hru.area_frac / kwargs['new_hru_area_frac'])
+          if type(source_hru.hru_state.variables[var]) == np.ndarray:
+            for layer_idx, layer in enumerate(source_hru.hru_state.variables[var]):
+              if type(source_hru.hru_state.variables[var][layer_idx]) == np.ndarray:
+                for item_idx, item in enumerate(source_hru.hru_state.variables[var][layer_idx]):
+                  dest_hru.hru_state.variables[var][layer_idx][item_idx] \
+                  = source_hru.hru_state.variables[var][layer_idx][item_idx] \
+                  * (source_hru.area_frac / kwargs['new_hru_area_frac'])
+              else:
+                dest_hru.hru_state.variables[var][layer_idx] \
+                = source_hru.hru_state.variables[var][layer_idx] \
+                * (source_hru.area_frac / kwargs['new_hru_area_frac'])
+          else:
+            dest_hru.hru_state.variables[var] = source_hru.hru_state.variables[var] \
+            * (source_hru.area_frac / kwargs['new_hru_area_frac'])
       elif var in spec_3_vars: # SNOW_DENSITY
         if dest_hru.hru_state.variables['SNOW_DEPTH'] > 0: # avoid division by zero
           dest_hru.hru_state.variables[var] \
@@ -1349,7 +1417,7 @@ def update_hru_state(source_hru, dest_hru, case, **kwargs):
         source_hru.hru_state.variables[var] = 0
         dest_hru.hru_state.variables[var] = 0
 
-  elif case == '5c': # transferring state to vegetated HRU
+  elif case == '4c' or case == '5c': # transferring state to vegetated HRU
     for var in source_hru.hru_state.variables:
       if var in spec_2_vars:
         if type(source_hru.hru_state.variables[var]) == np.ndarray:

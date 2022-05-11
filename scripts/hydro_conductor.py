@@ -19,8 +19,9 @@ from time import strftime
 
 from conductor.file_io import get_rgm_pixel_mapping, read_gsa_headers,\
   write_grid_to_gsa_file, mass_balances_to_rgm_grid, read_state, write_state
-from conductor.cells import Cell, Band, HydroResponseUnit, merge_cell_input, \
-  bin_bands_and_glaciers, digitize_domain, update_glacier_mask, update_area_fracs
+from conductor.cells import Cell, Band, HydroResponseUnit, \
+  apply_custom_root_zone_parms, merge_cell_input, bin_bands_and_glaciers, \
+  digitize_domain, update_glacier_mask, update_area_fracs
 from conductor.snbparams import load_snb_parms, save_snb_parms
 from conductor.vegparams import load_veg_parms, save_veg_parms
 from conductor.vic_globals import Global
@@ -216,11 +217,11 @@ Assuming default value of {}.'.format(Band.glacier_id))
   # FIXME: reinstate the following commented-out code once OPEN_GROUND_ID
   # is supported in VIC
   # Numeric code indicating an open ground vegetation tile (HRU)
-  # if global_parms.open_ground_id is None:
-  #     print('No value for OPEN_GROUND_ID was provided in the VIC global file.
-  # Assuming default value of {}.'.format(Band.open_ground_id))
-  # else:
-  #     Band.open_ground_id = global_parms.open_ground_id
+  if global_parms.open_ground_id is None:
+      print('No value for OPEN_GROUND_ID was provided in the VIC global file. \
+  Assuming default value of {}.'.format(Band.open_ground_id))
+  else:
+      Band.open_ground_id = global_parms.open_ground_id
 
   # Set custom elevation band size, if provided
   if band_size:
@@ -246,7 +247,7 @@ Assuming default value of {}.'.format(Band.glacier_id))
 
   # Apply custom HRU root_zone_parms attributes, if provided
   if glacier_root_zone_parms or open_ground_root_zone_parms:
-    cells.apply_custom_root_zone_parms(hru_cell_dict, glacier_root_zone_parms,\
+    apply_custom_root_zone_parms(hru_cell_dict, glacier_root_zone_parms,\
       open_ground_root_zone_parms)
     Band.glacier_root_zone_parms = glacier_root_zone_parms
     Band.open_ground_root_zone_parms = open_ground_root_zone_parms
@@ -315,7 +316,7 @@ Assuming default value of {}.'.format(Band.glacier_id))
 in the provided Surface DEM (%s), probably because they come from different \
 data sources. The Bed DEM has been adjusted to equal the Surface DEM elevation \
 at these points and written out to the file %s.',\
-    bed_dem_file, num_neg_vals, len(bed_dem), surf_dem_in_file, new_bed_dem_file)
+    bed_dem_file, num_neg_vals, bed_dem.size, surf_dem_in_file, new_bed_dem_file)
     bed_dem_file = new_bed_dem_file
     write_grid_to_gsa_file(bed_dem, bed_dem_file, num_cols_dem, num_rows_dem,\
       dem_xmin, dem_xmax, dem_ymin, dem_ymax)
@@ -394,14 +395,11 @@ at these points and written out to the file %s.',\
 
     # Run VIC for a year, saving model state at the end
     print('\nRunning VIC from {} to {}'.format(start, end))
-    logging.info('\nRunning VIC from %s to %s using global parameter file %s',\
-      start, end, temp_gpf)
+    logging.info('\nRunning VIC from %s to %s using global parameter file %s', start, end, temp_gpf)
     try:
-      subprocess.check_call([vic_path, "-g", temp_gpf], shell=False,\
-        stderr=subprocess.STDOUT)
+      subprocess.check_call([vic_path, "-g", temp_gpf], shell=False, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as e:
-      logging.error('Subprocess invocation of VIC failed with the following \
-error: %s', e)
+      logging.error('Subprocess invocation of VIC failed with the following error: %s', e)
       sys.exit(0)
 
     # Open VIC NetCDF state file and load the most recent set of state
@@ -468,8 +466,7 @@ Bed DEM file %s, Surface DEM file %s, Mass Balance Grid file %s',\
     try:
       subprocess.check_call([rgm_path, "-p", rgm_params_file, "-b",\
         bed_dem_file, "-d", rgm_surf_dem_in_file, "-m", mbg_file, "-o",\
-        temp_files_path, "-s", "0", "-e", "0" ], shell=False,\
-        stderr=subprocess.STDOUT)
+        temp_files_path, "-s", "0", "-e", "0" ], shell=False, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as e:
       logging.error('Subprocess invocation of RGM failed with the following \
 error: %s', e)

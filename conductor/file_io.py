@@ -50,8 +50,8 @@ def mass_balances_to_rgm_grid(gmb_polys, vic_cell_mask, surf_dem, bed_dem, \
     grid to use as one of the inputs to RGM
   """
   mass_balance_grid = np.ma.empty(vic_cell_mask.shape)
-  mass_balance_grid[np.where(vic_cell_mask.mask)] = 0
   try:
+    # Calculate mass balance for unmasked pixels
     for row in range(num_rows_dem):
       for col in range(num_cols_dem):
         # only grab elevation for pixels that fall within a VIC cell
@@ -61,8 +61,12 @@ def mass_balances_to_rgm_grid(gmb_polys, vic_cell_mask, surf_dem, bed_dem, \
           median_elev = surf_dem[row][col]
           mass_balance_grid[row][col] = gmb_polys[cell_id][0] + median_elev \
             * (gmb_polys[cell_id][1] + median_elev * gmb_polys[cell_id][2])
-        else:
-          surf_dem[row][col] = bed_dem[row][col]
+    # Extrapolate mass balance to masked pixels
+    reg = np.polyfit(surf_dem[np.where(~vic_cell_mask.mask)], \
+      mass_balance_grid[np.where(~vic_cell_mask.mask)], 2)
+    p = np.poly1d(reg)
+    mass_balance_grid[np.where(vic_cell_mask.mask)] \
+      = p(surf_dem[np.where(vic_cell_mask.mask)])
   except Exception as e:
     print('mass_balances_to_rgm_grid: Exception while processing pixel at \
 row {} column {}: \n{}'.format(row, col, e))
